@@ -32,3 +32,6 @@ compile_commands.json
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+
+# claude
+resume_claude.txt
