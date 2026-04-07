@@ -1,0 +1,34 @@
+# Arduino build artifacts
+build/
+*.hex
+*.elf
+*.bin
+*.map
+*.eep
+
+# Arduino IDE
+*.bak
+*.tmp
+
+# VS Code
+.vscode/settings.json
+.vscode/launch.json
+.vscode/extensions.json
+.vscode/*.log
+
+# Arduino CLI / arduino-language-server
+compile_commands.json
+.arduino15/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Linux
+*~
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
