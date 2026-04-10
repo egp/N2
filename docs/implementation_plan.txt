@@ -1,0 +1,46 @@
+Implementation_plan.txt
+
+Project: N2
+Current status:
+- TCP0465 library is fixed, tagged, republished, reinstalled, and Arduino CLI compiles its examples.
+- TimedStateMachine and TowerController are implemented and host-tested.
+- O2Handler is implemented on the same host-testable timer seam and host tests are green.
+- Development continues without access to the real O2 sensor hardware.
+
+Implementation plan
+
+1. Integrate TowerController into the production sketch
+   - Wire the master on/off switch into TowerController::setEnabled(...)
+   - Wire the real left/right valve outputs into the valve driver
+   - Call TowerController::tick() from loop()
+   - Acceptance: sketch compiles; turning master off closes both valves immediately; turning master on starts the left-only phase
+
+2. Add Arduino-facing adapters for O2Handler
+   - Implement a real IO2Sensor adapter around TCP0465
+   - Implement a real IFlushValveDriver adapter around the flush valve output pin
+   - Keep O2Handler itself unchanged and host-testable
+   - Acceptance: production sketch compiles with real adapters, still without needing live O2 hardware
+
+3. Integrate O2Handler into the production sketch
+   - Call O2Handler::begin() in setup()
+   - Call O2Handler::tick() in loop()
+   - On rotary edge to O2, call requestMeasurementIfStale()
+   - Display code should read cached handler state/value only:
+     hasValue(), isWarmingUp(), isValueFresh(), averagedPercent(), errorString()
+   - Acceptance: sketch compiles; display code does not know internal O2 states
+
+4. Add a fake O2 sensor adapter for bench testing without O2 hardware
+   - Provide a sketch-local fake IO2Sensor implementation returning synthetic values and optional failures
+   - Use it to exercise warmup, flush, settle, sample timing, stale-triggered early measurement, and display integration
+   - Acceptance: bare Arduino bench testing is possible with displays only
+
+5. Refactor only after integration reveals real duplication
+   - TimedStateMachine already captures the shared timing/state utility
+   - Delay further abstraction until both handlers are integrated and actual duplication is visible
+   - Acceptance: any further shared code is motivated by real repeated patterns, not speculation
+
+Suggested commit messages
+- integration: wire TowerController into production sketch
+- integration: add Arduino adapters for O2Handler
+- integration: wire O2Handler into production sketch
+- dev: add fake O2 sensor adapter for bench testing without hardware
