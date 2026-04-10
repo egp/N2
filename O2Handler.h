@@ -2,25 +2,52 @@
 #ifndef O2_HANDLER_H
 #define O2_HANDLER_H
 
-#include <Arduino.h>
-#include <TCP0465.h>
+#include <stdint.h>
+
+#include "TimedStateMachine.h"
+
+class IO2Sensor {
+public:
+  virtual ~IO2Sensor() {}
+  virtual bool begin() = 0;
+  virtual bool readOxygenPercent(float& percentVol) = 0;
+  virtual const char* errorString() const = 0;
+};
+
+class IFlushValveDriver {
+public:
+  virtual ~IFlushValveDriver() {}
+  virtual void setFlushValveOpen(bool open) = 0;
+};
 
 class O2Handler {
 public:
-  typedef void (*ValveControlFn)(bool open);
-
   struct Config {
-    uint32_t warmupDurationMs = 300000UL;      // 5 minutes
-    uint32_t measurementIntervalMs = 60000UL;  // once per minute
-    uint32_t flushDurationMs = 3000UL;         // valve open time
-    uint32_t settleDurationMs = 1000UL;        // valve closed before sampling
-    uint16_t sampleIntervalMs = 250U;          // time between samples
-    uint8_t sampleCount = 10U;                 // averaged sample count
-    uint32_t freshnessThresholdMs = 15000UL;   // "recent enough" for display
-    uint32_t errorBackoffMs = 1000UL;          // retry delay after failed cycle
+    uint32_t warmupDurationMs;
+    uint32_t measurementIntervalMs;
+    uint32_t flushDurationMs;
+    uint32_t settleDurationMs;
+    uint16_t sampleIntervalMs;
+    uint8_t sampleCount;
+    uint32_t freshnessThresholdMs;
+    uint32_t errorBackoffMs;
   };
 
-  explicit O2Handler(ValveControlFn valveControlFn, const Config& config = Config());
+  enum State : uint8_t {
+    STATE_UNINITIALIZED = 0,
+    STATE_WARMUP,
+    STATE_WAITING_TO_FLUSH,
+    STATE_FLUSHING,
+    STATE_SETTLING,
+    STATE_SAMPLING,
+    STATE_WAITING_FOR_NEXT_SAMPLE,
+    STATE_ERROR_BACKOFF
+  };
+
+  static Config defaultConfig();
+
+  O2Handler(IClock& clock, IO2Sensor& sensor, IFlushValveDriver& flushValveDriver);
+  O2Handler(IClock& clock, IO2Sensor& sensor, IFlushValveDriver& flushValveDriver, const Config& config);
 
   bool begin();
   void tick();
@@ -34,45 +61,31 @@ public:
 
   float averagedPercent() const;
   const char* errorString() const;
+  State state() const;
 
-  void setConfig(const Config& config);
   const Config& config() const;
+  void setConfig(const Config& config);
 
 private:
-  enum State : uint8_t {
-    STATE_UNINITIALIZED = 0,
-    STATE_WARMUP,
-    STATE_WAITING_TO_FLUSH,
-    STATE_FLUSHING,
-    STATE_SETTLING,
-    STATE_SAMPLING,
-    STATE_WAITING_FOR_NEXT_SAMPLE,
-    STATE_ERROR_BACKOFF
-  };
-
-  void transitionTo(State nextState, uint32_t nowMs);
-  void beginMeasurementCycle(uint32_t nowMs);
-  void finishMeasurementCycle(uint32_t nowMs, float averagedPercent);
-  void failMeasurementCycle(uint32_t nowMs, const char* error);
-
-  uint32_t nowMs() const;
-  bool sampleSensor(float& percentVol);
   bool shouldStartScheduledCycle(uint32_t nowMs) const;
+  void beginMeasurementCycle();
+  void finishMeasurementCycle(float averagedPercent);
+  void failMeasurementCycle(const char* error);
+  void transitionTo(State nextState);
+  void transitionToFor(State nextState, uint32_t durationMs);
 
-  TCP0465 sensor_;
-  ValveControlFn valveControlFn_;
+  IClock& clock_;
+  IO2Sensor& sensor_;
+  IFlushValveDriver& flushValveDriver_;
+  TimedStateMachine timedStateMachine_;
   Config config_;
 
-  State state_;
-  uint32_t stateEnteredAtMs_;
-  uint32_t nextActionAtMs_;
-  uint32_t lastCompletedMeasurementAtMs_;
-  bool hasCompletedMeasurement_;
+  bool hasValue_;
   bool earlyMeasurementRequested_;
-
-  uint8_t samplesCollected_;
-  float runningSumPercent_;
+  uint32_t lastCompletedMeasurementAtMs_;
   float cachedAveragePercent_;
+  float runningSumPercent_;
+  uint8_t samplesCollected_;
   const char* lastError_;
 };
 

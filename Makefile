@@ -1,10 +1,11 @@
+# Makefile v2
 SHELL := /bin/bash
 
 CXX ?= c++
 HOST_CXXFLAGS ?= -std=c++17 -Wall -Wextra -Werror -pedantic -I.
 
 HOST_TEST_FILES := $(wildcard host_tests/*.cpp)
-HOST_COMMON_SOURCES := TimedStateMachine.cpp TowerController.cpp
+HOST_COMMON_SOURCES := TimedStateMachine.cpp TowerController.cpp O2Handler.cpp
 
 .PHONY: host-test clean
 
@@ -20,3 +21,4 @@ host-test:
 
 clean:
 	@rm -rf build
+# Makefile v2
