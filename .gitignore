@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Arduino build artifacts
 build/
 *.hex
@@ -35,3 +36,34 @@ Desktop.ini
 
 # claude
 resume_claude.txt
+=======
+# macOS
+.DS_Store
+
+# Build output
+build/
+dist/
+out/
+
+# Arduino / IDE
+.arduinoIDE/
+arduino-cli.yaml
+*.ino.bin
+*.ino.elf
+*.hex
+
+#temporary
+tmp/
+temp/
+
+# Editors
+.vscode/
+.idea/
+*.code-workspace
+
+# Backups / temp
+*~
+*.swp
+*.swo
+*.tmp
+>>>>>>> abea67b (chore: initialize N2 repository)

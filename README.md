@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # n2
 
 Arduino project developed with Visual Studio Code.
@@ -41,3 +42,28 @@ n2/
 ## License
 
 MIT — see [LICENSE](LICENSE).
+=======
+# N2
+
+Arduino-based control software for the N2 project.
+
+Current scope includes:
+
+- tower valve control
+- O2 handling and display integration
+- host-side testable timed state-machine components
+
+## Status
+
+Early development.
+
+## Repository goals
+
+- keep control logic testable on the host side
+- minimize blocking behavior in production code
+- separate reusable timed state logic from hardware-specific handlers
+
+## License
+
+MIT
+>>>>>>> abea67b (chore: initialize N2 repository)
