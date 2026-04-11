@@ -154,11 +154,11 @@ const uint8_t DISP4_BRIGHTNESS = 1;  // 0-7
 /*
 I2C bus declarations, they are initialized during setup()
 */
-BBI2C i2c_bus_a{}; // disp4
-BBI2C i2c_bus_b{}; // O2 sensor
-BBI2C i2c_bus_c{}; // displ20x4
-BBI2C i2c_bus_d{}; // UNUSED (RTC?)
-BBI2C i2c_bus_e{}; // UNUSED
+BBI2C i2c_bus_a{};  // disp4
+BBI2C i2c_bus_b{};  // O2 sensor
+BBI2C i2c_bus_c{};  // displ20x4
+BBI2C i2c_bus_d{};  // UNUSED (RTC?)
+BBI2C i2c_bus_e{};  // UNUSED
 
 /* O@ handler setup */
 const uint8_t O2_FLUSH_VALVE_PIN = O2SamplePin;
@@ -193,7 +193,6 @@ public:
     return true;
   }
 
-  TCP0465SensorAdapter o2Sensor{i2c_bus_b, TCP0465::DEFAULT_ADDRESS};
 
   bool readOxygenPercent(float& percentVol) override {
     if (!sensor_.readOxygenPercent(percentVol)) {
@@ -236,6 +235,9 @@ private:
   uint8_t pin_;
   bool activeHigh_;
 };
+
+
+TCP0465SensorAdapter o2Sensor{ i2c_bus_b, TCP0465::DEFAULT_ADDRESS };
 
 /*
 TowerController setting
@@ -289,7 +291,7 @@ const char* template3 = "  NITROGEN %4s %%   ";
 /*
 Instances of the library classes
 */
-TCP1650 disp4(i2c_bus_a); 
+TCP1650 disp4(i2c_bus_a);
 
 O2Handler::Config o2Config = {
   300000UL,  // warmupDurationMs: 5 minutes
@@ -860,11 +862,11 @@ void waitForO2Sensor() {
 }
 
 void setupI2C() {
-  i2c_bus_a.bWire = 0;            // use bit banging, not builtin wire
-  i2c_bus_b.bWire = 0;            // use bit banging
-  i2c_bus_c.bWire = 0;            // use bit banging
-  i2c_bus_d.bWire = 0;            // use bit banging
-  i2c_bus_e.bWire = 0;            // use bit banging
+  i2c_bus_a.bWire = 0;  // use bit banging, not builtin wire
+  i2c_bus_b.bWire = 0;  // use bit banging
+  i2c_bus_c.bWire = 0;  // use bit banging
+  i2c_bus_d.bWire = 0;  // use bit banging
+  i2c_bus_e.bWire = 0;  // use bit banging
   i2c_bus_a.iSDA = I2C_BUSA_SDA;
   i2c_bus_a.iSCL = I2C_BUSA_SCL;
   i2c_bus_b.iSDA = I2C_BUSB_SDA;
@@ -873,7 +875,7 @@ void setupI2C() {
   i2c_bus_c.iSCL = I2C_BUSC_SCL;
   i2c_bus_d.iSDA = I2C_BUSD_SDA;
   i2c_bus_d.iSCL = I2C_BUSD_SCL;
-  i2c_bus_e.iSDA = I2C_BUSE_SDA; 
+  i2c_bus_e.iSDA = I2C_BUSE_SDA;
   i2c_bus_e.iSCL = I2C_BUSE_SCL;
   I2CInit(&i2c_bus_a, 100000);  // 100K clock
   I2CInit(&i2c_bus_b, 100000);  // 100K clock
