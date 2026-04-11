@@ -192,8 +192,8 @@ public:
     lastError_ = "no error";
     return true;
   }
- 
-  TCP0465SensorAdapter o2Handler(i2c_bus_b, TCP0465::DEFAULT_ADDRESS);
+
+  TCP0465SensorAdapter o2Sensor{i2c_bus_b, TCP0465::DEFAULT_ADDRESS};
 
   bool readOxygenPercent(float& percentVol) override {
     if (!sensor_.readOxygenPercent(percentVol)) {
