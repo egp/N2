@@ -406,6 +406,7 @@ private:
 };
 
 ArduinoClock timerClock;
+
 SketchTowerValveDriver towerValves(
   LEFT_TOWER_VALVE_PIN,
   RIGHT_TOWER_VALVE_PIN,
@@ -418,6 +419,10 @@ TowerController::Config towerConfig = {
 };
 
 TowerController towerController(timerClock, towerValves, towerConfig);
+
+ArduinoFlushValveDriver o2FlushValve(O2_FLUSH_VALVE_PIN, O2_FLUSH_VALVE_ACTIVE_HIGH);
+
+O2Handler o2Handler(timerClock, o2Sensor, o2FlushValve, o2Config);
 
 /*
 readO2Sensor()
@@ -440,20 +445,6 @@ void readO2Sensor() {
   previousO2 = O2portion;
 }
 
-/*
-float getAverageOxygen()
-  collect samples spaced apart by 100 ms.  Its effective range is 0~25%Vol.
-  Open for 2-3 seconds, close, then wait 2-3 seconds for stability
-  Note the documentation says the COLLECT_NUMBER is how many samples it
-      averages over, so we don't need to do averaging explicitly.
-*/
-/*
-float getAverageOxygen() {
-  // verify float from 0.0 - 25.0 [ or 0.0 to 0.25 ??]
-  return (oxygen.getOxygenData(COLLECT_NUMBER)); 
-}
-*/
-
 float getOxygenData(byte numberOfSamples, uint16_t delayMs) {
   if (numberOfSamples == 0) {
     Serial.println("TCP0465 getOxygenData(): numberOfSamples must be > 0");
@@ -465,13 +456,12 @@ float getOxygenData(byte numberOfSamples, uint16_t delayMs) {
 
   for (byte i = 0; i < numberOfSamples; ++i) {
     float percentVol = 0.0f;
-
-    if (oxygen.readOxygenPercent(percentVol)) {
+    if (o2Sensor.readOxygenPercent(percentVol)) {
       sum += percentVol;
       ++validSamples;
     } else {
       Serial.print("TCP0465 readOxygenPercent() failed: ");
-      Serial.println(oxygen.errorString());
+      Serial.println(o2Sensor.errorString());
     }
 
     if ((i + 1) < numberOfSamples && delayMs > 0) {
@@ -850,12 +840,11 @@ void disableDisplay4() {
   disp4.displayOff();
 }
 
-
 void waitForO2Sensor() {
   o2SensorReady = false;
-  while (!oxygen.begin()) {
+  while (!o2Sensor.begin()) {
     Serial.print("TCP0465 begin() failed: ");
-    Serial.println(oxygen.errorString());
+    Serial.println(o2Sensor.errorString());
     delay(1000);
   }
   o2SensorReady = true;
