@@ -1,11 +1,13 @@
 /* N2_V3A  2026.02.02 08:37   */
 #include <Arduino.h>
 #include <Wire.h>
-// #include <DFRobot_OxygenSensor.h>  // 1.0.2 https://github.com/DFRobot/DFRobot_OxygenSensor
-#include <TCP1650.h>  // v0.1.0 https://github.com/egp/TCP1650
-#include <TCP20x4.h>  // v0.1.0 https://github.com/egp/TCP20x4
-#include <TCP0465.h>  // V0.1.1 https://github.com/egp/TCP0465
+#include <BitBang_I2C.h>  // v2.2.1 https://github.com/bitbank2/BitBang_I2C
+#include <TCP1650.h>      // v0.1.0 https://github.com/egp/TCP1650
+#include <TCP20x4.h>      // v0.1.0 https://github.com/egp/TCP20x4
+#include <TCP0465.h>      // V0.1.1 https://github.com/egp/TCP0465
 #include "O2Handler.h"
+#include "TimedStateMachine.h"
+#include "TowerController.h"
 
 
 /*
@@ -76,7 +78,7 @@ TODO:
 /*
 Values to be modified
 */
-const char* PROGRAM_VERSION = "3.2";  // update this major.minor. TODO add change log
+const char* PROGRAM_VERSION = "4.0";  // update this major.minor. TODO add change log
 bool verboseSerial = true;            // enable for verbose debugging messages to the Serial Monitor
 
 /* -- pressure sensor parameters -- */
@@ -100,31 +102,38 @@ const uint8_t supplyPressurePin = A0;      // analog input pin 14
 const uint8_t leftTowerPressurePin = A1;   // analog input pin 15 Relay_1
 const uint8_t rightTowerPressurePin = A2;  // analog input pin 16 Relay_2
 const uint8_t lowPressureN2Pin = A3;       // analog input pin 17
-const uint8_t I2C_SDA = A4;                // digital I/O pin 18 -- I2C DATA
-const uint8_t I2C_SCL = A5;                // digital I/O pin 19 -- I2C CLOCK
-const uint8_t blackSwitchPin = D0;         // digital input
-const uint8_t unusedD1 = D1;
-const uint8_t otherButton = D2;         // Other button
-const uint8_t unusedD3 = D3;            // PWM pins D3, D5, D6, D9, D10, and D11.
-const uint8_t leftTowerValvePin = D4;   // digital output
-const uint8_t unusedD5 = D5;            // PWM
-const uint8_t unusedD6 = D6;            // PWM
+const uint8_t highPressureN2Pin = A4;      // analog input pin 18
+
+const uint8_t blackSwitchPin = D0;  // digital input
+const uint8_t theOtherButton = D1;  // aux button
+const uint8_t I2C_BUSA_SDA = D2;
+const uint8_t I2C_BUSA_SCL = D3;
+const uint8_t leftTowerValvePin = D4;  // digital output
+const uint8_t I2C_BUSB_SDA = D5;
+const uint8_t I2C_BUSB_SCL = D6;
 const uint8_t rightTowerValvePin = D7;  // digital output
 const uint8_t SSR_Pin = D8;             // digital output TODO verify correct pin Relay_3
-const uint8_t unusedD9 = D9;            // PWM
-const uint8_t unusedD10 = D10;          // PWM
-const uint8_t O2SamplePin = D11;        // PWM digital output TODO verify correct pin Relay_4
-const uint8_t unusedD12 = D12;
-const uint8_t unusedD13 = D13;
-const uint8_t unusedD14 = D14;
-const uint8_t unusedD15 = D15;
-// const uint8_t onboardLedTx = LED_TX;  // 21
-// const uint8_t onboardLedRx = LED_RX;  // 22
+const uint8_t I2C_BUSC_SDA = D9;
+const uint8_t I2C_BUSC_SCL = D10;
+const uint8_t O2SamplePin = D11;  // PWM digital output TODO verify correct pin Relay_4
+const uint8_t I2C_BUSD_SDA = D12;
+const uint8_t I2C_BUSD_SCL = D13;
+const uint8_t I2C_BUSE_SDA = D14;
+const uint8_t I2C_BUSE_SCL = D15;
+
+/* I2C bus assigbments */
+const uint8_t DISP4_SDA = I2C_BUSA_SDA;     // Four-digit seven segment display and rotary switch
+const uint8_t DISP4_SCL = I2C_BUSA_SCL;     //
+const uint8_t O2_SDA = I2C_BUSB_SDA;        // O2 sensor
+const uint8_t O2_SCL = I2C_BUSB_SCL;        //
+const uint8_t DISP20x4_SDA = I2C_BUSC_SDA;  // 20x4 LCD display
+const uint8_t DISP20x4_SCL = I2C_BUSC_SCL;  //
+const uint8_t RTC_SDA = I2C_BUSD_SDA;       // Real TIme Clock
+const uint8_t RTC_SCL = I2C_BUSD_SCL;       //
 
 /* -- these should probably not change -- */
-const uint8_t I2C_O2 = 0x74;   // 0x73 I2C address
-const uint8_t I2C_LED = 0x2F;  // 0x2F I2C address for TM1650 4-digit 7-segment LED display
-
+const uint8_t I2C_O2 = 0x74;       // 0x73 I2C address
+const uint8_t I2C_LED = 0x2F;      // 0x2F I2C address for TM1650 4-digit 7-segment LED display
 const uint8_t I2C_LCD20x4 = 0x27;  // 0x27 I2C address for display 20x4
 const uint8_t lcdColumns = 20, lcdRows = 4;
 
@@ -143,10 +152,108 @@ const uint8_t SSR_OFF = LOW;
 const uint8_t DISP4_BRIGHTNESS = 1;  // 0-7
 
 /*
+I2C bus setup
+*/
+BBI2C busa;
+BBI2C busb;
+BBI2C busc;
+BBI2C busd;
+BBI2C buse;
+busa.bWire = 0;            // use bit banging, not builtin wire
+busb.bWire = 0;            // use bit banging
+busc.bWire = 0;            // use bit banging
+busd.bWire = 0;            // use bit banging
+buse.bWire = 0;            // use bit banging
+busa.iSDA = I2C_BUSA_SDA;  // Disp4
+busa.iSCL = I2C_BUSA_SCL;
+busb.iSDA = I2C_BUSB_SDA;  // O2 sensor
+busb.iSCL = I2C_BUSB_SCL;
+busc.iSDA = I2C_BUSC_SDA;  // Disp20x4
+busc.iSCL = I2C_BUSC_SCL;
+busd.iSDA = I2C_BUSD_SDA;  // RTC
+busd.iSCL = I2C_BUSD_SCL;
+buse.iSDA = I2C_BUSE_SDA;  // Future expansion
+buse.iSCL = I2C_BUSE_SCL;
+I2CInit(&busa, 100000);  // 100K clock
+I2CInit(&busb, 100000);  // 100K clock
+I2CInit(&busc, 100000);  // 100K clock
+I2CInit(&busd, 100000);  // 100K clock
+I2CInit(&buse, 100000);  // 100K clock
+
+/* O@ handler setup */
+const uint8_t O2_FLUSH_VALVE_PIN = O2SamplePin;
+const bool O2_FLUSH_VALVE_ACTIVE_HIGH = true;
+
+class TCP0465SensorAdapter : public IO2Sensor {
+public:
+  TCP0465SensorAdapter()
+    : sensor_(),
+      wire_(&Wire),
+      address_(TCP0465::DEFAULT_ADDRESS) {}
+
+  TCP0465SensorAdapter(TwoWire& wire, uint8_t address)
+    : sensor_(),
+      wire_(&wire),
+      address_(address) {}
+
+  bool begin() override {
+    return sensor_.begin(*wire_, address_);
+  }
+
+  bool readOxygenPercent(float& percentVol) override {
+    return sensor_.readOxygenPercent(percentVol);
+  }
+
+  const char* errorString() const override {
+    return sensor_.errorString();
+  }
+
+private:
+  TCP0465 sensor_;
+  TwoWire* wire_;
+  uint8_t address_;
+};
+class ArduinoFlushValveDriver : public IFlushValveDriver {
+public:
+  ArduinoFlushValveDriver(uint8_t pin, bool activeHigh)
+    : pin_(pin),
+      activeHigh_(activeHigh) {}
+
+  void begin() {
+    pinMode(pin_, OUTPUT);
+    setFlushValveOpen(false);
+  }
+
+  void setFlushValveOpen(bool open) override {
+    digitalWrite(pin_, activeHigh_ ? (open ? HIGH : LOW)
+                                   : (open ? LOW : HIGH));
+  }
+
+private:
+  uint8_t pin_;
+  bool activeHigh_;
+};
+
+/*
+TowerController setting
+*/
+constexpr uint8_t LEFT_TOWER_VALVE_PIN = leftTowerValvePin;
+constexpr uint8_t RIGHT_TOWER_VALVE_PIN = rightTowerValvePin;
+constexpr uint8_t TOWER_MASTER_SWITCH_PIN = blackSwitchPin;
+
+// change to false if your relay/driver is active-low
+constexpr bool TOWER_VALVE_ACTIVE_HIGH = true;
+
+constexpr uint32_t LEFT_OPEN_MS = 60000UL;
+constexpr uint32_t OVERLAP_MS = 750UL;
+constexpr uint32_t RIGHT_OPEN_MS = 60000UL;
+
+
+/*
 variables to hold sensor readings
 */
-int supplyPressure, leftTowerPressure, rightTowerPressure, lowPressureN2;
-uint16_t scaledSupplyPSI, scaledLeftPSI, scaledRightPSI, scaledLowN2PSI;
+int supplyPressure, leftTowerPressure, rightTowerPressure, lowPressureN2, highPressureN2;
+uint16_t scaledSupplyPSI, scaledLeftPSI, scaledRightPSI, scaledLowN2PSI, scaledHighN2PSI;
 float O2portion, N2portion;
 uint16_t n2int;              // will hold integer percent x100
 uint8_t rotarySwitchStatus;  // holds current status of rotary switch
@@ -157,6 +264,7 @@ float previousO2 = 0.0;
 uint8_t previousRotarySwitch = 0, previousButtonValue = 0;
 bool systemWasEnabled = false;
 bool previousSSR = false;
+bool wasO2Selected = false;  // notice when switch changes to N2
 
 /* -- output buffers -- */
 char sprintfBuffer[80];  // holds debugging information before printing
@@ -178,9 +286,19 @@ const char* template3 = "  NITROGEN %4s %%   ";
 /*
 Instances of the library classes
 */
-TCP1650 disp4(2, 3);
-
-TCP0465 oxygen;
+TCP1650 disp4(DISP4_SDA, DISP4_SCL);  // also does buttons (rotary switch)
+// TCP0465 oxygen;                       // O2 sensor
+TCP0465SensorAdapter o2Sensor(Wire, TCP0465::DEFAULT_ADDRESS);
+O2Handler::Config o2Config = {
+  300000UL,  // warmupDurationMs: 5 minutes
+  60000UL,   // measurementIntervalMs: once per minute
+  3000UL,    // flushDurationMs
+  2000UL,    // settleDurationMs
+  250U,      // sampleIntervalMs
+  10U,       // sampleCount
+  15000UL,   // freshnessThresholdMs
+  1000UL     // errorBackoffMs
+};
 
 /*
 ************************************************************************************
@@ -206,21 +324,14 @@ char commandBuffer[kCommandBufferSize];
 *********************************************************************************************
 */
 
-/* ---------- Task struct for scheduler ---------- */
-struct Task {
-  uint32_t interval;   // how often to run (ms)
-  uint32_t lastRun;    // last execution time
-  void (*callback)();  // task function to be called on schedule
-};
 
-/* ---------- Forward declarations for taskList table ---  */
+/* ---------- Forward declarations ---  */
 void readO2Sensor();
 void readPressureSensors();
 void cycleTowers();
 void checkN2Compressor();
 void displaySelectedValue();
 void readBlackSwitch();
-/* -------------other forward declarations ---------------*/
 void displayO2();
 void readBlackSwitch();
 uint8_t readRotarySwitch();
@@ -234,33 +345,72 @@ void displayToLCD20x4();
 void disableDisplay4();
 void disableDisplay20x4();
 
-/* ---------- Task taskList table ---------- */
 /*
-Must follow the task callback forward declarations.
-Keep with taskName table
-TODO: All these periods need adjustment
+*********************************************************
+Setup for timing control
+*********************************************************
 */
-Task taskList[] = {
-  { 3000, 0, readO2Sensor },  // 0
+class ArduinoClock : public IClock {
+public:
+  uint32_t nowMs() const override {
+    return millis();
+  }
+};
 
-  { 50, 0, readPressureSensors },     // 1
-  { 5900, 0, cycleTowers },           // 2  once/minute
-  { 50, 0, checkN2Compressor },       // 3
-  { 1000, 0, displaySelectedValue },  // 4
-  { 1000, 0, readBlackSwitch }        // 5
-};
-const uint8_t NUM_TASKS = sizeof(taskList) / sizeof(taskList[0]);
 /*
-Task names for debugging. Same number and order as taskList, keep together
+*********************************************************
+Setup for Tower control
+*********************************************************
 */
-const char* taskName[NUM_TASKS] = {
-  "0 readO2Sensor",
-  "1 readPressureSensors",
-  "2 cycleTowers",
-  "3 checkN2Compressor",
-  "4 displaySelectedValue",
-  "5 readBlackSwitch"
+
+class SketchTowerValveDriver : public ITowerValveDriver {
+public:
+  SketchTowerValveDriver(uint8_t leftPin, uint8_t rightPin, bool activeHigh)
+    : leftPin_(leftPin),
+      rightPin_(rightPin),
+      activeHigh_(activeHigh) {}
+
+  void begin() {
+    pinMode(leftPin_, OUTPUT);
+    pinMode(rightPin_, OUTPUT);
+    setLeftOpen(false);
+    setRightOpen(false);
+  }
+
+  void setLeftOpen(bool open) override {
+    digitalWrite(leftPin_, levelFor(open));
+  }
+
+  void setRightOpen(bool open) override {
+    digitalWrite(rightPin_, levelFor(open));
+  }
+
+private:
+  uint8_t levelFor(bool open) const {
+    if (activeHigh_) {
+      return open ? HIGH : LOW;
+    }
+    return open ? LOW : HIGH;
+  }
+
+  uint8_t leftPin_;
+  uint8_t rightPin_;
+  bool activeHigh_;
 };
+
+ArduinoClock timerClock;
+SketchTowerValveDriver towerValves(
+  LEFT_TOWER_VALVE_PIN,
+  RIGHT_TOWER_VALVE_PIN,
+  TOWER_VALVE_ACTIVE_HIGH);
+
+TowerController::Config towerConfig = {
+  LEFT_OPEN_MS,
+  OVERLAP_MS,
+  RIGHT_OPEN_MS,
+};
+
+TowerController towerController(timerClock, towerValves, towerConfig);
 
 /*
 readO2Sensor()
@@ -275,7 +425,7 @@ void readO2Sensor() {
   for (uint16_t sampleTime = 0; sampleTime < o2SamplePeriod; sampleTime += o2AveragingPeriod) {
   }
   /* -- here with O2portion as a float from 0.0 to 25.0 (TODO: Verify) */
-  N2portion = 100.0 - getOxygenData(10,100); // nSamples, msDelay
+  N2portion = 100.0 - getOxygenData(10, 100);        // nSamples, msDelay
   if (verboseSerial && (previousO2 != O2portion)) {  // only print if different than last time
     sprintf(sprintfBuffer, "O2portion %.2f,  N2portion %.2f ", O2portion, N2portion);
     Serial.println(sprintfBuffer);
@@ -339,6 +489,7 @@ void readPressureSensors() {
   readLeftTowerPressure();
   readRightTowerPressure();
   readLowPressureN2();
+  readHighPressureN2();
 }
 
 /*
@@ -362,21 +513,25 @@ void readSupplyPressure() {
 /* -- read left tower pressure and scale it -- */
 void readLeftTowerPressure() {
   leftTowerPressure = analogRead(leftTowerPressurePin);
-  scaledLeftPSI = scalePressure(leftTowerPressure, 1500);
+  scaledLeftPSI = scalePressure(leftTowerPressure, 1500);  // tenths
 }
 
 /* -- read right tower pressure and scale it -- */
 void readRightTowerPressure() {
   rightTowerPressure = analogRead(rightTowerPressurePin);
-  scaledRightPSI = scalePressure(rightTowerPressure, 1500);
+  scaledRightPSI = scalePressure(rightTowerPressure, 1500);  // tenths
 }
 
-/* -- read low pressure N2 and scale it -- */
+/* -- read low and high pressure N2 and scale -- */
 void readLowPressureN2() {
   lowPressureN2 = analogRead(lowPressureN2Pin);
   scaledLowN2PSI = scalePressure(lowPressureN2, 3000);  // hudnredths of PSI
 }
 
+void readHighPressureN2() {
+  highPressureN2 = analogRead(highPressureN2Pin);
+  scaledHighN2PSI = scalePressure(highPressureN2, 1500);  // tenths
+}
 /* -- valve open/close routines -- */
 void openLeftTowerValve() {
   digitalWrite(leftTowerValvePin, VALVE_OPEN);
@@ -582,8 +737,8 @@ void scanI2C() {
       Serial.print(sprintfBuffer);
       nDevices++;
     } else {
-      sprintf(sprintfBuffer, "Unknown I2C error %02X at address %02X.", error, address);
-      Serial.println(sprintfBuffer);
+      // sprintf(sprintfBuffer, "Unknown I2C error %02X at address %02X.", error, address);
+      // Serial.println(sprintfBuffer);
     }
   }
   sprintf(sprintfBuffer, "Scan found %d I2C devices.", nDevices);
@@ -646,41 +801,8 @@ void readBlackSwitch() {
   systemEnabled = !digitalRead(blackSwitchPin);
 }
 
-/*
-schedulerLoop()
-This runs frequently (main loop())
-millis() starts at zero each time the Arduino board is powered up or reset.
-It counts the number of milliseconds since the sketch began running or since
-the board was last reset. The value increments every millisecond and will
-eventually roll over (wraparound) after approximately 49.7 days
-(when it reaches 4294967295 (2^32) milliseconds, the maximum value for an unsigned long).
-TODO: Decide how to handle the wraparound (shutdown does not fix it, but power down or reset will).
-*/
-void schedulerLoop() {
-  uint32_t now = millis();
-  uint32_t timerStart = micros();
-  unsigned int timerDuration;
-  uint8_t nTasksRun = 0;
-  for (uint8_t i = 0; i < NUM_TASKS; i++) {
-    if (now - taskList[i].lastRun >= taskList[i].interval) {  // is it due to run?
-      taskList[i].lastRun = now;
-      taskList[i].callback();                 // dispatch
-      nTasksRun++;                            // Here after a runnable task completes
-      timerDuration = micros() - timerStart;  // higher precsion for timing
-      now = millis();
-      if (verboseSerial) {
-        sprintf(sprintfBuffer, "Finished task %s in %u μs", taskName[i], timerDuration);
-        Serial.println(sprintfBuffer);
-      }
-    }
-  }
-  // here after all runnable tasks have completed
-  if (verboseSerial) {
-    if (nTasksRun > 0) {
-      sprintf(sprintfBuffer, "Finished %d task(s)", nTasksRun);
-      Serial.println(sprintfBuffer);
-    }
-  }
+bool isTowerMasterEnabled() {
+  return systemEnabled;
 }
 
 /*
@@ -688,17 +810,15 @@ shutdown()
 */
 void shutdown() {
   if (systemWasEnabled) { Serial.println(F("Black switch off; Scheduler disabled; Shutting down.")); };
-  closeLeftTowerValve();
-  closeRightTowerValve();
-  digitalWrite(SSR_Pin, SSR_OFF);
+  systemWasEnabled = false;
+
+  towerController.setEnabled(systemWasEnabled);  // Stop tower, closes both valves
+  digitalWrite(O2SamplePin, VALVE_CLOSED);       // close flush valve
+  digitalWrite(SSR_Pin, SSR_OFF);                // stop compressor
   previousSSR = false;
-  disableDisplay4();
+  disableDisplay4();  // close displays
   disableDisplay20x4();
 
-  for (uint8_t i = 0; i < NUM_TASKS; i++) {
-    taskList[i].lastRun = 0;  // make everything runnable after restart
-  }
-  systemWasEnabled = false;
   // TODO: what else should be done to shutdown?
 }  // shutdown
 
@@ -727,124 +847,76 @@ void disableDisplay4() {
 void waitForO2Sensor() {
   o2SensorReady = false;
   while (!oxygen.begin()) {
-  Serial.print("TCP0465 begin() failed: ");
-  Serial.println(oxygen.errorString());
-  delay(1000);
-}
+    Serial.print("TCP0465 begin() failed: ");
+    Serial.println(oxygen.errorString());
+    delay(1000);
+  }
   o2SensorReady = true;
   Serial.println(F("Oxygen I2c connect success."));
 }
 
 /* ---------- Arduino setup ---------- */
 void setup() {
+  Serial.begin(115200);           // handshake with USB
+  while (!Serial) { delay(1); };  // wait until Serial is available
+
   pinMode(LED_BUILTIN, OUTPUT);
   pinMode(leftTowerPressurePin, INPUT);
   pinMode(rightTowerPressurePin, INPUT);
   pinMode(lowPressureN2Pin, INPUT);
+  pinMode(highPressureN2Pin, INPUT);
   pinMode(leftTowerValvePin, OUTPUT);
   pinMode(rightTowerValvePin, OUTPUT);
   pinMode(SSR_Pin, OUTPUT);
   pinMode(O2SamplePin, OUTPUT);
   pinMode(blackSwitchPin, INPUT);  // TODO decide if this wants to be INPUT_PULLUP
 
-  Serial.begin(9600);               // handshake with USB
-  analogReadResolution(bitsOfADC);  //
-  Wire.setClock(50000);             // slow down the bus
+  scanI2C();  // scan for I2C devices if necessary
+
+  towerValves.begin();
+
+  analogReadResolution(bitsOfADC);  // defaults to 10 bits
+
+
+  if (!o2Handler.begin()) {
+    Serial.print("O2Handler begin() failed: ");
+    Serial.println(o2Handler.errorString());
+  }
+
+  // Wire.setClock(50000);  // slow down the bus for diagnostics
   Wire.begin();
   enableDisplay4();
   enableDisplay20x4();
 
-  while (!Serial) { delay(1); };  // wait until Serial is available
+
 
   sprintf(sprintfBuffer, "N2 v %s, compiled %s at %s with IDE %d", PROGRAM_VERSION, __DATE__, __TIME__, ARDUINO);
   Serial.println(sprintfBuffer);
 
-  scanI2C();  // scan for I2C devices if necessary
-  //while(1); //hang
-
-  systemWasEnabled = false;
   shutdown();  // start off in a known state.
-  //waitForO2Sensor();
 
-  Serial.println(F("Scheduler started"));
 }  // end of setup()
-
-
 
 /* ---------- Arduino main loop ---------- */
 /*
-This is a tight loop, which runs continuously when the scheduler isn't performing a scheduled task.
+This is a tight loop, which runs continuously 
 If the black switch is off, it only runs the loop every ten seconds, but it could run continuously
 */
 void loop() {
   readBlackSwitch();
   if (systemEnabled) {
-    displaySelectedValue();
-    schedulerLoop();  // scheduler checks taskList for all runnable tasks
+    towerController.setEnabled(systemEnabled);
+    towerController.tick();  // advance tower controller if necessary
+    o2Handler.tick();        // advance o2 handler if necessary
+    readPressureSensors();
+    checkN2Compressor();
+    displaySelectedValue();  // read rotary switch and display corresponding value in disp4
+
   } else {
-    shutdown();   // TODO can this run once per tight loop?
-    delay(1000);  // check occassionally
+    shutdown();    // TODO can this run once per tight loop?
+    delay(10000);  // check occassionally
   }
-  Serial.println("Type any character to comtinue...");
-  while (!Serial.available()) { delay(1); }
-  Serial.readString();  // wait for any character
-  Serial.println("OK, proceeding.");
 }
-
-/*
-// production integration snippet v1
-#include "TimedStateMachine.h"
-#include "TowerController.h"
-
-class ArduinoClock : public IClock {
-public:
-  uint32_t nowMs() const override {
-    return millis();
-  }
-};
-
-class SketchTowerValveDriver : public ITowerValveDriver {
-public:
-  SketchTowerValveDriver(uint8_t leftPin, uint8_t rightPin)
-      : leftPin_(leftPin), rightPin_(rightPin) {}
-
-  void begin() {
-    pinMode(leftPin_, OUTPUT);
-    pinMode(rightPin_, OUTPUT);
-    setLeftOpen(false);
-    setRightOpen(false);
-  }
-
-  void setLeftOpen(bool open) override {
-    digitalWrite(leftPin_, open ? HIGH : LOW);
-  }
-
-  void setRightOpen(bool open) override {
-    digitalWrite(rightPin_, open ? HIGH : LOW);
-  }
-
-private:
-  uint8_t leftPin_;
-  uint8_t rightPin_;
-};
-
-ArduinoClock towerClock;
-SketchTowerValveDriver towerValves(LEFT_VALVE_PIN, RIGHT_VALVE_PIN);
-TowerController towerController(towerClock, towerValves);
-
-void setup() {
-  towerValves.begin();
-}
-
-void loop() {
-  const bool masterOn = readMasterTowerSwitchSomehow();
-
-  towerController.setEnabled(masterOn);
-  towerController.tick();
-}
-
-*/
-
 
 
 // EOF
