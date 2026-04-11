@@ -322,7 +322,8 @@ TCP20x4Pcf8574Config makeLcdConfig() {
 
 const TCP20x4Pcf8574Config kLcdConfig = makeLcdConfig();
 
-TCP20x4 display20x4(i2c_bus_c, 0x27, kLcdConfig);
+
+TCP20x4 display20x4(i2c_bus_c, kLcdConfig);
 
 char commandBuffer[kCommandBufferSize];
 }
