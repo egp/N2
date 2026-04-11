@@ -122,14 +122,14 @@ const uint8_t I2C_BUSE_SDA = D14;
 const uint8_t I2C_BUSE_SCL = D15;
 
 /* I2C bus assigbments */
-const uint8_t DISP4_SDA = I2C_BUSA_SDA;     // Four-digit seven segment display and rotary switch
-const uint8_t DISP4_SCL = I2C_BUSA_SCL;     //
-const uint8_t O2_SDA = I2C_BUSB_SDA;        // O2 sensor
-const uint8_t O2_SCL = I2C_BUSB_SCL;        //
-const uint8_t DISP20x4_SDA = I2C_BUSC_SDA;  // 20x4 LCD display
-const uint8_t DISP20x4_SCL = I2C_BUSC_SCL;  //
-const uint8_t RTC_SDA = I2C_BUSD_SDA;       // Real TIme Clock
-const uint8_t RTC_SCL = I2C_BUSD_SCL;       //
+// const uint8_t DISP4_SDA = I2C_BUSA_SDA;     // Four-digit seven segment display and rotary switch
+// const uint8_t DISP4_SCL = I2C_BUSA_SCL;     //
+// const uint8_t O2_SDA = I2C_BUSB_SDA;        // O2 sensor
+// const uint8_t O2_SCL = I2C_BUSB_SCL;        //
+// const uint8_t DISP20x4_SDA = I2C_BUSC_SDA;  // 20x4 LCD display
+// const uint8_t DISP20x4_SCL = I2C_BUSC_SCL;  //
+// const uint8_t RTC_SDA = I2C_BUSD_SDA;       // Real TIme Clock
+// const uint8_t RTC_SCL = I2C_BUSD_SCL;       //
 
 /* -- these should probably not change -- */
 const uint8_t I2C_O2 = 0x74;       // 0x73 I2C address
@@ -152,33 +152,13 @@ const uint8_t SSR_OFF = LOW;
 const uint8_t DISP4_BRIGHTNESS = 1;  // 0-7
 
 /*
-I2C bus setup
+I2C bus declarations, they are initialized during setup()
 */
-BBI2C busa;
-BBI2C busb;
-BBI2C busc;
-BBI2C busd;
-BBI2C buse;
-busa.bWire = 0;            // use bit banging, not builtin wire
-busb.bWire = 0;            // use bit banging
-busc.bWire = 0;            // use bit banging
-busd.bWire = 0;            // use bit banging
-buse.bWire = 0;            // use bit banging
-busa.iSDA = I2C_BUSA_SDA;  // Disp4
-busa.iSCL = I2C_BUSA_SCL;
-busb.iSDA = I2C_BUSB_SDA;  // O2 sensor
-busb.iSCL = I2C_BUSB_SCL;
-busc.iSDA = I2C_BUSC_SDA;  // Disp20x4
-busc.iSCL = I2C_BUSC_SCL;
-busd.iSDA = I2C_BUSD_SDA;  // RTC
-busd.iSCL = I2C_BUSD_SCL;
-buse.iSDA = I2C_BUSE_SDA;  // Future expansion
-buse.iSCL = I2C_BUSE_SCL;
-I2CInit(&busa, 100000);  // 100K clock
-I2CInit(&busb, 100000);  // 100K clock
-I2CInit(&busc, 100000);  // 100K clock
-I2CInit(&busd, 100000);  // 100K clock
-I2CInit(&buse, 100000);  // 100K clock
+BBI2C i2c_bus_a{}; // disp4
+BBI2C i2c_bus_b{}; // O2 sensor
+BBI2C i2c_bus_c{}; // displ20x4
+BBI2C i2c_bus_d{}; // UNUSED (RTC?)
+BBI2C i2c_bus_e{}; // UNUSED
 
 /* O@ handler setup */
 const uint8_t O2_FLUSH_VALVE_PIN = O2SamplePin;
@@ -188,31 +168,54 @@ class TCP0465SensorAdapter : public IO2Sensor {
 public:
   TCP0465SensorAdapter()
     : sensor_(),
-      wire_(&Wire),
-      address_(TCP0465::DEFAULT_ADDRESS) {}
+      i2c_(nullptr),
+      address_(TCP0465::DEFAULT_ADDRESS),
+      lastError_("I2C bus not configured") {}
 
-  TCP0465SensorAdapter(TwoWire& wire, uint8_t address)
+  TCP0465SensorAdapter(BBI2C& i2c, uint8_t address)
     : sensor_(),
-      wire_(&wire),
-      address_(address) {}
+      i2c_(&i2c),
+      address_(address),
+      lastError_("not initialized") {}
 
   bool begin() override {
-    return sensor_.begin(*wire_, address_);
+    if (i2c_ == nullptr) {
+      lastError_ = "I2C bus not configured";
+      return false;
+    }
+
+    if (!sensor_.begin(*i2c_, address_)) {
+      lastError_ = sensor_.errorString();
+      return false;
+    }
+
+    lastError_ = "no error";
+    return true;
   }
+ 
+  TCP0465SensorAdapter o2Handler(i2c_bus_b, TCP0465::DEFAULT_ADDRESS);
 
   bool readOxygenPercent(float& percentVol) override {
-    return sensor_.readOxygenPercent(percentVol);
+    if (!sensor_.readOxygenPercent(percentVol)) {
+      lastError_ = sensor_.errorString();
+      return false;
+    }
+
+    lastError_ = "no error";
+    return true;
   }
 
   const char* errorString() const override {
-    return sensor_.errorString();
+    return lastError_;
   }
 
 private:
   TCP0465 sensor_;
-  TwoWire* wire_;
+  BBI2C* i2c_;
   uint8_t address_;
+  const char* lastError_;
 };
+
 class ArduinoFlushValveDriver : public IFlushValveDriver {
 public:
   ArduinoFlushValveDriver(uint8_t pin, bool activeHigh)
@@ -286,9 +289,8 @@ const char* template3 = "  NITROGEN %4s %%   ";
 /*
 Instances of the library classes
 */
-TCP1650 disp4(DISP4_SDA, DISP4_SCL);  // also does buttons (rotary switch)
-// TCP0465 oxygen;                       // O2 sensor
-TCP0465SensorAdapter o2Sensor(Wire, TCP0465::DEFAULT_ADDRESS);
+TCP1650 disp4(i2c_bus_a); 
+
 O2Handler::Config o2Config = {
   300000UL,  // warmupDurationMs: 5 minutes
   60000UL,   // measurementIntervalMs: once per minute
@@ -317,7 +319,9 @@ TCP20x4Pcf8574Config makeLcdConfig() {
 }
 
 const TCP20x4Pcf8574Config kLcdConfig = makeLcdConfig();
-TCP20x4 display20x4(Wire, kLcdConfig);
+
+TCP20x4 display20x4(i2c_bus_c, 0x27, kLcdConfig);
+
 char commandBuffer[kCommandBufferSize];
 }
 /*
@@ -855,8 +859,33 @@ void waitForO2Sensor() {
   Serial.println(F("Oxygen I2c connect success."));
 }
 
+void setupI2C() {
+  i2c_bus_a.bWire = 0;            // use bit banging, not builtin wire
+  i2c_bus_b.bWire = 0;            // use bit banging
+  i2c_bus_c.bWire = 0;            // use bit banging
+  i2c_bus_d.bWire = 0;            // use bit banging
+  i2c_bus_e.bWire = 0;            // use bit banging
+  i2c_bus_a.iSDA = I2C_BUSA_SDA;
+  i2c_bus_a.iSCL = I2C_BUSA_SCL;
+  i2c_bus_b.iSDA = I2C_BUSB_SDA;
+  i2c_bus_b.iSCL = I2C_BUSB_SCL;
+  i2c_bus_c.iSDA = I2C_BUSC_SDA;
+  i2c_bus_c.iSCL = I2C_BUSC_SCL;
+  i2c_bus_d.iSDA = I2C_BUSD_SDA;
+  i2c_bus_d.iSCL = I2C_BUSD_SCL;
+  i2c_bus_e.iSDA = I2C_BUSE_SDA; 
+  i2c_bus_e.iSCL = I2C_BUSE_SCL;
+  I2CInit(&i2c_bus_a, 100000);  // 100K clock
+  I2CInit(&i2c_bus_b, 100000);  // 100K clock
+  I2CInit(&i2c_bus_c, 100000);  // 100K clock
+  I2CInit(&i2c_bus_d, 100000);  // 100K clock
+  I2CInit(&i2c_bus_e, 100000);  // 100K clock
+}
+
+
 /* ---------- Arduino setup ---------- */
 void setup() {
+  setupI2C();
   Serial.begin(115200);           // handshake with USB
   while (!Serial) { delay(1); };  // wait until Serial is available
 
