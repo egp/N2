@@ -2,9 +2,10 @@
 #include <Arduino.h>
 #include <Wire.h>
 #include <BitBang_I2C.h>  // v2.2.1 https://github.com/bitbank2/BitBang_I2C
-#include <TCP1650.h>      // v0.1.0 https://github.com/egp/TCP1650
-#include <TCP20x4.h>      // v0.1.0 https://github.com/egp/TCP20x4
-#include <TCP0465.h>      // V0.1.1 https://github.com/egp/TCP0465
+#include <TCP1650.h>      // https://github.com/egp/TCP1650
+#include <TCP20x4.h>      // https://github.com/egp/TCP20x4
+#include <TCP0465.h>      // https://github.com/egp/TCP0465
+#include <DS3231RTC.h>    // https://github.com/egp/TCP3231
 #include "O2Handler.h"
 #include "TimedStateMachine.h"
 #include "TowerController.h"
@@ -121,16 +122,6 @@ const uint8_t I2C_BUSD_SCL = D13;
 const uint8_t I2C_BUSE_SDA = D14;
 const uint8_t I2C_BUSE_SCL = D15;
 
-/* I2C bus assigbments */
-// const uint8_t DISP4_SDA = I2C_BUSA_SDA;     // Four-digit seven segment display and rotary switch
-// const uint8_t DISP4_SCL = I2C_BUSA_SCL;     //
-// const uint8_t O2_SDA = I2C_BUSB_SDA;        // O2 sensor
-// const uint8_t O2_SCL = I2C_BUSB_SCL;        //
-// const uint8_t DISP20x4_SDA = I2C_BUSC_SDA;  // 20x4 LCD display
-// const uint8_t DISP20x4_SCL = I2C_BUSC_SCL;  //
-// const uint8_t RTC_SDA = I2C_BUSD_SDA;       // Real TIme Clock
-// const uint8_t RTC_SCL = I2C_BUSD_SCL;       //
-
 /* -- these should probably not change -- */
 const uint8_t I2C_O2 = 0x74;       // 0x73 I2C address
 const uint8_t I2C_LED = 0x2F;      // 0x2F I2C address for TM1650 4-digit 7-segment LED display
@@ -151,18 +142,22 @@ const uint8_t SSR_OFF = LOW;
 
 const uint8_t DISP4_BRIGHTNESS = 1;  // 0-7
 
+DS3231RTC::DateTime rtc_dt{};
+
 /*
 I2C bus declarations, they are initialized during setup()
 */
-BBI2C i2c_bus_a{};  // disp4
-BBI2C i2c_bus_b{};  // O2 sensor
-BBI2C i2c_bus_c{};  // displ20x4
-BBI2C i2c_bus_d{};  // UNUSED (RTC?)
+BBI2C i2c_disp4{};  // disp4
+BBI2C i2c_o2{};     // O2 sensor
+BBI2C i2c_20x4{};   // displ20x4
+BBI2C i2c_rtc{};    // UNUSED (RTC?)
 BBI2C i2c_bus_e{};  // UNUSED
 
 /* O@ handler setup */
 const uint8_t O2_FLUSH_VALVE_PIN = O2SamplePin;
 const bool O2_FLUSH_VALVE_ACTIVE_HIGH = true;
+
+bool rtcPresent = false;
 
 class TCP0465SensorAdapter : public IO2Sensor {
 public:
@@ -237,7 +232,7 @@ private:
 };
 
 
-TCP0465SensorAdapter o2Sensor{ i2c_bus_b, TCP0465::DEFAULT_ADDRESS };
+TCP0465SensorAdapter o2Sensor{ i2c_o2, TCP0465::DEFAULT_ADDRESS };
 
 /*
 TowerController setting
@@ -284,14 +279,15 @@ char LCDline2[25];
 char LCDline3[25];
 const char* template0 = " AIRSUPPLY %5s PSI ";
 const char* template1 = " %5s TOWERS  %5s";
-const char* template2 = "  N2 LOW %4s PSI  ";
+// const char* template2 = "  N2 LOW %4s PSI  ";
+const char* template2 = "%4s LOW N2 HIGH %4s";
 const char* template3 = "  NITROGEN %4s %%   ";
 
 
 /*
 Instances of the library classes
 */
-TCP1650 disp4(i2c_bus_a);
+TCP1650 disp4(i2c_disp4);
 
 O2Handler::Config o2Config = {
   300000UL,  // warmupDurationMs: 5 minutes
@@ -323,7 +319,7 @@ TCP20x4Pcf8574Config makeLcdConfig() {
 const TCP20x4Pcf8574Config kLcdConfig = makeLcdConfig();
 
 
-TCP20x4 display20x4(i2c_bus_c, kLcdConfig);
+TCP20x4 display20x4(i2c_20x4, kLcdConfig);
 
 char commandBuffer[kCommandBufferSize];
 }
@@ -423,6 +419,7 @@ TowerController towerController(timerClock, towerValves, towerConfig);
 ArduinoFlushValveDriver o2FlushValve(O2_FLUSH_VALVE_PIN, O2_FLUSH_VALVE_ACTIVE_HIGH);
 
 O2Handler o2Handler(timerClock, o2Sensor, o2FlushValve, o2Config);
+DS3231RTC rtc(i2c_rtc);
 
 /*
 readO2Sensor()
@@ -630,12 +627,12 @@ void showScaling(uint8_t hexValue, int rawValue, uint16_t scaledValue) {
 }
 
 // TODO: Verify correct hex values
-const uint8_t rotaryOff = 0x01;        // 0x01 0x04 1-A OFF
-const uint8_t rotarySupply = 0x02;     // 0x02 0x0C 1-B Air Supply
-const uint8_t rotaryLeft = 0x04;       // 0x04 0x14 1-C Left Tower
-const uint8_t rotaryRight = 0x08;      // 0x08 0x1C 1-D Right Tower
-const uint8_t rotaryN2Low = 0x10;      // 0x10 0x24 1-E Low Pressure N2
-const uint8_t rotaryN2Percent = 0x20;  // 0x20 0x2C 1-F N2 percent
+const uint8_t rotaryOff = 0x44;        // 0x01 0x04 1-A OFF
+const uint8_t rotarySupply = 0x4C;     // 0x02 0x0C 1-B Air Supply
+const uint8_t rotaryLeft = 0x54;       // 0x04 0x14 1-C Left Tower
+const uint8_t rotaryRight = 0x5C;      // 0x08 0x1C 1-D Right Tower
+const uint8_t rotaryN2Low = 0x64;      // 0x10 0x24 1-E Low Pressure N2
+const uint8_t rotaryN2Percent = 0x6C;  // 0x20 0x2C 1-F N2 percent
 
 
 void displayButtonValue() {
@@ -766,26 +763,23 @@ TODO: replace fake values with real values
 
 void displayToLCD20x4() {
 
-  // dtostrf(scaledSupplyPressure, 5, 1, dtostrfBuf1);
-  // sprintf(LCDline0, template0, dtostrfBuf1);
-  // display20x4.setCursor(0, 0);
-  // display20x4.print(LCDline0);
+  dtostrf(scaledSupplyPSI, 5, 1, dtostrfBuf1);
+  sprintf(LCDline0, template0, dtostrfBuf1);
+  display20x4.writeLine(0, LCDline0);
 
-  // dtostrf(scaledLeftPressure, 5, 1, dtostrfBuf1);
-  // dtostrf(scaledRightPressure, 5, 1, dtostrfBuf2);
-  // sprintf(LCDline1, template1, dtostrfBuf1, dtostrfBuf2);
-  // display20x4.setCursor(0, 1);
-  // display20x4.print(LCDline1);
+  dtostrf(scaledLeftPSI, 5, 1, dtostrfBuf1);
+  dtostrf(scaledRightPSI, 5, 1, dtostrfBuf2);
+  sprintf(LCDline1, template1, dtostrfBuf1, dtostrfBuf2);
+  display20x4.writeLine(1, LCDline1);
 
-  // dtostrf(scaledLowN2Pressure, 5, 2, dtostrfBuf1);
-  // sprintf(LCDline2, template2, dtostrfBuf1);
-  // display20x4.setCursor(0, 2);
-  // display20x4.print(LCDline2);
+  dtostrf(scaledLowN2PSI, 5, 2, dtostrfBuf1);
+  dtostrf(scaledHighN2PSI, 5, 1, dtostrfBuf2);
+  sprintf(LCDline2, template2, dtostrfBuf1, dtostrfBuf2);
+  display20x4.writeLine(2, LCDline2);
 
-  // dtostrf(N2portion, 5, 2, dtostrfBuf1);
-  // sprintf(LCDline3, template3, dtostrfBuf1);
-  // display20x4.setCursor(0, 3);
-  // display20x4.print(LCDline3);
+  dtostrf(N2portion, 5, 2, dtostrfBuf1);
+  sprintf(LCDline3, template3, dtostrfBuf1);
+  display20x4.writeLine(3, LCDline3);
 }
 
 
@@ -852,28 +846,53 @@ void waitForO2Sensor() {
 }
 
 void setupI2C() {
-  i2c_bus_a.bWire = 0;  // use bit banging, not builtin wire
-  i2c_bus_b.bWire = 0;  // use bit banging
-  i2c_bus_c.bWire = 0;  // use bit banging
-  i2c_bus_d.bWire = 0;  // use bit banging
+  i2c_disp4.bWire = 0;  // use bit banging, not builtin wire
+  i2c_o2.bWire = 0;     // use bit banging
+  i2c_20x4.bWire = 0;   // use bit banging
+  i2c_rtc.bWire = 0;    // use bit banging
   i2c_bus_e.bWire = 0;  // use bit banging
-  i2c_bus_a.iSDA = I2C_BUSA_SDA;
-  i2c_bus_a.iSCL = I2C_BUSA_SCL;
-  i2c_bus_b.iSDA = I2C_BUSB_SDA;
-  i2c_bus_b.iSCL = I2C_BUSB_SCL;
-  i2c_bus_c.iSDA = I2C_BUSC_SDA;
-  i2c_bus_c.iSCL = I2C_BUSC_SCL;
-  i2c_bus_d.iSDA = I2C_BUSD_SDA;
-  i2c_bus_d.iSCL = I2C_BUSD_SCL;
+  i2c_disp4.iSDA = I2C_BUSA_SDA;
+  i2c_disp4.iSCL = I2C_BUSA_SCL;
+  i2c_o2.iSDA = I2C_BUSB_SDA;
+  i2c_o2.iSCL = I2C_BUSB_SCL;
+  i2c_20x4.iSDA = I2C_BUSC_SDA;
+  i2c_20x4.iSCL = I2C_BUSC_SCL;
+  i2c_rtc.iSDA = I2C_BUSD_SDA;
+  i2c_rtc.iSCL = I2C_BUSD_SCL;
   i2c_bus_e.iSDA = I2C_BUSE_SDA;
   i2c_bus_e.iSCL = I2C_BUSE_SCL;
-  I2CInit(&i2c_bus_a, 100000);  // 100K clock
-  I2CInit(&i2c_bus_b, 100000);  // 100K clock
-  I2CInit(&i2c_bus_c, 100000);  // 100K clock
-  I2CInit(&i2c_bus_d, 100000);  // 100K clock
+  I2CInit(&i2c_disp4, 100000);  // 100K clock
+  I2CInit(&i2c_o2, 100000);     // 100K clock
+  I2CInit(&i2c_20x4, 100000);   // 100K clock
+  I2CInit(&i2c_rtc, 100000);    // 100K clock
   I2CInit(&i2c_bus_e, 100000);  // 100K clock
 }
 
+void printDateTime(const DS3231RTC::DateTime& dt) {
+  printFourDigits(dt.year);
+  Serial.print('-');
+  printTwoDigits(dt.month);
+  Serial.print('-');
+  printTwoDigits(dt.day);
+  Serial.print(' ');
+  printTwoDigits(dt.hour);
+  Serial.print(':');
+  printTwoDigits(dt.minute);
+}
+
+void printTwoDigits(uint8_t value) {
+  if (value < 10) {
+    Serial.print('0');
+  }
+  Serial.print(value);
+}
+
+static void printFourDigits(uint16_t value) {
+  if (value < 1000) Serial.print('0');
+  if (value < 100) Serial.print('0');
+  if (value < 10) Serial.print('0');
+  Serial.print(value);
+}
 
 /* ---------- Arduino setup ---------- */
 void setup() {
@@ -892,10 +911,10 @@ void setup() {
   pinMode(O2SamplePin, OUTPUT);
   pinMode(blackSwitchPin, INPUT);  // TODO decide if this wants to be INPUT_PULLUP
 
-  scanI2C();  // scan for I2C devices if necessary
+  // scanI2C();  // scan for I2C devices if necessary
 
   towerValves.begin();
-
+  rtcPresent = rtc.begin();         // init the clock
   analogReadResolution(bitsOfADC);  // defaults to 10 bits
 
 
@@ -909,10 +928,13 @@ void setup() {
   enableDisplay4();
   enableDisplay20x4();
 
-
-
   sprintf(sprintfBuffer, "N2 v %s, compiled %s at %s with IDE %d", PROGRAM_VERSION, __DATE__, __TIME__, ARDUINO);
   Serial.println(sprintfBuffer);
+
+  if (rtcPresent) {
+    rtc.readTime(rtc_dt);
+    printDateTime(rtc_dt);
+  }
 
   shutdown();  // start off in a known state.
 
