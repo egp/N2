@@ -9,6 +9,7 @@
 #include "O2Handler.h"
 #include "TimedStateMachine.h"
 #include "TowerController.h"
+#include "BinaryOutput.h"
 #include "ArduinoDigitalOutput.h"
 
 /*

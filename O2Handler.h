@@ -3,27 +3,8 @@
 #define O2_HANDLER_H
 
 #include <stdint.h>
-
-class IClock {
-public:
-  virtual ~IClock() {}
-  virtual uint32_t nowMs() const = 0;
-};
-
-class TimedStateMachine {
-public:
-  TimedStateMachine(IClock& clock, uint8_t initialState);
-  uint8_t state() const;
-  bool isExpired() const;
-  void transitionTo(uint8_t nextState);
-  void transitionToFor(uint8_t nextState, uint32_t durationMs);
-
-private:
-  IClock& clock_;
-  uint8_t state_;
-  uint32_t enteredAtMs_;
-  uint32_t durationMs_;
-};
+#include "BinaryOutput.h"
+#include "TimedStateMachine.h"
 
 class IO2Sensor {
 public:
@@ -31,12 +12,6 @@ public:
   virtual bool begin() = 0;
   virtual bool readOxygenPercent(float& percentVol) = 0;
   virtual const char* errorString() const = 0;
-};
-
-class IBinaryOutput {
-public:
-  virtual ~IBinaryOutput() {}
-  virtual void setOn(bool on) = 0;
 };
 
 class O2Handler {

@@ -1,6 +1,5 @@
 // O2Handler.cpp v2
 #include "O2Handler.h"
-#include "TimedStateMachine.h"
 #include <Arduino.h>
 
 O2Handler::Config O2Handler::defaultConfig() {
@@ -77,21 +76,21 @@ void O2Handler::tick() {
 
     case STATE_WARMUP:
       if (timedStateMachine_.isExpired()) {
-        Serial.println("O2 Transitioning from WARMUP to WAITING_TO_FLUSH");
+        // Serial.println("O2 Transitioning from WARMUP to WAITING_TO_FLUSH");
         transitionTo(STATE_WAITING_TO_FLUSH);
       }
       return;
 
     case STATE_WAITING_TO_FLUSH:
       if (earlyMeasurementRequested_ || shouldStartScheduledCycle(clock_.nowMs())) {
-        Serial.println("O2 Transitioning from WAITING_TO_FLUSH to Beginning Measurement Cycle");
+        // Serial.println("O2 Transitioning from WAITING_TO_FLUSH to Beginning Measurement Cycle");
         beginMeasurementCycle();
       }
       return;
 
     case STATE_FLUSHING:
       if (timedStateMachine_.isExpired()) {
-        Serial.println("O2 Transitioning from FLUSHING to SETTLING");
+        // Serial.println("O2 Transitioning from FLUSHING to SETTLING");
         flushValve_.setOn(false);
         transitionToFor(STATE_SETTLING, config_.settleDurationMs);
       }
@@ -99,7 +98,7 @@ void O2Handler::tick() {
 
     case STATE_SETTLING:
       if (timedStateMachine_.isExpired()) {
-        Serial.println("O2 Transitioning from SETTLING to SAMPLING");
+        // Serial.println("O2 Transitioning from SETTLING to SAMPLING");
         runningSumPercent_ = 0.0f;
         samplesCollected_ = 0U;
         transitionTo(STATE_SAMPLING);
@@ -117,7 +116,7 @@ void O2Handler::tick() {
       ++samplesCollected_;
 
       if (samplesCollected_ >= config_.sampleCount) {
-        Serial.println("O2 Transitioning from SAMPLING to WAITING_FOR_NEXT_SAMPLE");
+        // Serial.println("O2 Transitioning from SAMPLING to WAITING_FOR_NEXT_SAMPLE");
         finishMeasurementCycle(runningSumPercent_ / static_cast<float>(samplesCollected_));
         return;
       }
@@ -128,14 +127,14 @@ void O2Handler::tick() {
 
     case STATE_WAITING_FOR_NEXT_SAMPLE:
       if (timedStateMachine_.isExpired()) {
-        Serial.println("O2 Transitioning from WAITING_FOR_NEXT_SAMPLE to SAMPLING");
+        // Serial.println("O2 Transitioning from WAITING_FOR_NEXT_SAMPLE to SAMPLING");
         transitionTo(STATE_SAMPLING);
       }
       return;
 
     case STATE_ERROR_BACKOFF:
       if (timedStateMachine_.isExpired()) {
-        Serial.println("O2 Transitioning from ERROR_BACKOFF to WAITING_TO_FLUSH");
+        // Serial.println("O2 Transitioning from ERROR_BACKOFF to WAITING_TO_FLUSH");
         transitionTo(STATE_WAITING_TO_FLUSH);
       }
       return;
