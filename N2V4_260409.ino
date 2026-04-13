@@ -54,14 +54,14 @@ const uint8_t blackSwitchPin = D0;  // digital input
 const uint8_t theOtherButton = D1;  // aux button
 const uint8_t I2C_BUSA_SDA = D2;
 const uint8_t I2C_BUSA_SCL = D3;
-const uint8_t leftTowerValvePin = D4;  // digital output
+const uint8_t LEFT_TOWER_VALVE_PIN = D4;  // digital output
 const uint8_t I2C_BUSB_SDA = D5;
 const uint8_t I2C_BUSB_SCL = D6;
-const uint8_t rightTowerValvePin = D7;  // digital output
+const uint8_t RIGHT_TOWER_VALVE_PIN = D7;  // digital output
 const uint8_t SSR_Pin = D8;             // digital output TODO verify correct pin Relay_3
 const uint8_t I2C_BUSC_SDA = D9;
 const uint8_t I2C_BUSC_SCL = D10;
-const uint8_t O2SamplePin = D11;  // PWM digital output TODO verify correct pin Relay_4
+const uint8_t O2_FLUSH_VALVE_PIN = D11;  // PWM digital output TODO verify correct pin Relay_4
 const uint8_t I2C_BUSD_SDA = D12;
 const uint8_t I2C_BUSD_SCL = D13;
 const uint8_t UNAVAILABLE_D14 = D14;  // Alias for A0 (tied together) 
@@ -80,13 +80,12 @@ const int analogScaleMax = (1 << (bitsOfADC)) - 1;                   // maximum 
 const int minPressureReading = analogScaleMax / 10;                  // smallest expected pressure sensor reading
 const int maxPressureReading = analogScaleMax - minPressureReading;  // largest expected pressure sensor reading
 
-const uint8_t VALVE_OPEN = HIGH;  // TODO verify these states, swap if necessary
-const uint8_t VALVE_CLOSED = LOW;
 
 const uint8_t DISP4_BRIGHTNESS = 6;  // 0-7
 
 // Create the instance of the O2 sensor adapter, it will be initialized during setup()
 TCP3231::DateTime rtc_dt{};
+bool rtcPresent = false;
 
 /*
 I2C bus declarations, they are initialized during setup()
@@ -100,11 +99,7 @@ BBI2C i2c_rtc{};    // UNUSED (RTC?)
 /* N2 Handler setup */
 ArduinoDigitalOutput compressorSsr(SSR_Pin);
 
-/* O@ handler setup */
-const uint8_t O2_FLUSH_VALVE_PIN = O2SamplePin;
-const bool O2_FLUSH_VALVE_ACTIVE_HIGH = true;
-
-bool rtcPresent = false;
+/* O2 sensor adapter class */
 
 class TCP0465SensorAdapter : public IO2Sensor {
 public:
@@ -135,7 +130,6 @@ public:
     return true;
   }
 
-
   bool readOxygenPercent(float& percentVol) override {
     if (!sensor_.readOxygenPercent(percentVol)) {
       lastError_ = sensor_.errorString();
@@ -157,22 +151,15 @@ private:
   const char* lastError_;
 };
 
-ArduinoDigitalOutput o2FlushValve(O2_FLUSH_VALVE_PIN);
-
-
 
 // Create the instance of the O2 sensor adapter, it will be initialized during setup()
 TCP0465SensorAdapter o2Sensor{ i2c_o2, TCP0465::DEFAULT_ADDRESS };
 
+ArduinoDigitalOutput o2FlushValve(O2_FLUSH_VALVE_PIN);
+
 /*
 TowerController setting
 */
-constexpr uint8_t LEFT_TOWER_VALVE_PIN = leftTowerValvePin;
-constexpr uint8_t RIGHT_TOWER_VALVE_PIN = rightTowerValvePin;
-constexpr uint8_t TOWER_MASTER_SWITCH_PIN = blackSwitchPin;
-
-// change to false if your relay/driver is active-low
-constexpr bool TOWER_VALVE_ACTIVE_HIGH = true;
 
 constexpr uint32_t LEFT_OPEN_MS = 60000UL;
 constexpr uint32_t OVERLAP_MS = 750UL;
@@ -296,47 +283,14 @@ Setup for Tower control
 *********************************************************
 */
 
-class SketchTowerValveDriver : public ITowerValveDriver {
-public:
-  SketchTowerValveDriver(uint8_t leftPin, uint8_t rightPin, bool activeHigh)
-    : leftPin_(leftPin),
-      rightPin_(rightPin),
-      activeHigh_(activeHigh) {}
-
-  void begin() {
-    pinMode(leftPin_, OUTPUT);
-    pinMode(rightPin_, OUTPUT);
-    setLeftOpen(false);
-    setRightOpen(false);
-  }
-
-  void setLeftOpen(bool open) override {
-    digitalWrite(leftPin_, levelFor(open));
-  }
-
-  void setRightOpen(bool open) override {
-    digitalWrite(rightPin_, levelFor(open));
-  }
-
-private:
-  uint8_t levelFor(bool open) const {
-    if (activeHigh_) {
-      return open ? HIGH : LOW;
-    }
-    return open ? LOW : HIGH;
-  }
-
-  uint8_t leftPin_;
-  uint8_t rightPin_;
-  bool activeHigh_;
-};
+constexpr uint32_t LEFT_OPEN_MS = 60000UL;
+constexpr uint32_t OVERLAP_MS = 750UL;
+constexpr uint32_t RIGHT_OPEN_MS = 60000UL;
 
 ArduinoClock timerClock;
 
-SketchTowerValveDriver towerValves(
-  LEFT_TOWER_VALVE_PIN,
-  RIGHT_TOWER_VALVE_PIN,
-  TOWER_VALVE_ACTIVE_HIGH);
+ArduinoDigitalOutput leftTowerValve(LEFT_TOWER_VALVE_PIN);
+ArduinoDigitalOutput rightTowerValve(RIGHT_TOWER_VALVE_PIN);
 
 TowerController::Config towerConfig = {
   LEFT_OPEN_MS,
@@ -344,9 +298,7 @@ TowerController::Config towerConfig = {
   RIGHT_OPEN_MS,
 };
 
-TowerController towerController(timerClock, towerValves, towerConfig);
-
-ArduinoFlushValveDriver o2FlushValve(O2_FLUSH_VALVE_PIN, O2_FLUSH_VALVE_ACTIVE_HIGH);
+TowerController towerController(timerClock, leftTowerValve, rightTowerValve, towerConfig);
 
 O2Handler o2Handler(timerClock, o2Sensor, o2FlushValve, o2Config);
 TCP3231 rtc(i2c_rtc);
@@ -463,74 +415,6 @@ void readHighPressureN2() {
   highPressureN2 = analogRead(highPressureN2Pin);
   scaledHighN2PSI = scalePressure(highPressureN2, 1500);  // tenths
 }
-/* -- valve open/close routines -- */
-void openLeftTowerValve() {
-  digitalWrite(leftTowerValvePin, VALVE_OPEN);
-  leftTowerActive = true;
-}
-void closeLeftTowerValve() {
-  digitalWrite(leftTowerValvePin, VALVE_CLOSED);
-  leftTowerActive = false;
-}
-void openRightTowerValve() {
-  digitalWrite(rightTowerValvePin, VALVE_OPEN);
-  rightTowerActive = true;
-}
-void closeRightTowerValve() {
-  digitalWrite(rightTowerValvePin, VALVE_CLOSED);
-  rightTowerActive = false;
-}
-
-/*
-cycleTowers()
-  If the left tower has been running, switch to the right tower,
-  and vice-versa, keeping both towers going during the specified overlap time.
-  If neither tower is active, start the left tower.
-
-NOTE: This assumes cycling is schedule based, not pressure based, but we should
-  add some pressure checks to ensure system integrity before and during cycling
-*/
-/*
-void cycleTowers() {
-
-  if (scaledSupplyPSI < airMinimumPSI) {
-    if (verboseSerial) {
-      Serial.println(F("Loss of sufficient air supply, closing both towers"));
-      Serial.print("Reading ");
-      Serial.print(scaledSupplyPSI);
-      Serial.print(" supply, expecting ");
-      Serial.println(airMinimumPSI);
-    };
-    closeLeftTowerValve();
-    closeRightTowerValve();
-    systemWasEnabled = false;
-    return;
-  } else {
-    if (leftTowerActive) {
-      if (verboseSerial) { Serial.println(F("Switching Left --> Right Tower...")); };
-      openRightTowerValve();
-      delay(overlapTimeout);  // delay prevents anything else from running
-      closeLeftTowerValve();
-      if (verboseSerial) { Serial.println(F("Finished Left --> Right Tower.")); };
-      return;
-    } else if (rightTowerActive) {
-      if (verboseSerial) { Serial.println(F("Switching Right --> Left Tower...")); };
-      openLeftTowerValve();
-      delay(overlapTimeout);  // delay prevents anything else from running
-      closeRightTowerValve();
-      if (verboseSerial) { Serial.println(F("Finished Right --> Left.")); };
-      return;
-    } else {
-      // here if neither tower is active, presumably during startup
-      if (scaledSupplyPSI >= airMinimumPSI) {  // confirm sufficient supply
-        if (verboseSerial) { Serial.println(F("Starting Left Tower...")); };
-        openLeftTowerValve();
-        systemWasEnabled = true;
-      }
-    }
-  }
-}
-*/
 
 /*
 checkN2Compressor
@@ -556,7 +440,8 @@ checkN2Compressor
        When it rises above high threshold, disable compressor,
        but when it drops back below midpoint, re-enable compressor, 
        when PSI drops below Low threshold, disable compressor.
-       This keeps the compressor on when PSI is between Low and High thresholds.
+       This keeps the compressor on when PSI is between Low and High thresholds. 
+       Even better than midpoint, is a low increasing, and a high decreasing
 
 
     
@@ -881,20 +766,14 @@ void setup() {
   Serial.begin(115200);           // handshake with USB
   while (!Serial) { delay(1); };  // wait until Serial is available
 
-  pinMode(lowPressureN2Pin, INPUT);
-  pinMode(highPressureN2Pin, INPUT);
-  pinMode(leftTowerValvePin, OUTPUT);
-  pinMode(rightTowerValvePin, OUTPUT);
-
-  pinMode(lowPressureN2Pin, INPUT);
-  pinMode(highPressureN2Pin, INPUT);
-
-  pinMode(O2SamplePin, OUTPUT);
   pinMode(blackSwitchPin, INPUT);  // TODO decide if this wants to be INPUT_PULLUP
 
-  // scanI2C();  // scan for I2C devices if necessary
+  pinMode(lowPressureN2Pin, INPUT);
+  pinMode(highPressureN2Pin, INPUT);
+  // pinMode(o2FlushValvePin, OUTPUT);
 
-  towerValves.begin();
+  leftTowerValve.begin(false);
+  rightTowerValve.begin(false);
   rtcPresent = rtc.begin();         // init the clock
   analogReadResolution(bitsOfADC);  // defaults to 10 bits
 

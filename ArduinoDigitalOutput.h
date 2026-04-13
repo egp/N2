@@ -1,14 +1,9 @@
-// ArduinoDigitalOutput.h v1
+// ArduinoDigitalOutput.h v2
 #ifndef ARDUINO_DIGITAL_OUTPUT_H
 #define ARDUINO_DIGITAL_OUTPUT_H
 
 #include <Arduino.h>
-
-class IBinaryOutput {
-public:
-  virtual ~IBinaryOutput() {}
-  virtual void setOn(bool on) = 0;
-};
+#include "BinaryOutput.h"
 
 class ArduinoDigitalOutput : public IBinaryOutput {
 public:
@@ -36,5 +31,5 @@ private:
   bool begun_;
 };
 
-#endif  // ARDUINO_DIGITAL_OUTPUT_H
-// ArduinoDigitalOutput.h v1
+#endif
+// ArduinoDigitalOutput.h v2

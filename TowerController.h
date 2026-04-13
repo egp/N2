@@ -1,17 +1,10 @@
-// TowerController.h v2
+// TowerController.h v3
 #ifndef TOWER_CONTROLLER_H
 #define TOWER_CONTROLLER_H
 
 #include <stdint.h>
-
+#include "BinaryOutput.h"
 #include "TimedStateMachine.h"
-
-class ITowerValveDriver {
-public:
-  virtual ~ITowerValveDriver() {}
-  virtual void setLeftOpen(bool open) = 0;
-  virtual void setRightOpen(bool open) = 0;
-};
 
 class TowerController {
 public:
@@ -31,17 +24,14 @@ public:
 
   static Config defaultConfig();
 
-  TowerController(IClock& clock, ITowerValveDriver& valveDriver);
-  TowerController(IClock& clock, ITowerValveDriver& valveDriver, const Config& config);
+  TowerController(IClock& clock, IBinaryOutput& leftValve, IBinaryOutput& rightValve);
+  TowerController(IClock& clock, IBinaryOutput& leftValve, IBinaryOutput& rightValve, const Config& config);
 
   void setEnabled(bool enabled);
   bool isEnabled() const;
-
   void tick();
-
   State state() const;
   bool isActive() const;
-
   const Config& config() const;
   void setConfig(const Config& config);
 
@@ -50,10 +40,11 @@ private:
   void applyOutputsForState(State state);
 
   TimedStateMachine timedStateMachine_;
-  ITowerValveDriver& valveDriver_;
+  IBinaryOutput& leftValve_;
+  IBinaryOutput& rightValve_;
   Config config_;
   bool enabled_;
 };
 
 #endif
-// TowerController.h v2
+// TowerController.h v3

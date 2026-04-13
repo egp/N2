@@ -1,5 +1,4 @@
-// TowerController.cpp v2
-#include <Arduino.h>
+// TowerController.cpp v3
 #include "TowerController.h"
 
 TowerController::Config TowerController::defaultConfig() {
@@ -10,17 +9,19 @@ TowerController::Config TowerController::defaultConfig() {
   return config;
 }
 
-TowerController::TowerController(IClock& clock, ITowerValveDriver& valveDriver)
+TowerController::TowerController(IClock& clock, IBinaryOutput& leftValve, IBinaryOutput& rightValve)
     : timedStateMachine_(clock, STATE_INACTIVE),
-      valveDriver_(valveDriver),
+      leftValve_(leftValve),
+      rightValve_(rightValve),
       config_(defaultConfig()),
       enabled_(false) {
   applyOutputsForState(STATE_INACTIVE);
 }
 
-TowerController::TowerController(IClock& clock, ITowerValveDriver& valveDriver, const Config& config)
+TowerController::TowerController(IClock& clock, IBinaryOutput& leftValve, IBinaryOutput& rightValve, const Config& config)
     : timedStateMachine_(clock, STATE_INACTIVE),
-      valveDriver_(valveDriver),
+      leftValve_(leftValve),
+      rightValve_(rightValve),
       config_(config),
       enabled_(false) {
   applyOutputsForState(STATE_INACTIVE);
@@ -56,22 +57,22 @@ void TowerController::tick() {
 
   switch (state()) {
     case STATE_LEFT_ONLY:
-      Serial.println("Tower Transitioning from LEFT_ONLY to BOTH_AFTER_LEFT");
+      // Serial.println("Tower Transitioning from LEFT_ONLY to BOTH_AFTER_LEFT");
       transitionTo(STATE_BOTH_AFTER_LEFT, config_.overlapMs, true);
       return;
 
     case STATE_BOTH_AFTER_LEFT:
-      Serial.println("Tower Transitioning from BOTH_AFTER_LEFT to RIGHT_ONLY");
+      // Serial.println("Tower Transitioning from BOTH_AFTER_LEFT to RIGHT_ONLY");
       transitionTo(STATE_RIGHT_ONLY, config_.rightOpenMs, true);
       return;
 
     case STATE_RIGHT_ONLY:
-      Serial.println("Tower Transitioning from RIGHT_ONLY to BOTH_AFTER_RIGHT");
+      // Serial.println("Tower Transitioning from RIGHT_ONLY to BOTH_AFTER_RIGHT");
       transitionTo(STATE_BOTH_AFTER_RIGHT, config_.overlapMs, true);
       return;
 
     case STATE_BOTH_AFTER_RIGHT:
-      Serial.println("Tower Transitioning from BOTH_AFTER_RIGHT to LEFT_ONLY");
+      // Serial.println("Tower Transitioning from BOTH_AFTER_RIGHT to LEFT_ONLY");
       transitionTo(STATE_LEFT_ONLY, config_.leftOpenMs, true);
       return;
 
@@ -110,34 +111,34 @@ void TowerController::transitionTo(State nextState, uint32_t durationMs, bool ti
 void TowerController::applyOutputsForState(State state) {
   switch (state) {
     case STATE_INACTIVE:
-      valveDriver_.setLeftOpen(false);
-      valveDriver_.setRightOpen(false);
+      leftValve_.setOn(false);
+      rightValve_.setOn(false);
       return;
 
     case STATE_LEFT_ONLY:
-      valveDriver_.setLeftOpen(true);
-      valveDriver_.setRightOpen(false);
+      leftValve_.setOn(true);
+      rightValve_.setOn(false);
       return;
 
     case STATE_BOTH_AFTER_LEFT:
-      valveDriver_.setLeftOpen(true);
-      valveDriver_.setRightOpen(true);
+      leftValve_.setOn(true);
+      rightValve_.setOn(true);
       return;
 
     case STATE_RIGHT_ONLY:
-      valveDriver_.setLeftOpen(false);
-      valveDriver_.setRightOpen(true);
+      leftValve_.setOn(false);
+      rightValve_.setOn(true);
       return;
 
     case STATE_BOTH_AFTER_RIGHT:
-      valveDriver_.setLeftOpen(true);
-      valveDriver_.setRightOpen(true);
+      leftValve_.setOn(true);
+      rightValve_.setOn(true);
       return;
 
     default:
-      valveDriver_.setLeftOpen(false);
-      valveDriver_.setRightOpen(false);
+      leftValve_.setOn(false);
+      rightValve_.setOn(false);
       return;
   }
 }
-// TowerController.cpp v2
+// TowerController.cpp v3
