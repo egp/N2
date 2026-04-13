@@ -804,7 +804,6 @@ void loop() {
     shutdown();    // TODO can this run once per tight loop?
     delay(10000);  // check occassionally
   }
-  delay(10000);  // TODO
 }
 
 
