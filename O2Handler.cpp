@@ -1,6 +1,20 @@
 // O2Handler.cpp v2
 #include "O2Handler.h"
 
+static const char* o2StateName(uint8_t state) {
+  switch (static_cast<O2Handler::State>(state)) {
+    case O2Handler::STATE_UNINITIALIZED: return "Uninitialized";
+    case O2Handler::STATE_WARMUP: return "Warmup";
+    case O2Handler::STATE_WAITING_TO_FLUSH: return "WaitingToFlush";
+    case O2Handler::STATE_FLUSHING: return "Flushing";
+    case O2Handler::STATE_SETTLING: return "Settling";
+    case O2Handler::STATE_SAMPLING: return "Sampling";
+    case O2Handler::STATE_WAITING_FOR_NEXT_SAMPLE: return "WaitingForNextSample";
+    case O2Handler::STATE_ERROR_BACKOFF: return "ErrorBackoff";
+    default: return "Unknown";
+  }
+}
+
 O2Handler::Config O2Handler::defaultConfig() {
   Config config;
   config.warmupDurationMs = 300000UL;
@@ -18,7 +32,7 @@ O2Handler::O2Handler(IClock& clock, IO2Sensor& sensor, IBinaryOutput& flushValve
     : clock_(clock),
       sensor_(sensor),
       flushValve_(flushValve),
-      timedStateMachine_(clock, STATE_UNINITIALIZED),
+      timedStateMachine_(clock, STATE_UNINITIALIZED, "O2", o2StateName),
       config_(defaultConfig()),
       hasValue_(false),
       earlyMeasurementRequested_(false),
@@ -32,9 +46,9 @@ O2Handler::O2Handler(IClock& clock, IO2Sensor& sensor, IBinaryOutput& flushValve
     : clock_(clock),
       sensor_(sensor),
       flushValve_(flushValve),
-      timedStateMachine_(clock, STATE_UNINITIALIZED),
+      timedStateMachine_(clock, STATE_UNINITIALIZED, "O2", o2StateName),
       config_(config),
-      hasValue_(false),
+      hasValue_(fal  ),
       earlyMeasurementRequested_(false),
       lastCompletedMeasurementAtMs_(0U),
       cachedAveragePercent_(0.0f),
