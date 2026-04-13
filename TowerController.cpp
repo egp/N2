@@ -1,4 +1,5 @@
 // TowerController.cpp v2
+#include <Arduino.h>
 #include "TowerController.h"
 
 TowerController::Config TowerController::defaultConfig() {
@@ -55,18 +56,22 @@ void TowerController::tick() {
 
   switch (state()) {
     case STATE_LEFT_ONLY:
+      Serial.println("Tower Transitioning from LEFT_ONLY to BOTH_AFTER_LEFT");
       transitionTo(STATE_BOTH_AFTER_LEFT, config_.overlapMs, true);
       return;
 
     case STATE_BOTH_AFTER_LEFT:
+      Serial.println("Tower Transitioning from BOTH_AFTER_LEFT to RIGHT_ONLY");
       transitionTo(STATE_RIGHT_ONLY, config_.rightOpenMs, true);
       return;
 
     case STATE_RIGHT_ONLY:
+      Serial.println("Tower Transitioning from RIGHT_ONLY to BOTH_AFTER_RIGHT");
       transitionTo(STATE_BOTH_AFTER_RIGHT, config_.overlapMs, true);
       return;
 
     case STATE_BOTH_AFTER_RIGHT:
+      Serial.println("Tower Transitioning from BOTH_AFTER_RIGHT to LEFT_ONLY");
       transitionTo(STATE_LEFT_ONLY, config_.leftOpenMs, true);
       return;
 

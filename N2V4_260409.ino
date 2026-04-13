@@ -5,86 +5,29 @@
 #include <TCP1650.h>      // https://github.com/egp/TCP1650
 #include <TCP20x4.h>      // https://github.com/egp/TCP20x4
 #include <TCP0465.h>      // https://github.com/egp/TCP0465
-#include <DS3231RTC.h>    // https://github.com/egp/TCP3231
+#include <TCP3231.h>      // https://github.com/egp/TCP3231
 #include "O2Handler.h"
 #include "TimedStateMachine.h"
 #include "TowerController.h"
 
-
 /*
-N2 -- Nitrogen generator code
-    -- This code handles
-      -- Three valves via digital outputs (left, right, O2)
-      -- one SSR via digital output, Solid State Rectifier for N2 compressor 
-      -- Four pressure sensors via Analog inputs
-        -- Three 0-150 psi (for air supply and left and right towers)
-        -- One 0-30 psi (for low pressure N2)
-      -- Oxygen percentage sensor (displayed as N2 percentage)
-      -- One On/Off switch (black) to shutdown the system
-      -- One six-position rotary switch to select what displays on the seven-segment display
-      -- One four-digit seven-segment display      Display4
-      -- One LCD display, four rows of 20 columns  Display20x4
-      -- Serial Interface for debugging, monitoring
-    -- All actions are scheduled, except for setup() and the scheduler itself
----------------------------------------------------------------------------------------------------
-Theory of operation:
-  Note: TODO All timings are yet to be adjusted based on actual performance
-  Two towers take turns separating O2 from N2 over half cycles of about a minute.
-  At the end of each half cycle, the valves are changed to swap to the other tower,
-  with a short (approximately 750 ms) overlap.
+1. O2 handler and Tower controller bith need a valve handler, so it should be shared.
+2. Resolve N2 state machine
+3. will we want to display HP N2 on the rotary switch? Can we get another position?
+   or replace OFF with HP N2?
 
-  Pressure sensors are read and used to monitor the system, and need calibration.
-  Sensor values are displayed based on the position of the rotary switch.
-  They are also displayed on the LCD 20x4 display.
----------------------------------------------------------------------------------------------------
-  Questions for Tom
-  1. shutdown() closes the valves and turns off displays. What else needs to be done to shutdown
-     If we had a 120V relay, we could literally shutdown the Arduino power under Arduino control,
-     cutting off the branch we're sitting on. Obviously it would require a monentary contact
-     normally open push button to re-enable the relay. The Arduino would then bootup and run setup().
-  2. What are the rules for the SSR (see checkN2Compressor())
----------------------------------------------------------------------------------------------------
-TODO:
-- Verify all pin definitions -- DONE?
-- Verify which state HIGH,LOW is VALVE_OPEN or VALVE_CLOSED. Verify all three valves.
-- Verify which state the black switch sees when on and off (current logic might be backwards).
-- Identify all out-of-bounds pressure readings, monitor, and respond correctly
-- Tower cycling
-  - verify correct operating pressures
-  - verify and adjust correct tower timing
-  - verify and adjust correct overlap timing
-- Verify all sensor output conversions for display
-  - O2 sensor, N2 percentage
-  - air supply PSI
-  - Left and Right Tower PSI
-  - Low pressure N2 PSI
-- Walk through taskList and adjust all callback periods.
-- validate task timings (ensure each callback runs in a reasonable amount of time)
-- Verify all debug outputs
-- cleanup display20x4 layout
-- Currently there are many debugging statements enabled with verboseSerial.
-    Most should be commented out before we ever try the code smoke test. Enable as necessary.
-- sensor scaling factors might need to be individualized
----------------------------------------------------------------------------------------------------
-- develop debug macro, with line numbers
-- develop cmd parser for displaying and tweaking values while running
-  - decide on parameters to be tweaked
-    - overlap timeout
-    - airMinimumPressure 
-    - thresholds
-- Measure the tight loop. How many milliseconds if there is nothing for the scheduler to run.
-- pull scheduler code out into a separate class?
 */
 
 /*
 Values to be modified
 */
-const char* PROGRAM_VERSION = "4.0";  // update this major.minor. TODO add change log
+const char* PROGRAM_VERSION = "4.1";  // update this major.minor. TODO add change log
 bool verboseSerial = true;            // enable for verbose debugging messages to the Serial Monitor
 
 /* -- pressure sensor parameters -- */
 const uint16_t overlapTimeout = 750;  // milliseconds of overlap time for the two towers
-int n2MinimumPSI = 20;                // disable N2 compressor when low pressure N2 is below this
+int n2MinimumPSI = 5;                 // disable N2 compressor when low pressure N2 is below this
+int n2MaximumPSI = 15;                // disable N2 compressor when low pressure N2 is above this
 int airMinimumPSI = 90;               // disable towers when air supply is below this
 
 /* -- Oxygen sensor parameters -- */
@@ -104,6 +47,7 @@ const uint8_t leftTowerPressurePin = A1;   // analog input pin 15 Relay_1
 const uint8_t rightTowerPressurePin = A2;  // analog input pin 16 Relay_2
 const uint8_t lowPressureN2Pin = A3;       // analog input pin 17
 const uint8_t highPressureN2Pin = A4;      // analog input pin 18
+const uint8_t unusedA5 = A5;               // analog input pin 19
 
 const uint8_t blackSwitchPin = D0;  // digital input
 const uint8_t theOtherButton = D1;  // aux button
@@ -119,8 +63,8 @@ const uint8_t I2C_BUSC_SCL = D10;
 const uint8_t O2SamplePin = D11;  // PWM digital output TODO verify correct pin Relay_4
 const uint8_t I2C_BUSD_SDA = D12;
 const uint8_t I2C_BUSD_SCL = D13;
-const uint8_t I2C_BUSE_SDA = D14;
-const uint8_t I2C_BUSE_SCL = D15;
+const uint8_t UNAVAILABLE_D14 = D14;  // Alias for A0 (tied together) 
+const uint8_t UNAVAILABLE_D15 = D15;  // Alias for A1 (on both R4 minima and R4 Wifi)
 
 /* -- these should probably not change -- */
 const uint8_t I2C_O2 = 0x74;       // 0x73 I2C address
@@ -140,9 +84,10 @@ const uint8_t VALVE_CLOSED = LOW;
 const uint8_t SSR_ON = HIGH;
 const uint8_t SSR_OFF = LOW;
 
-const uint8_t DISP4_BRIGHTNESS = 1;  // 0-7
+const uint8_t DISP4_BRIGHTNESS = 6;  // 0-7
 
-DS3231RTC::DateTime rtc_dt{};
+// Create the instance of the O2 sensor adapter, it will be initialized during setup()
+TCP3231::DateTime rtc_dt{};
 
 /*
 I2C bus declarations, they are initialized during setup()
@@ -151,7 +96,7 @@ BBI2C i2c_disp4{};  // disp4
 BBI2C i2c_o2{};     // O2 sensor
 BBI2C i2c_20x4{};   // displ20x4
 BBI2C i2c_rtc{};    // UNUSED (RTC?)
-BBI2C i2c_bus_e{};  // UNUSED
+
 
 /* O@ handler setup */
 const uint8_t O2_FLUSH_VALVE_PIN = O2SamplePin;
@@ -231,7 +176,7 @@ private:
   bool activeHigh_;
 };
 
-
+// Create the instance of the O2 sensor adapter, it will be initialized during setup()
 TCP0465SensorAdapter o2Sensor{ i2c_o2, TCP0465::DEFAULT_ADDRESS };
 
 /*
@@ -419,7 +364,7 @@ TowerController towerController(timerClock, towerValves, towerConfig);
 ArduinoFlushValveDriver o2FlushValve(O2_FLUSH_VALVE_PIN, O2_FLUSH_VALVE_ACTIVE_HIGH);
 
 O2Handler o2Handler(timerClock, o2Sensor, o2FlushValve, o2Config);
-DS3231RTC rtc(i2c_rtc);
+TCP3231 rtc(i2c_rtc);
 
 /*
 readO2Sensor()
@@ -553,6 +498,7 @@ cycleTowers()
 NOTE: This assumes cycling is schedule based, not pressure based, but we should
   add some pressure checks to ensure system integrity before and during cycling
 */
+/*
 void cycleTowers() {
 
   if (scaledSupplyPSI < airMinimumPSI) {
@@ -592,7 +538,7 @@ void cycleTowers() {
     }
   }
 }
-
+*/
 
 /*
 checkN2Compressor
@@ -602,9 +548,31 @@ checkN2Compressor
     TODO: Decide if it is necessary to check if low pressure N2 is too high.
     TODO: Anything else needing to be changed here?
     TODO: Check HIGH/LOW valve states
+    low threshold = 5, high threshold 15
+
+    Compresssor state machine:
+    Questions: Which scenario?
+    1. N2 PSI starts below Low threshold, PSI rises above Low, wait for High threshold to
+       enable compressor, PSI wlll drop as compressor consumes the buffer,
+        when PSI drops below Low, disable compressor and repeat cycle.
+    2. NS PSI starts below Low threshold, PSI rises above Low, enable compressor immediately,
+     when PSI rises above High, disable compressor and repeat cycle.
+
+    3. Perhaps we choose a point (e.g.midpoint) between Low and High as the
+      threshold to enable/disable compressor:
+       PSI starts below Low threshold, when PSI rises above midpoint, enable compressor,
+       When it rises above high threshold, disable compressor,
+       but when it drops back below midpoint, re-enable compressor, 
+       when PSI drops below Low threshold, disable compressor.
+       This keeps the compressor on when PSI is between Low and High thresholds.
+
+
+    
 */
 void checkN2Compressor() {
   if (scaledLowN2PSI > n2MinimumPSI) {
+    Serial.println("(>)scaledLowN2PSI=");
+    Serial.println(scaledLowN2PSI);
     digitalWrite(SSR_Pin, SSR_ON);
     if (!N2compressorRunning) {
       N2compressorRunning = true;
@@ -613,6 +581,8 @@ void checkN2Compressor() {
     }
   } else {
     digitalWrite(SSR_Pin, SSR_OFF);
+    Serial.println("(<)scaledLowN2PSI=");
+    Serial.println(scaledLowN2PSI);
     if (N2compressorRunning) {
       N2compressorRunning = false;
       if (previousSSR && verboseSerial) { Serial.println(F("Disabled N2 compressor")); };
@@ -621,33 +591,35 @@ void checkN2Compressor() {
   }
 }
 
-void showScaling(uint8_t hexValue, int rawValue, uint16_t scaledValue) {
-  sprintf(sprintfBuffer, "%0X %0d %0d", hexValue, rawValue, scaledValue);
-  Serial.println(sprintfBuffer);
-}
+// void showScaling(uint8_t hexValue, int rawValue, uint16_t scaledValue) {
+//   sprintf(sprintfBuffer, "%0X %0d %0d", hexValue, rawValue, scaledValue);
+//   Serial.println(sprintfBuffer);
+// }
 
 // TODO: Verify correct hex values
-const uint8_t rotaryOff = 0x44;        // 0x01 0x04 1-A OFF
-const uint8_t rotarySupply = 0x4C;     // 0x02 0x0C 1-B Air Supply
-const uint8_t rotaryLeft = 0x54;       // 0x04 0x14 1-C Left Tower
-const uint8_t rotaryRight = 0x5C;      // 0x08 0x1C 1-D Right Tower
-const uint8_t rotaryN2Low = 0x64;      // 0x10 0x24 1-E Low Pressure N2
-const uint8_t rotaryN2Percent = 0x6C;  // 0x20 0x2C 1-F N2 percent
+const uint8_t rotaryOff = 0x44;        // 0x44 OFF
+const uint8_t rotarySupply = 0x4C;     // 0x4C Air Supply
+const uint8_t rotaryLeft = 0x54;       // 0x54 Left Tower
+const uint8_t rotaryRight = 0x5C;      // 0x5C Right Tower
+const uint8_t rotaryN2Low = 0x64;      // 0x64 Low Pressure N2
+const uint8_t rotaryN2Percent = 0x6C;  // 0x6C N2 percent
 
 
-void displayButtonValue() {
-  rotarySwitchStatus = readRotarySwitch();
-  disp4.setHex(rotarySwitchStatus, false);
-  Serial.println(display4buffer);
-  Serial.println(millis());
-}
+// void displayButtonValue() {
+//   rotarySwitchStatus = readRotarySwitch();
+//   disp4.setHex(rotarySwitchStatus, false);
+//   Serial.println(display4buffer);
+//   Serial.println(millis());
+// }
 /*
 displaySelectedValue()
 */
 void displaySelectedValue() {
   rotarySwitchStatus = readRotarySwitch();
   switch (rotarySwitchStatus) {
-    case rotaryOff:  // 0 -- off
+    case rotaryOff:  // 0
+      disableDisplay4();
+      disableDisplay20x4();
       break;
 
     case rotarySupply:  // 1 -- air supply
@@ -790,6 +762,8 @@ TODO: check sense (on/off is high or low), and correct if necessary
 */
 void readBlackSwitch() {
   systemEnabled = !digitalRead(blackSwitchPin);
+  Serial.println("Black Switch");
+  Serial.println(systemEnabled);
 }
 
 bool isTowerMasterEnabled() {
@@ -800,6 +774,7 @@ bool isTowerMasterEnabled() {
 shutdown()
 */
 void shutdown() {
+  Serial.println("shutting down");
   if (systemWasEnabled) { Serial.println(F("Black switch off; Scheduler disabled; Shutting down.")); };
   systemWasEnabled = false;
 
@@ -826,11 +801,13 @@ void disableDisplay20x4() {
 
 
 void enableDisplay4() {
+  Serial.println("disp4 enabled");
   disp4.displayOn();
   disp4.setBrightness(DISP4_BRIGHTNESS);
 }
 
 void disableDisplay4() {
+  Serial.println("disp4 disabled");
   disp4.displayOff();
 }
 
@@ -846,29 +823,29 @@ void waitForO2Sensor() {
 }
 
 void setupI2C() {
-  i2c_disp4.bWire = 0;  // use bit banging, not builtin wire
-  i2c_o2.bWire = 0;     // use bit banging
+  i2c_disp4.bWire = 1;  // use bit banging, not builtin wire
+  i2c_o2.bWire = 1;     // use bit banging
   i2c_20x4.bWire = 0;   // use bit banging
   i2c_rtc.bWire = 0;    // use bit banging
-  i2c_bus_e.bWire = 0;  // use bit banging
-  i2c_disp4.iSDA = I2C_BUSA_SDA;
-  i2c_disp4.iSCL = I2C_BUSA_SCL;
-  i2c_o2.iSDA = I2C_BUSB_SDA;
-  i2c_o2.iSCL = I2C_BUSB_SCL;
+  // i2c_disp4.iSDA = I2C_BUSA_SDA;
+  // i2c_disp4.iSCL = I2C_BUSA_SCL;
+  // i2c_o2.iSDA = I2C_BUSB_SDA;
+  // i2c_o2.iSCL = I2C_BUSB_SCL;
+  i2c_disp4.iSDA = A4;
+  i2c_disp4.iSCL = A5;
+  i2c_o2.iSDA = A4;
+  i2c_o2.iSCL = A5;
   i2c_20x4.iSDA = I2C_BUSC_SDA;
   i2c_20x4.iSCL = I2C_BUSC_SCL;
   i2c_rtc.iSDA = I2C_BUSD_SDA;
   i2c_rtc.iSCL = I2C_BUSD_SCL;
-  i2c_bus_e.iSDA = I2C_BUSE_SDA;
-  i2c_bus_e.iSCL = I2C_BUSE_SCL;
   I2CInit(&i2c_disp4, 100000);  // 100K clock
   I2CInit(&i2c_o2, 100000);     // 100K clock
   I2CInit(&i2c_20x4, 100000);   // 100K clock
   I2CInit(&i2c_rtc, 100000);    // 100K clock
-  I2CInit(&i2c_bus_e, 100000);  // 100K clock
 }
 
-void printDateTime(const DS3231RTC::DateTime& dt) {
+void printDateTime(const TCP3231::DateTime& dt) {
   printFourDigits(dt.year);
   Serial.print('-');
   printTwoDigits(dt.month);
@@ -878,6 +855,7 @@ void printDateTime(const DS3231RTC::DateTime& dt) {
   printTwoDigits(dt.hour);
   Serial.print(':');
   printTwoDigits(dt.minute);
+  Serial.println(".");
 }
 
 void printTwoDigits(uint8_t value) {
@@ -959,6 +937,7 @@ void loop() {
     shutdown();    // TODO can this run once per tight loop?
     delay(10000);  // check occassionally
   }
+  delay(10000);  // TODO
 }
 
 
