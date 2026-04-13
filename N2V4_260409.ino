@@ -27,17 +27,12 @@ const char* PROGRAM_VERSION = "4.1";  // update this major.minor. TODO add chang
 bool verboseSerial = true;            // enable for verbose debugging messages to the Serial Monitor
 
 /* -- pressure sensor parameters -- */
-const uint16_t overlapTimeout = 750;  // milliseconds of overlap time for the two towers
 int n2MinimumPSI = 5;                 // disable N2 compressor when low pressure N2 is below this
 int n2MaximumPSI = 15;                // disable N2 compressor when low pressure N2 is above this
+
 int airMinimumPSI = 90;               // disable towers when air supply is below this
 
 /* -- Oxygen sensor parameters -- */
-const uint8_t o2RetryPeriod = 250;      // milliseconds to wait before retrying O2 sensor error at startup
-const uint16_t o2FlushPeriod = 2000;    // flush O2 sensor with N2 for this long
-const uint16_t o2SamplePeriod = 2000;   // wait for O2 to stabilize
-const uint16_t o2AveragingPeriod = 50;  // milliseconds between O2 samples during averaging
-const uint8_t COLLECT_NUMBER = 10;      // Returns the average of this many samples
 bool o2SensorReady;
 
 /*
@@ -159,15 +154,6 @@ TCP0465SensorAdapter o2Sensor{ i2c_o2, TCP0465::DEFAULT_ADDRESS };
 ArduinoDigitalOutput o2FlushValve(O2_FLUSH_VALVE_PIN);
 
 /*
-TowerController setting
-*/
-
-constexpr uint32_t LEFT_OPEN_MS = 60000UL;
-constexpr uint32_t OVERLAP_MS = 750UL;
-constexpr uint32_t RIGHT_OPEN_MS = 60000UL;
-
-
-/*
 variables to hold sensor readings
 */
 int supplyPressure, leftTowerPressure, rightTowerPressure, lowPressureN2, highPressureN2;
@@ -175,7 +161,7 @@ uint16_t scaledSupplyPSI, scaledLeftPSI, scaledRightPSI, scaledLowN2PSI, scaledH
 float O2portion, N2portion;
 uint16_t n2int;              // will hold integer percent x100
 uint8_t rotarySwitchStatus;  // holds current status of rotary switch
-bool leftTowerActive, rightTowerActive, N2compressorRunning, systemEnabled;
+bool  N2compressorRunning, systemEnabled;
 
 /* -- previous values to reduce chatter -- */
 float previousO2 = 0.0;
@@ -247,15 +233,12 @@ char commandBuffer[kCommandBufferSize];
 
 
 /* ---------- Forward declarations ---  */
-void readO2Sensor();
+// void readO2Sensor();
 void readPressureSensors();
-void cycleTowers();
 void checkN2Compressor();
 void displaySelectedValue();
-void readBlackSwitch();
 void displayO2();
 void readBlackSwitch();
-uint8_t readRotarySwitch();
 void setDotTenths();
 void setDotHundredths();
 void readSupplyPressure();
@@ -264,7 +247,8 @@ void readRightTowerPressure();
 void readLowPressureN2();
 void displayToLCD20x4();
 void disableDisplay4();
-void disableDisplay20x4();
+void disableDisplay20x4()
+uint8_t readRotarySwitch();;
 
 /*
 *********************************************************
@@ -309,28 +293,29 @@ readO2Sensor()
 Open sample valve, wait for stable, close sample valve, wait for stable
 reads from sensor, sets O2portion, and calculates N2portion.
 */
-void readO2Sensor() {
 
-  o2FlushValve.setOn(true);
+// void readO2Sensor() {
 
-  for (uint16_t flushTime = 0; flushTime < o2FlushPeriod; flushTime += o2AveragingPeriod) {
-  }
+//   o2FlushValve.setOn(true);
 
-  o2FlushValve.setOn(false);
+//   for (uint16_t flushTime = 0; flushTime < o2FlushPeriod; flushTime += o2AveragingPeriod) {
+//   }
 
-  for (uint16_t sampleTime = 0; sampleTime < o2SamplePeriod; sampleTime += o2AveragingPeriod) {
-  }
+//   o2FlushValve.setOn(false);
 
-  /* -- here with O2portion as a float from 0.0 to 25.0 (TODO: Verify) */
+//   for (uint16_t sampleTime = 0; sampleTime < o2SamplePeriod; sampleTime += o2AveragingPeriod) {
+//   }
 
-  N2portion = 100.0 - getOxygenData(10, 100); // nSamples, msDelay
-  if (verboseSerial && (previousO2 != O2portion)) { // only print if different than last time
-    sprintf(sprintfBuffer, "O2portion %.2f, N2portion %.2f ", O2portion, N2portion);
-    Serial.println(sprintfBuffer);
-  };
+//   /* -- here with O2portion as a float from 0.0 to 25.0 (TODO: Verify) */
 
-  previousO2 = O2portion;
-}
+//   N2portion = 100.0 - getOxygenData(10, 100); // nSamples, msDelay
+//   if (verboseSerial && (previousO2 != O2portion)) { // only print if different than last time
+//     sprintf(sprintfBuffer, "O2portion %.2f, N2portion %.2f ", O2portion, N2portion);
+//     Serial.println(sprintfBuffer);
+//   };
+
+//   previousO2 = O2portion;
+// }
 
 float getOxygenData(byte numberOfSamples, uint16_t delayMs) {
   if (numberOfSamples == 0) {
@@ -700,26 +685,22 @@ void disableDisplay4() {
   disp4.displayOff();
 }
 
-void waitForO2Sensor() {
-  o2SensorReady = false;
-  while (!o2Sensor.begin()) {
-    Serial.print("TCP0465 begin() failed: ");
-    Serial.println(o2Sensor.errorString());
-    delay(1000);
-  }
-  o2SensorReady = true;
-  Serial.println(F("Oxygen I2c connect success."));
-}
+// void waitForO2Sensor() {
+//   o2SensorReady = false;
+//   while (!o2Sensor.begin()) {
+//     Serial.print("TCP0465 begin() failed: ");
+//     Serial.println(o2Sensor.errorString());
+//     delay(1000);
+//   }
+//   o2SensorReady = true;
+//   Serial.println(F("Oxygen I2c connect success."));
+// }
 
 void setupI2C() {
-  i2c_disp4.bWire = 1;  // use bit banging, not builtin wire
-  i2c_o2.bWire = 1;     // use bit banging
+  i2c_disp4.bWire = 0;  // use hardware I2C when true, use Bit banging when false
+  i2c_o2.bWire = 0;     // use bit banging
   i2c_20x4.bWire = 0;   // use bit banging
   i2c_rtc.bWire = 0;    // use bit banging
-  // i2c_disp4.iSDA = I2C_BUSA_SDA;
-  // i2c_disp4.iSCL = I2C_BUSA_SCL;
-  // i2c_o2.iSDA = I2C_BUSB_SDA;
-  // i2c_o2.iSCL = I2C_BUSB_SCL;
   i2c_disp4.iSDA = A4;
   i2c_disp4.iSCL = A5;
   i2c_o2.iSDA = A4;
@@ -780,7 +761,6 @@ void setup() {
 
   compressorSsr.begin(false);
   o2FlushValve.begin(false);
-  towerValves.begin();
 
   if (!o2Handler.begin()) {
     Serial.print("O2Handler begin() failed: ");
