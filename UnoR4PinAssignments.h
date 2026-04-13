@@ -27,7 +27,7 @@ const uint8_t I2C_BUSC_SCL = D10;
 const uint8_t O2_FLUSH_VALVE_PIN = D11;  // PWM digital output TODO verify correct pin Relay_4
 const uint8_t I2C_BUSD_SDA = D12;
 const uint8_t I2C_BUSD_SCL = D13;
-const uint8_t UNAVAILABLE_D14 = D14;  // Alias for A0 (tied together) 
-const uint8_t UNAVAILABLE_D15 = D15;  // Alias for A1 (on both R4 minima and R4 Wifi)
+const uint8_t UNAVAILABLE_D14 = D14;  // Alias for (A0 == D14, and D15 == A5)
+const uint8_t UNAVAILABLE_D15 = D15;  // Alias -- tied together on both R4 Minima and R4 Wifi
 #endif
 // UnoR4PinAssignments.h v1

@@ -48,7 +48,7 @@ O2Handler::O2Handler(IClock& clock, IO2Sensor& sensor, IBinaryOutput& flushValve
       flushValve_(flushValve),
       timedStateMachine_(clock, STATE_UNINITIALIZED, "O2", o2StateName),
       config_(config),
-      hasValue_(fal  ),
+      hasValue_(false),
       earlyMeasurementRequested_(false),
       lastCompletedMeasurementAtMs_(0U),
       cachedAveragePercent_(0.0f),
