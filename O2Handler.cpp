@@ -1,6 +1,5 @@
 // O2Handler.cpp v2
 #include "O2Handler.h"
-#include <Arduino.h>
 
 O2Handler::Config O2Handler::defaultConfig() {
   Config config;

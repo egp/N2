@@ -1,4 +1,4 @@
-// host_tests/test_BB_o2_handler.cpp v1
+// host_tests/test_BB_o2_handler.cpp v2
 #include <stdio.h>
 
 #include "O2Handler.h"
@@ -90,20 +90,20 @@ private:
   uint8_t sampleCount_;
 };
 
-class FakeFlushValveDriver : public IFlushValveDriver {
+class FakeBinaryOutput : public IBinaryOutput {
 public:
-  FakeFlushValveDriver() : open_(false) {}
+  FakeBinaryOutput() : on_(false) {}
 
-  void setFlushValveOpen(bool open) override {
-    open_ = open;
+  void setOn(bool on) override {
+    on_ = on;
   }
 
-  bool isOpen() const {
-    return open_;
+  bool isOn() const {
+    return on_;
   }
 
 private:
-  bool open_;
+  bool on_;
 };
 
 static bool require(bool condition, const char* message) {
@@ -130,13 +130,13 @@ static O2Handler::Config testConfig() {
 static bool test_BB_beginStartsWarmupWithClosedValve() {
   FakeClock clock;
   FakeO2Sensor sensor;
-  FakeFlushValveDriver valve;
+  FakeBinaryOutput valve;
   O2Handler handler(clock, sensor, valve, testConfig());
 
   if (!require(handler.begin(), "begin() should succeed")) return false;
   if (!require(handler.state() == O2Handler::STATE_WARMUP, "begin() should enter warmup")) return false;
   if (!require(handler.isWarmingUp(), "handler should report warming up")) return false;
-  if (!require(!valve.isOpen(), "flush valve should be closed during warmup")) return false;
+  if (!require(!valve.isOn(), "flush valve should be closed during warmup")) return false;
   if (!require(!handler.hasValue(), "handler should not have value immediately after begin")) return false;
 
   return true;
@@ -145,7 +145,7 @@ static bool test_BB_beginStartsWarmupWithClosedValve() {
 static bool test_BB_fullCycleProducesCachedAverage() {
   FakeClock clock;
   FakeO2Sensor sensor;
-  FakeFlushValveDriver valve;
+  FakeBinaryOutput valve;
   O2Handler handler(clock, sensor, valve, testConfig());
 
   sensor.queueSample(true, 20.0f, "");
@@ -160,12 +160,12 @@ static bool test_BB_fullCycleProducesCachedAverage() {
 
   handler.tick();
   if (!require(handler.state() == O2Handler::STATE_FLUSHING, "waiting state should start flush cycle")) return false;
-  if (!require(valve.isOpen(), "flush valve should open during flush")) return false;
+  if (!require(valve.isOn(), "flush valve should open during flush")) return false;
 
   clock.advanceMs(3000U);
   handler.tick();
   if (!require(handler.state() == O2Handler::STATE_SETTLING, "flush expiry should enter settling")) return false;
-  if (!require(!valve.isOpen(), "flush valve should close after flush")) return false;
+  if (!require(!valve.isOn(), "flush valve should close after flush")) return false;
 
   clock.advanceMs(500U);
   handler.tick();
@@ -187,7 +187,7 @@ static bool test_BB_fullCycleProducesCachedAverage() {
   if (!require(handler.hasValue(), "completed cycle should cache a value")) return false;
   if (!require(handler.averagedPercent() > 20.9f && handler.averagedPercent() < 21.1f, "average should be about 21.0")) return false;
   if (!require(handler.isValueFresh(), "newly completed value should be fresh")) return false;
-  if (!require(!valve.isOpen(), "flush valve should be closed after completed cycle")) return false;
+  if (!require(!valve.isOn(), "flush valve should be closed after completed cycle")) return false;
 
   return true;
 }
@@ -195,7 +195,7 @@ static bool test_BB_fullCycleProducesCachedAverage() {
 static bool test_BB_staleRequestTriggersEarlyCycle() {
   FakeClock clock;
   FakeO2Sensor sensor;
-  FakeFlushValveDriver valve;
+  FakeBinaryOutput valve;
   O2Handler handler(clock, sensor, valve, testConfig());
 
   sensor.queueSample(true, 20.0f, "");
@@ -231,7 +231,7 @@ static bool test_BB_staleRequestTriggersEarlyCycle() {
   handler.tick();
 
   if (!require(handler.state() == O2Handler::STATE_FLUSHING, "stale request should start early flush cycle")) return false;
-  if (!require(valve.isOpen(), "flush valve should open for early cycle")) return false;
+  if (!require(valve.isOn(), "flush valve should open for early cycle")) return false;
 
   return true;
 }
@@ -239,7 +239,7 @@ static bool test_BB_staleRequestTriggersEarlyCycle() {
 static bool test_BB_failedCyclePreservesLastCachedValueAndBacksOff() {
   FakeClock clock;
   FakeO2Sensor sensor;
-  FakeFlushValveDriver valve;
+  FakeBinaryOutput valve;
   O2Handler handler(clock, sensor, valve, testConfig());
 
   sensor.queueSample(true, 20.0f, "");
@@ -278,7 +278,7 @@ static bool test_BB_failedCyclePreservesLastCachedValueAndBacksOff() {
   if (!require(handler.state() == O2Handler::STATE_ERROR_BACKOFF, "failed sample should enter error backoff")) return false;
   if (!require(handler.hasValue(), "failed cycle should preserve prior cached value")) return false;
   if (!require(handler.averagedPercent() == firstAverage, "failed cycle should not overwrite cached average")) return false;
-  if (!require(!valve.isOpen(), "flush valve should be closed on failure")) return false;
+  if (!require(!valve.isOn(), "flush valve should be closed on failure")) return false;
 
   clock.advanceMs(1000U);
   handler.tick();
@@ -296,4 +296,4 @@ int main() {
   printf("PASS: test_BB_o2_handler\n");
   return 0;
 }
-// host_tests/test_BB_o2_handler.cpp v1
+// host_tests/test_BB_o2_handler.cpp v2
