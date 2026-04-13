@@ -9,7 +9,6 @@
 #include "O2Handler.h"
 #include "TimedStateMachine.h"
 #include "TowerController.h"
-#include "BinaryOutput.h"
 #include "ArduinoDigitalOutput.h"
 
 /*
@@ -247,8 +246,8 @@ void readRightTowerPressure();
 void readLowPressureN2();
 void displayToLCD20x4();
 void disableDisplay4();
-void disableDisplay20x4()
-uint8_t readRotarySwitch();;
+void disableDisplay20x4();
+uint8_t readRotarySwitch();
 
 /*
 *********************************************************
@@ -317,37 +316,6 @@ reads from sensor, sets O2portion, and calculates N2portion.
 //   previousO2 = O2portion;
 // }
 
-float getOxygenData(byte numberOfSamples, uint16_t delayMs) {
-  if (numberOfSamples == 0) {
-    Serial.println("TCP0465 getOxygenData(): numberOfSamples must be > 0");
-    return -1.0f;
-  }
-
-  float sum = 0.0f;
-  byte validSamples = 0;
-
-  for (byte i = 0; i < numberOfSamples; ++i) {
-    float percentVol = 0.0f;
-    if (o2Sensor.readOxygenPercent(percentVol)) {
-      sum += percentVol;
-      ++validSamples;
-    } else {
-      Serial.print("TCP0465 readOxygenPercent() failed: ");
-      Serial.println(o2Sensor.errorString());
-    }
-
-    if ((i + 1) < numberOfSamples && delayMs > 0) {
-      delay(delayMs);
-    }
-  }
-
-  if (validSamples == 0) {
-    Serial.println("TCP0465 getOxygenData(): no valid oxygen samples");
-    return -1.0f;
-  }
-
-  return sum / static_cast<float>(validSamples);
-}
 
 /*
 Each pressure sensor callback set corresponding variable on schedule
@@ -476,12 +444,6 @@ const uint8_t rotaryN2Low = 0x64;      // 0x64 Low Pressure N2
 const uint8_t rotaryN2Percent = 0x6C;  // 0x6C N2 percent
 
 
-// void displayButtonValue() {
-//   rotarySwitchStatus = readRotarySwitch();
-//   disp4.setHex(rotarySwitchStatus, false);
-//   Serial.println(display4buffer);
-//   Serial.println(millis());
-// }
 /*
 displaySelectedValue()
 */
@@ -633,8 +595,6 @@ TODO: check sense (on/off is high or low), and correct if necessary
 */
 void readBlackSwitch() {
   systemEnabled = !digitalRead(blackSwitchPin);
-  Serial.println("Black Switch");
-  Serial.println(systemEnabled);
 }
 
 bool isTowerMasterEnabled() {
