@@ -1,4 +1,4 @@
-// TimedStateMachine.h v1
+// TimedStateMachine.h v2
 #ifndef TIMED_STATE_MACHINE_H
 #define TIMED_STATE_MACHINE_H
 
@@ -12,7 +12,13 @@ public:
 
 class TimedStateMachine {
 public:
-  explicit TimedStateMachine(IClock& clock, uint8_t initialState = 0);
+  using StateNameFn = const char* (*)(uint8_t);
+
+  explicit TimedStateMachine(
+      IClock& clock,
+      uint8_t initialState = 0,
+      const char* controllerName = nullptr,
+      StateNameFn stateNameFn = nullptr);
 
   uint8_t state() const;
   uint32_t stateEnteredAtMs() const;
@@ -32,7 +38,9 @@ private:
   uint32_t stateEnteredAtMs_;
   uint32_t deadlineAtMs_;
   bool hasDeadline_;
+  const char* controllerName_;
+  StateNameFn stateNameFn_;
 };
 
 #endif
-// TimedStateMachine.h v1
+// TimedStateMachine.h v2
