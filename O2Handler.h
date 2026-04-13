@@ -1,10 +1,29 @@
-// O2Handler.h v1
+// O2Handler.h v2
 #ifndef O2_HANDLER_H
 #define O2_HANDLER_H
 
 #include <stdint.h>
 
-#include "TimedStateMachine.h"
+class IClock {
+public:
+  virtual ~IClock() {}
+  virtual uint32_t nowMs() const = 0;
+};
+
+class TimedStateMachine {
+public:
+  TimedStateMachine(IClock& clock, uint8_t initialState);
+  uint8_t state() const;
+  bool isExpired() const;
+  void transitionTo(uint8_t nextState);
+  void transitionToFor(uint8_t nextState, uint32_t durationMs);
+
+private:
+  IClock& clock_;
+  uint8_t state_;
+  uint32_t enteredAtMs_;
+  uint32_t durationMs_;
+};
 
 class IO2Sensor {
 public:
@@ -14,10 +33,10 @@ public:
   virtual const char* errorString() const = 0;
 };
 
-class IFlushValveDriver {
+class IBinaryOutput {
 public:
-  virtual ~IFlushValveDriver() {}
-  virtual void setFlushValveOpen(bool open) = 0;
+  virtual ~IBinaryOutput() {}
+  virtual void setOn(bool on) = 0;
 };
 
 class O2Handler {
@@ -46,23 +65,20 @@ public:
 
   static Config defaultConfig();
 
-  O2Handler(IClock& clock, IO2Sensor& sensor, IFlushValveDriver& flushValveDriver);
-  O2Handler(IClock& clock, IO2Sensor& sensor, IFlushValveDriver& flushValveDriver, const Config& config);
+  O2Handler(IClock& clock, IO2Sensor& sensor, IBinaryOutput& flushValve);
+  O2Handler(IClock& clock, IO2Sensor& sensor, IBinaryOutput& flushValve, const Config& config);
 
   bool begin();
   void tick();
-
   void requestMeasurementIfStale();
 
   bool isWarmingUp() const;
   bool isBusy() const;
   bool hasValue() const;
   bool isValueFresh() const;
-
   float averagedPercent() const;
   const char* errorString() const;
   State state() const;
-
   const Config& config() const;
   void setConfig(const Config& config);
 
@@ -76,10 +92,9 @@ private:
 
   IClock& clock_;
   IO2Sensor& sensor_;
-  IFlushValveDriver& flushValveDriver_;
+  IBinaryOutput& flushValve_;
   TimedStateMachine timedStateMachine_;
   Config config_;
-
   bool hasValue_;
   bool earlyMeasurementRequested_;
   uint32_t lastCompletedMeasurementAtMs_;
@@ -90,4 +105,4 @@ private:
 };
 
 #endif
-// O2Handler.h v1
+// O2Handler.h v2

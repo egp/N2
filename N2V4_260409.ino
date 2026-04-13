@@ -1,4 +1,4 @@
-/* N2_V3A  2026.02.02 08:37   */
+/* N2V4  260412   */
 #include <Arduino.h>
 #include <Wire.h>
 #include <BitBang_I2C.h>  // v2.2.1 https://github.com/bitbank2/BitBang_I2C
@@ -9,6 +9,7 @@
 #include "O2Handler.h"
 #include "TimedStateMachine.h"
 #include "TowerController.h"
+#include "ArduinoDigitalOutput.h"
 
 /*
 1. O2 handler and Tower controller bith need a valve handler, so it should be shared.
@@ -81,8 +82,6 @@ const int maxPressureReading = analogScaleMax - minPressureReading;  // largest 
 
 const uint8_t VALVE_OPEN = HIGH;  // TODO verify these states, swap if necessary
 const uint8_t VALVE_CLOSED = LOW;
-const uint8_t SSR_ON = HIGH;
-const uint8_t SSR_OFF = LOW;
 
 const uint8_t DISP4_BRIGHTNESS = 6;  // 0-7
 
@@ -97,6 +96,9 @@ BBI2C i2c_o2{};     // O2 sensor
 BBI2C i2c_20x4{};   // displ20x4
 BBI2C i2c_rtc{};    // UNUSED (RTC?)
 
+
+/* N2 Handler setup */
+ArduinoDigitalOutput compressorSsr(SSR_Pin);
 
 /* O@ handler setup */
 const uint8_t O2_FLUSH_VALVE_PIN = O2SamplePin;
@@ -155,26 +157,9 @@ private:
   const char* lastError_;
 };
 
-class ArduinoFlushValveDriver : public IFlushValveDriver {
-public:
-  ArduinoFlushValveDriver(uint8_t pin, bool activeHigh)
-    : pin_(pin),
-      activeHigh_(activeHigh) {}
+ArduinoDigitalOutput o2FlushValve(O2_FLUSH_VALVE_PIN);
 
-  void begin() {
-    pinMode(pin_, OUTPUT);
-    setFlushValveOpen(false);
-  }
 
-  void setFlushValveOpen(bool open) override {
-    digitalWrite(pin_, activeHigh_ ? (open ? HIGH : LOW)
-                                   : (open ? LOW : HIGH));
-  }
-
-private:
-  uint8_t pin_;
-  bool activeHigh_;
-};
 
 // Create the instance of the O2 sensor adapter, it will be initialized during setup()
 TCP0465SensorAdapter o2Sensor{ i2c_o2, TCP0465::DEFAULT_ADDRESS };
@@ -372,18 +357,25 @@ Open sample valve, wait for stable, close sample valve, wait for stable
 reads from sensor, sets O2portion, and calculates N2portion.
 */
 void readO2Sensor() {
-  digitalWrite(O2SamplePin, VALVE_OPEN);
+
+  o2FlushValve.setOn(true);
+
   for (uint16_t flushTime = 0; flushTime < o2FlushPeriod; flushTime += o2AveragingPeriod) {
   }
-  digitalWrite(O2SamplePin, VALVE_CLOSED);
+
+  o2FlushValve.setOn(false);
+
   for (uint16_t sampleTime = 0; sampleTime < o2SamplePeriod; sampleTime += o2AveragingPeriod) {
   }
+
   /* -- here with O2portion as a float from 0.0 to 25.0 (TODO: Verify) */
-  N2portion = 100.0 - getOxygenData(10, 100);        // nSamples, msDelay
-  if (verboseSerial && (previousO2 != O2portion)) {  // only print if different than last time
-    sprintf(sprintfBuffer, "O2portion %.2f,  N2portion %.2f ", O2portion, N2portion);
+
+  N2portion = 100.0 - getOxygenData(10, 100); // nSamples, msDelay
+  if (verboseSerial && (previousO2 != O2portion)) { // only print if different than last time
+    sprintf(sprintfBuffer, "O2portion %.2f, N2portion %.2f ", O2portion, N2portion);
     Serial.println(sprintfBuffer);
   };
+
   previousO2 = O2portion;
 }
 
@@ -570,22 +562,30 @@ checkN2Compressor
     
 */
 void checkN2Compressor() {
+
   if (scaledLowN2PSI > n2MinimumPSI) {
+
     Serial.println("(>)scaledLowN2PSI=");
     Serial.println(scaledLowN2PSI);
-    digitalWrite(SSR_Pin, SSR_ON);
+
+    compressorSsr.setOn(true);
+
     if (!N2compressorRunning) {
       N2compressorRunning = true;
-      if (!previousSSR && verboseSerial) { Serial.println(F("Enabled N2 compressor")); };
+      if (!previousSSR && verboseSerial) { Serial.println(F("Enabled N2 compressor")); }
       previousSSR = true;
     }
+
   } else {
-    digitalWrite(SSR_Pin, SSR_OFF);
+
+    compressorSsr.setOn(false);
+
     Serial.println("(<)scaledLowN2PSI=");
     Serial.println(scaledLowN2PSI);
+
     if (N2compressorRunning) {
       N2compressorRunning = false;
-      if (previousSSR && verboseSerial) { Serial.println(F("Disabled N2 compressor")); };
+      if (previousSSR && verboseSerial) { Serial.println(F("Disabled N2 compressor")); }
       previousSSR = false;
     }
   }
@@ -774,19 +774,22 @@ bool isTowerMasterEnabled() {
 shutdown()
 */
 void shutdown() {
+
   Serial.println("shutting down");
-  if (systemWasEnabled) { Serial.println(F("Black switch off; Scheduler disabled; Shutting down.")); };
+  if (systemWasEnabled) { Serial.println(F("Black switch off; Scheduler disabled; Shutting down.")); }
+
   systemWasEnabled = false;
 
-  towerController.setEnabled(systemWasEnabled);  // Stop tower, closes both valves
-  digitalWrite(O2SamplePin, VALVE_CLOSED);       // close flush valve
-  digitalWrite(SSR_Pin, SSR_OFF);                // stop compressor
-  previousSSR = false;
-  disableDisplay4();  // close displays
-  disableDisplay20x4();
+  towerController.setEnabled(systemWasEnabled); // Stop tower, closes both valves
 
-  // TODO: what else should be done to shutdown?
-}  // shutdown
+  o2FlushValve.setOn(false);  // close O2 flush valve
+  compressorSsr.setOn(false); // stop compressor
+
+  previousSSR = false;
+
+  disableDisplay4(); // close displays
+  disableDisplay20x4();
+}
 
 
 void enableDisplay20x4() {
@@ -878,14 +881,14 @@ void setup() {
   Serial.begin(115200);           // handshake with USB
   while (!Serial) { delay(1); };  // wait until Serial is available
 
-  pinMode(LED_BUILTIN, OUTPUT);
-  pinMode(leftTowerPressurePin, INPUT);
-  pinMode(rightTowerPressurePin, INPUT);
   pinMode(lowPressureN2Pin, INPUT);
   pinMode(highPressureN2Pin, INPUT);
   pinMode(leftTowerValvePin, OUTPUT);
   pinMode(rightTowerValvePin, OUTPUT);
-  pinMode(SSR_Pin, OUTPUT);
+
+  pinMode(lowPressureN2Pin, INPUT);
+  pinMode(highPressureN2Pin, INPUT);
+
   pinMode(O2SamplePin, OUTPUT);
   pinMode(blackSwitchPin, INPUT);  // TODO decide if this wants to be INPUT_PULLUP
 
@@ -895,6 +898,9 @@ void setup() {
   rtcPresent = rtc.begin();         // init the clock
   analogReadResolution(bitsOfADC);  // defaults to 10 bits
 
+  compressorSsr.begin(false);
+  o2FlushValve.begin(false);
+  towerValves.begin();
 
   if (!o2Handler.begin()) {
     Serial.print("O2Handler begin() failed: ");
@@ -903,6 +909,7 @@ void setup() {
 
   // Wire.setClock(50000);  // slow down the bus for diagnostics
   Wire.begin();
+
   enableDisplay4();
   enableDisplay20x4();
 

@@ -1,6 +1,8 @@
-// O2Handler.cpp v1
+// O2Handler.cpp v2
 #include "O2Handler.h"
+#include "TimedStateMachine.h"
 #include <Arduino.h>
+
 O2Handler::Config O2Handler::defaultConfig() {
   Config config;
   config.warmupDurationMs = 300000UL;
@@ -14,10 +16,10 @@ O2Handler::Config O2Handler::defaultConfig() {
   return config;
 }
 
-O2Handler::O2Handler(IClock& clock, IO2Sensor& sensor, IFlushValveDriver& flushValveDriver)
+O2Handler::O2Handler(IClock& clock, IO2Sensor& sensor, IBinaryOutput& flushValve)
     : clock_(clock),
       sensor_(sensor),
-      flushValveDriver_(flushValveDriver),
+      flushValve_(flushValve),
       timedStateMachine_(clock, STATE_UNINITIALIZED),
       config_(defaultConfig()),
       hasValue_(false),
@@ -28,10 +30,10 @@ O2Handler::O2Handler(IClock& clock, IO2Sensor& sensor, IFlushValveDriver& flushV
       samplesCollected_(0U),
       lastError_("not initialized") {}
 
-O2Handler::O2Handler(IClock& clock, IO2Sensor& sensor, IFlushValveDriver& flushValveDriver, const Config& config)
+O2Handler::O2Handler(IClock& clock, IO2Sensor& sensor, IBinaryOutput& flushValve, const Config& config)
     : clock_(clock),
       sensor_(sensor),
-      flushValveDriver_(flushValveDriver),
+      flushValve_(flushValve),
       timedStateMachine_(clock, STATE_UNINITIALIZED),
       config_(config),
       hasValue_(false),
@@ -43,7 +45,7 @@ O2Handler::O2Handler(IClock& clock, IO2Sensor& sensor, IFlushValveDriver& flushV
       lastError_("not initialized") {}
 
 bool O2Handler::begin() {
-  flushValveDriver_.setFlushValveOpen(false);
+  flushValve_.setOn(false);
 
   if (config_.sampleCount == 0U) {
     lastError_ = "sampleCount must be > 0";
@@ -64,7 +66,6 @@ bool O2Handler::begin() {
   runningSumPercent_ = 0.0f;
   samplesCollected_ = 0U;
   lastError_ = "no error";
-
   transitionToFor(STATE_WARMUP, config_.warmupDurationMs);
   return true;
 }
@@ -91,7 +92,7 @@ void O2Handler::tick() {
     case STATE_FLUSHING:
       if (timedStateMachine_.isExpired()) {
         Serial.println("O2 Transitioning from FLUSHING to SETTLING");
-        flushValveDriver_.setFlushValveOpen(false);
+        flushValve_.setOn(false);
         transitionToFor(STATE_SETTLING, config_.settleDurationMs);
       }
       return;
@@ -169,7 +170,6 @@ bool O2Handler::isValueFresh() const {
   if (!hasValue_) {
     return false;
   }
-
   return (clock_.nowMs() - lastCompletedMeasurementAtMs_) <= config_.freshnessThresholdMs;
 }
 
@@ -197,7 +197,6 @@ bool O2Handler::shouldStartScheduledCycle(uint32_t nowMs) const {
   if (!hasValue_) {
     return true;
   }
-
   return (nowMs - lastCompletedMeasurementAtMs_) >= config_.measurementIntervalMs;
 }
 
@@ -205,12 +204,12 @@ void O2Handler::beginMeasurementCycle() {
   earlyMeasurementRequested_ = false;
   runningSumPercent_ = 0.0f;
   samplesCollected_ = 0U;
-  flushValveDriver_.setFlushValveOpen(true);
+  flushValve_.setOn(true);
   transitionToFor(STATE_FLUSHING, config_.flushDurationMs);
 }
 
 void O2Handler::finishMeasurementCycle(float averagedPercent) {
-  flushValveDriver_.setFlushValveOpen(false);
+  flushValve_.setOn(false);
   cachedAveragePercent_ = averagedPercent;
   hasValue_ = true;
   lastCompletedMeasurementAtMs_ = clock_.nowMs();
@@ -219,7 +218,7 @@ void O2Handler::finishMeasurementCycle(float averagedPercent) {
 }
 
 void O2Handler::failMeasurementCycle(const char* error) {
-  flushValveDriver_.setFlushValveOpen(false);
+  flushValve_.setOn(false);
   lastError_ = error;
   transitionToFor(STATE_ERROR_BACKOFF, config_.errorBackoffMs);
 }
@@ -231,4 +230,4 @@ void O2Handler::transitionTo(State nextState) {
 void O2Handler::transitionToFor(State nextState, uint32_t durationMs) {
   timedStateMachine_.transitionToFor(static_cast<uint8_t>(nextState), durationMs);
 }
-// O2Handler.cpp v1
+// O2Handler.cpp v2
