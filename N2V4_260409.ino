@@ -1,12 +1,11 @@
+// N2V4_260409.ino
 #include <Arduino.h>
 #include <Wire.h>
-
 #include <BitBang_I2C.h>  // v2.2.1 https://github.com/bitbank2/BitBang_I2C
 #include <TCP1650.h>      // https://github.com/egp/TCP1650
 #include <TCP20x4.h>      // https://github.com/egp/TCP20x4
 #include <TCP0465.h>      // https://github.com/egp/TCP0465
 #include <TCP3231.h>      // https://github.com/egp/TCP3231
-
 #include "O2Handler.h"
 #include "TimedStateMachine.h"
 #include "TowerController.h"
@@ -14,27 +13,22 @@
 #include "N2Controller.h"
 #include "UnoR4PinAssignments.h"
 
+const char* PROGRAM_VERSION = "4.2";
+const uint8_t DISP4_BRIGHTNESS = 6;  // 0-7
 
-/*
-Values to be modified
-*/
-
-const char* PROGRAM_VERSION = "4.2";  // update this major.minor. TODO add change log
+const bool diagMode = true;  // TODO FIXME
 
 /* -- N2 pressure sensor thresholds -- */
-constexpr uint16_t N2_LOW_OFF_PSI = 500U;  // These are scaled to hundredths of PSI
-constexpr uint16_t N2_LOW_ON_PSI = 1000U;
-constexpr uint16_t N2_HIGH_ON_PSI = 1500U;
-constexpr uint16_t N2_HIGH_OFF_PSI = 2000U;
-
-bool o2SensorReady = false;
-bool systemEnabled = false;
+constexpr uint16_t N2_LOW_OFF_PSI_x100 = 500U;  // These are scaled to hundredths of PSI
+constexpr uint16_t N2_LOW_ON_PSI_x100 = 1000U;
+constexpr uint16_t N2_HIGH_ON_PSI_x100 = 1500U;
+constexpr uint16_t N2_HIGH_OFF_PSI_x100 = 2000U;
 
 /* -- these should probably not change -- */
 const uint8_t I2C_O2 = 0x74;       // 0x73 I2C address
 const uint8_t I2C_LED = 0x2F;      // 0x2F I2C address for TM1650 4-digit 7-segment LED display
 const uint8_t I2C_LCD20x4 = 0x27;  // 0x27 I2C address for display 20x4
-const uint8_t I2C_BUTTONS = 0x24;  // 0x24 I2C for reading buttons (rotary switch)
+// const uint8_t I2C_BUTTONS = 0x24;  // 0x24 I2C for reading buttons (rotary switch)
 
 // ADC minPressure will be .5 VDC, maxPressure will be 4.5 VDC, so scale is from 10% to 90%
 const uint8_t bitsOfADC = 10;                                        // precision of ADC for analogRead()
@@ -42,9 +36,7 @@ const int analogScaleMax = (1 << (bitsOfADC)) - 1;                   // maximum 
 const int minPressureReading = analogScaleMax / 10;                  // smallest expected pressure sensor reading
 const int maxPressureReading = analogScaleMax - minPressureReading;  // largest expected pressure sensor reading
 
-/* -- display parameters -- */
-const uint8_t DISP4_BRIGHTNESS = 6;  // 0-7
-
+void setupI2C();
 /*
 I2C bus declarations, they are initialized during setup()
 */
@@ -59,13 +51,14 @@ variables to hold sensor readings
 int supplyPressure, leftTowerPressure, rightTowerPressure, lowPressureN2, highPressureN2;
 uint16_t supplyPsi_x10, leftTowerPsi_x10, rightTowerPsi_x10, lowN2Psi_x100, highN2Psi_x10;
 float O2portion, N2portion;
-uint16_t n2int;  // will hold integer percent x100
+uint16_t n2int_x100;  // will hold integer percent x100
 
 uint8_t rotarySwitchStatus;  // holds current status of rotary switch
-
-/* -- previous values to reduce chatter -- */
-uint8_t previousButtonValue = 0;
+bool systemEnabled = false;
 bool systemWasEnabled = false;
+
+/* -- previous value of rotary switch to reduce chatter -- */
+uint8_t previousButtonValue = 0;
 
 /* -- output buffers -- */
 char sprintfBuffer[80];  // holds debugging information before printing
@@ -77,16 +70,10 @@ char LCDline1[25];
 char LCDline2[25];
 char LCDline3[25];
 
-// const char* template0 = " AIRSUPPLY %5s PSI ";
-// const char* template1 = " %5s TOWERS %5s";
-// const char* template2 = "%4s LO N2 HI %4s";
-// const char* template3 = " NITROGEN %4s %% ";
 const char* template0 = "AIRSUPPLY %5s PSI ";
 const char* template1 = "%5s  TOWERS  %5s";
 const char* template2 = "%5s LO N2 HI %5s";
 const char* template3 = "NITROGEN %6s %%   ";
-
-
 
 /* ---------- Forward declarations --- */
 void readPressureSensors();
@@ -108,8 +95,8 @@ void disableDisplay4();
 void setupI2C();
 void printDateTime(const TCP3231::DateTime& dt);
 void printTwoDigits(uint8_t value);
-static void printFourDigits(uint16_t value);
 uint8_t readRotarySwitch();
+static void printFourDigits(uint16_t value);
 
 /*
 ************************************************************************************
@@ -139,7 +126,6 @@ TCP20x4 disp20x4(i2c_20x4, kLcdConfig);
 char commandBuffer[kCommandBufferSize];
 }
 
-
 /*
 *********************************************************
 Setup for timing control
@@ -162,10 +148,10 @@ Setup for N2 controller
 ArduinoDigitalOutput compressorSsr(SSR_Pin);
 
 N2Controller::Config n2Config = {
-  N2_LOW_OFF_PSI,
-  N2_LOW_ON_PSI,
-  N2_HIGH_ON_PSI,
-  N2_HIGH_OFF_PSI,
+  N2_LOW_OFF_PSI_x100,
+  N2_LOW_ON_PSI_x100,
+  N2_HIGH_ON_PSI_x100,
+  N2_HIGH_OFF_PSI_x100,
 };
 
 N2Controller n2Controller(timerClock, compressorSsr, n2Config);
@@ -337,7 +323,7 @@ Display and rotary-switch support
 *********************************************************
 */
 
-// TODO: Verify correct hex values
+// Verify correct hex values
 const uint8_t rotaryOff = 0x44;        // 0x44 OFF
 const uint8_t rotarySupply = 0x4C;     // 0x4C Air Supply
 const uint8_t rotaryLeft = 0x54;       // 0x54 Left Tower
@@ -345,9 +331,6 @@ const uint8_t rotaryRight = 0x5C;      // 0x5C Right Tower
 const uint8_t rotaryN2Low = 0x64;      // 0x64 Low Pressure N2
 const uint8_t rotaryN2Percent = 0x6C;  // 0x6C N2 percent
 
-/*
-displaySelectedValue()
-*/
 void displaySelectedValue() {
   rotarySwitchStatus = readRotarySwitch();
 
@@ -358,38 +341,41 @@ void displaySelectedValue() {
       break;
 
     case rotarySupply:  // 1 -- air supply
+      enableDisplay4();
       readSupplyPressure();
       disp4.setNumber(supplyPsi_x10, true);
       setDotTenths();
       break;
 
     case rotaryLeft:  // 2 -- Left
+      enableDisplay4();
       readLeftTowerPressure();
       disp4.setNumber(leftTowerPsi_x10, true);
       setDotTenths();
       break;
 
     case rotaryRight:  // 3 -- right
+      enableDisplay4();
       readRightTowerPressure();
       disp4.setNumber(rightTowerPsi_x10, true);
       setDotTenths();
       break;
 
     case rotaryN2Low:  // low n2
+      enableDisplay4();
       readLowPressureN2();
       disp4.setNumber(lowN2Psi_x100, true);
       setDotHundredths();
       break;
 
     case rotaryN2Percent:  // N2 percent
-      displayO2();         // display cached value
+      enableDisplay4();
+      displayO2();  // display cached value
       break;
 
     default:
       break;
   }
-
-  displayToLCD20x4();
 }
 
 /* ---------- support functions ------------- */
@@ -416,21 +402,20 @@ void displayO2() {
   // N2portion should be in the range of (0.0-75.0),
   // n2int should be in the range of 0-7500
   N2portion = 100.0 - O2portion;
-  n2int = (int)(N2portion * 100.0);  // show hundredths of a percent
-  disp4.setNumber(n2int, true);
+  n2int_x100 = (int)(N2portion * 100.0);  // show hundredths of a percent
+  disp4.setNumber(n2int_x100, true);
   setDotHundredths();
 }
 
 /*
-readRotarySwitch -- TODO verify this works, and decode appropriately
+readRotarySwitch -- Verify
 */
 uint8_t readRotarySwitch() {
-  uint8_t buttonValue;
-
-  Wire.requestFrom(I2C_BUTTONS, 1, true);
-  buttonValue = 0x3F && Wire.read();
-
-  if (buttonValue != previousButtonValue) {
+  uint8_t buttonValue = disp4.getButtons();
+  Serial.print(".");
+  Serial.flush();
+  delay(1000);
+  if (true || buttonValue != previousButtonValue) {
     sprintf(sprintfBuffer, "rotary switch changed from %02X to %02X", previousButtonValue, buttonValue);
     Serial.println(sprintfBuffer);
   };
@@ -481,27 +466,12 @@ void displayToLCD20x4() {
   dtostrf(N2portion, 6, 2, dtostrfBuf1);
   sprintf(LCDline3, template3, dtostrfBuf1);
   disp20x4.writeLine(3, LCDline3);
-
 }
-/*
-*********************************************************
-General switch / shutdown / display helpers
-*********************************************************
-*/
 
-/*
-readBlackSwitch()
-reads the black on/off switch (frequently)
-TODO: check sense (on/off is high or low), and correct if necessary
-*/
 void readBlackSwitch() {
   systemEnabled = !digitalRead(blackSwitchPin);
-  systemEnabled = true;  // TODO
 }
 
-/*
-shutdown()
-*/
 void shutdown() {
 
   if (systemWasEnabled) { Serial.println(F("Black switch off; Scheduler disabled; Shutting down.")); }
@@ -546,11 +516,11 @@ void setupI2C() {
   i2c_20x4.bWire = 0;   // use bit banging
   i2c_rtc.bWire = 0;    // use bit banging
 
-  i2c_disp4.iSDA = A4;  // sharing the standard I2C bus for now.
-  i2c_disp4.iSCL = A5;
+  i2c_disp4.iSDA = I2C_BUSA_SDA;  // sharing the standard I2C bus for now.
+  i2c_disp4.iSCL = I2C_BUSA_SCL;
 
-  i2c_o2.iSDA = A4;
-  i2c_o2.iSCL = A5;
+  i2c_o2.iSDA = I2C_BUSB_SDA;
+  i2c_o2.iSCL = I2C_BUSB_SCL;
 
   i2c_20x4.iSDA = I2C_BUSC_SDA;
   i2c_20x4.iSCL = I2C_BUSC_SCL;
@@ -596,8 +566,9 @@ static void printFourDigits(uint16_t value) {
 void setup() {
   Serial.begin(115200);           // handshake with USB
   while (!Serial) { delay(1); };  // wait until Serial is available
+  setupI2C();                     // setup all the I2C buses
 
-  // rtcPresent = rtc.begin();  // init the clock if present.
+  rtcPresent = rtc.begin();  // init the clock if present.
   if (rtcPresent) {
     rtc.readTime(rtc_dt);
     printDateTime(rtc_dt);
@@ -605,10 +576,6 @@ void setup() {
 
   sprintf(sprintfBuffer, "N2 v %s, compiled %s at %s with IDE %d", PROGRAM_VERSION, __DATE__, __TIME__, ARDUINO);
   Serial.println(sprintfBuffer);
-
-  // Wire.setClock(50000); // slow down the bus for diagnostics
-  Wire.begin();
-  setupI2C();  // setup all the I2C buses
 
   pinMode(blackSwitchPin, INPUT_PULLUP);
   pinMode(theOtherButton, INPUT_PULLUP);
@@ -622,22 +589,19 @@ void setup() {
   rightTowerValve.begin(false);
 
   analogReadResolution(bitsOfADC);  // defaults to 10 bits
-
-  compressorSsr.begin(false);
-  o2FlushValve.begin(false);
-
   disp4.begin();
   disp20x4.begin();
-
   enableDisplay4();
   enableDisplay20x4();
 
-  if (!o2Handler.begin()) {
-    Serial.print("O2Handler begin() failed: ");
-    Serial.println(o2Handler.errorString());
+  if (!diagMode) {
+    compressorSsr.begin(false);
+    o2FlushValve.begin(false);
+    if (!o2Handler.begin()) {
+      Serial.print("O2Handler begin() failed: ");
+      Serial.println(o2Handler.errorString());
+    }
   }
-
-
 
   shutdown();  // start off in a known state.
 }  // end of setup()
@@ -645,28 +609,27 @@ void setup() {
 /* ---------- Arduino main loop ---------- */
 
 /*
-
 This is a tight loop, which runs continuously
-
 If the black switch is off, it only runs the loop every ten seconds, but it could run continuously
-
 */
 void loop() {
   readBlackSwitch();
+  readPressureSensors();
+  displaySelectedValue();  // read rotary switch and display corresponding value in disp4
+  displayToLCD20x4();
 
   if (systemEnabled) {
-    towerController.setEnabled(systemEnabled);
-    towerController.tick();  // advance tower controller if necessary
-    o2Handler.tick();        // advance o2 handler if necessary
+    if (!diagMode) {
+      towerController.setEnabled(systemEnabled);
+      towerController.tick();              // advance tower controller if necessary
+      o2Handler.tick();                    // advance o2 handler if necessary
+      n2Controller.update(lowN2Psi_x100);  // update N2 controller with current low pressure N2 reading
+    }
 
-    readPressureSensors();
-    n2Controller.update(lowN2Psi_x100);  // update N2 controller with current low pressure N2 reading
-
-    displaySelectedValue();  // read rotary switch and display corresponding value in disp4
   } else {
-    shutdown();    // TODO can this run once per tight loop?
+    shutdown();
     delay(10000);  // check occassionally
   }
 }
 
-// EOF
+// N2V4_260409.ino
