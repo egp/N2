@@ -40,6 +40,8 @@ public:
 
  bool isCompressorOn() const;
 
+ friend struct N2ControllerTestProbe;
+
 private:
 
  void transitionTo(State nextState);
