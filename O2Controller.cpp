@@ -1,21 +1,21 @@
-// O2Handler.cpp v2
-#include "O2Handler.h"
+// O2Controller.cpp v2
+#include "O2Controller.h"
 
 static const char* o2StateName(uint8_t state) {
-  switch (static_cast<O2Handler::State>(state)) {
-    case O2Handler::STATE_UNINITIALIZED: return "Uninitialized";
-    case O2Handler::STATE_WARMUP: return "Warmup";
-    case O2Handler::STATE_WAITING_TO_FLUSH: return "WaitingToFlush";
-    case O2Handler::STATE_FLUSHING: return "Flushing";
-    case O2Handler::STATE_SETTLING: return "Settling";
-    case O2Handler::STATE_SAMPLING: return "Sampling";
-    case O2Handler::STATE_WAITING_FOR_NEXT_SAMPLE: return "WaitingForNextSample";
-    case O2Handler::STATE_ERROR_BACKOFF: return "ErrorBackoff";
+  switch (static_cast<O2Controller::State>(state)) {
+    case O2Controller::STATE_UNINITIALIZED: return "Uninitialized";
+    case O2Controller::STATE_WARMUP: return "Warmup";
+    case O2Controller::STATE_WAITING_TO_FLUSH: return "WaitingToFlush";
+    case O2Controller::STATE_FLUSHING: return "Flushing";
+    case O2Controller::STATE_SETTLING: return "Settling";
+    case O2Controller::STATE_SAMPLING: return "Sampling";
+    case O2Controller::STATE_WAITING_FOR_NEXT_SAMPLE: return "WaitingForNextSample";
+    case O2Controller::STATE_ERROR_BACKOFF: return "ErrorBackoff";
     default: return "Unknown";
   }
 }
 
-O2Handler::Config O2Handler::defaultConfig() {
+O2Controller::Config O2Controller::defaultConfig() {
   Config config;
   config.warmupDurationMs = 300000UL;
   config.measurementIntervalMs = 60000UL;
@@ -28,7 +28,7 @@ O2Handler::Config O2Handler::defaultConfig() {
   return config;
 }
 
-O2Handler::O2Handler(IClock& clock, IO2Sensor& sensor, IBinaryOutput& flushValve)
+O2Controller::O2Controller(IClock& clock, IO2Sensor& sensor, IBinaryOutput& flushValve)
     : clock_(clock),
       sensor_(sensor),
       flushValve_(flushValve),
@@ -42,7 +42,7 @@ O2Handler::O2Handler(IClock& clock, IO2Sensor& sensor, IBinaryOutput& flushValve
       samplesCollected_(0U),
       lastError_("not initialized") {}
 
-O2Handler::O2Handler(IClock& clock, IO2Sensor& sensor, IBinaryOutput& flushValve, const Config& config)
+O2Controller::O2Controller(IClock& clock, IO2Sensor& sensor, IBinaryOutput& flushValve, const Config& config)
     : clock_(clock),
       sensor_(sensor),
       flushValve_(flushValve),
@@ -56,7 +56,7 @@ O2Handler::O2Handler(IClock& clock, IO2Sensor& sensor, IBinaryOutput& flushValve
       samplesCollected_(0U),
       lastError_("not initialized") {}
 
-bool O2Handler::begin() {
+bool O2Controller::begin() {
   flushValve_.setOn(false);
 
   if (config_.sampleCount == 0U) {
@@ -82,7 +82,7 @@ bool O2Handler::begin() {
   return true;
 }
 
-void O2Handler::tick() {
+void O2Controller::tick() {
   switch (state()) {
     case STATE_UNINITIALIZED:
       return;
@@ -150,62 +150,62 @@ void O2Handler::tick() {
   }
 }
 
-void O2Handler::requestMeasurementIfStale() {
+void O2Controller::requestMeasurementIfStale() {
   if (!isValueFresh()) {
     earlyMeasurementRequested_ = true;
   }
 }
 
-bool O2Handler::isWarmingUp() const {
+bool O2Controller::isWarmingUp() const {
   return state() == STATE_WARMUP;
 }
 
-bool O2Handler::isBusy() const {
+bool O2Controller::isBusy() const {
   return state() == STATE_FLUSHING ||
          state() == STATE_SETTLING ||
          state() == STATE_SAMPLING ||
          state() == STATE_WAITING_FOR_NEXT_SAMPLE;
 }
 
-bool O2Handler::hasValue() const {
+bool O2Controller::hasValue() const {
   return hasValue_;
 }
 
-bool O2Handler::isValueFresh() const {
+bool O2Controller::isValueFresh() const {
   if (!hasValue_) {
     return false;
   }
   return (clock_.nowMs() - lastCompletedMeasurementAtMs_) <= config_.freshnessThresholdMs;
 }
 
-float O2Handler::averagedPercent() const {
+float O2Controller::averagedPercent() const {
   return cachedAveragePercent_;
 }
 
-const char* O2Handler::errorString() const {
+const char* O2Controller::errorString() const {
   return lastError_;
 }
 
-O2Handler::State O2Handler::state() const {
+O2Controller::State O2Controller::state() const {
   return static_cast<State>(timedStateMachine_.state());
 }
 
-const O2Handler::Config& O2Handler::config() const {
+const O2Controller::Config& O2Controller::config() const {
   return config_;
 }
 
-void O2Handler::setConfig(const Config& config) {
+void O2Controller::setConfig(const Config& config) {
   config_ = config;
 }
 
-bool O2Handler::shouldStartScheduledCycle(uint32_t nowMs) const {
+bool O2Controller::shouldStartScheduledCycle(uint32_t nowMs) const {
   if (!hasValue_) {
     return true;
   }
   return (nowMs - lastCompletedMeasurementAtMs_) >= config_.measurementIntervalMs;
 }
 
-void O2Handler::beginMeasurementCycle() {
+void O2Controller::beginMeasurementCycle() {
   earlyMeasurementRequested_ = false;
   runningSumPercent_ = 0.0f;
   samplesCollected_ = 0U;
@@ -213,7 +213,7 @@ void O2Handler::beginMeasurementCycle() {
   transitionToFor(STATE_FLUSHING, config_.flushDurationMs);
 }
 
-void O2Handler::finishMeasurementCycle(float averagedPercent) {
+void O2Controller::finishMeasurementCycle(float averagedPercent) {
   flushValve_.setOn(false);
   cachedAveragePercent_ = averagedPercent;
   hasValue_ = true;
@@ -222,17 +222,17 @@ void O2Handler::finishMeasurementCycle(float averagedPercent) {
   transitionTo(STATE_WAITING_TO_FLUSH);
 }
 
-void O2Handler::failMeasurementCycle(const char* error) {
+void O2Controller::failMeasurementCycle(const char* error) {
   flushValve_.setOn(false);
   lastError_ = error;
   transitionToFor(STATE_ERROR_BACKOFF, config_.errorBackoffMs);
 }
 
-void O2Handler::transitionTo(State nextState) {
+void O2Controller::transitionTo(State nextState) {
   timedStateMachine_.transitionTo(static_cast<uint8_t>(nextState));
 }
 
-void O2Handler::transitionToFor(State nextState, uint32_t durationMs) {
+void O2Controller::transitionToFor(State nextState, uint32_t durationMs) {
   timedStateMachine_.transitionToFor(static_cast<uint8_t>(nextState), durationMs);
 }
-// O2Handler.cpp v2
+// O2Controller.cpp v2

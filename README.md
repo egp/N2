@@ -15,7 +15,7 @@ Arduino control software for the N2 project.
 ## Main components
 - `N2Controller`
 - `TowerController`
-- `O2Handler`
+- `O2Controller`
 - `TimedStateMachine`
 - `ArduinoDigitalOutput`
 

@@ -7,11 +7,10 @@
 #include <TCP0465.h> // https://github.com/egp/TCP0465
 #include <TCP3231.h> // https://github.com/egp/TCP3231
 
-#include "O2Handler.h"
 #include "TimedStateMachine.h"
+#include "O2Controller.h"
 #include "TowerController.h"
 #include "ArduinoDigitalOutput.h"
-#include "N2Controller.h"
 #include "UnoR4PinAssignments.h"
 
 const char* PROGRAM_VERSION = "4.2"; // update this major.minor. TODO add change log
@@ -234,7 +233,7 @@ TCP0465SensorAdapter o2Sensor{ i2c_o2, TCP0465::DEFAULT_ADDRESS };
 
 ArduinoDigitalOutput o2FlushValve(O2_FLUSH_VALVE_PIN);
 
-O2Handler::Config o2Config = {
+O2Controller::Config o2Config = {
   300000UL, // warmupDurationMs: 5 minutes
   60000UL, // measurementIntervalMs: once per minute
   3000UL, // flushDurationMs
@@ -245,7 +244,7 @@ O2Handler::Config o2Config = {
   1000UL // errorBackoffMs
 };
 
-O2Handler o2Handler(timerClock, o2Sensor, o2FlushValve, o2Config);
+O2Controller o2Controller(timerClock, o2Sensor, o2FlushValve, o2Config);
 
 /*
 *********************************************************
@@ -590,9 +589,9 @@ void setup() {
   compressorSsr.begin(false);
   o2FlushValve.begin(false);
 
-  if (!o2Handler.begin()) {
-    Serial.print("O2Handler begin() failed: ");
-    Serial.println(o2Handler.errorString());
+  if (!o2Controller.begin()) {
+    Serial.print("O2Controller begin() failed: ");
+    Serial.println(o2Controller.errorString());
   }
 
   // Wire.setClock(50000); // slow down the bus for diagnostics
@@ -630,8 +629,8 @@ void loop() {
 
     towerController.setEnabled(systemEnabled);
     towerController.tick(supplyPsi_x10); // advance tower controller if necessary
-    
-    o2Handler.tick(); // advance o2 handler if necessary
+
+    o2Controller.tick(); // advance o2 if necessary
 
     bool n2ControllerOk = n2Controller.update(lowN2Psi_x100, highN2Psi_x10);
     if (!n2ControllerOk && lastN2ControllerOk)

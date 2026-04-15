@@ -4,7 +4,7 @@ Project: N2
 Current status:
 - TCP0465 library is fixed, tagged, republished, reinstalled, and Arduino CLI compiles its examples.
 - TimedStateMachine and TowerController are implemented and host-tested.
-- O2Handler is implemented on the same host-testable timer seam and host tests are green.
+- O2Controller is implemented on the same host-testable timer seam and host tests are green.
 - Development continues without access to the real O2 sensor hardware.
 
 Implementation plan
@@ -15,17 +15,17 @@ Implementation plan
    - Call TowerController::tick() from loop()
    - Acceptance: sketch compiles; turning master off closes both valves immediately; turning master on starts the left-only phase
 
-2. Add Arduino-facing adapters for O2Handler
+2. Add Arduino-facing adapters for O2Controller
    - Implement a real IO2Sensor adapter around TCP0465
    - Implement a real IFlushValveDriver adapter around the flush valve output pin
-   - Keep O2Handler itself unchanged and host-testable
+   - Keep O2Controller itself unchanged and host-testable
    - Acceptance: production sketch compiles with real adapters, still without needing live O2 hardware
 
-3. Integrate O2Handler into the production sketch
-   - Call O2Handler::begin() in setup()
-   - Call O2Handler::tick() in loop()
+3. Integrate O2Controller into the production sketch
+   - Call O2Controller::begin() in setup()
+   - Call O2Controller::tick() in loop()
    - On rotary edge to O2, call requestMeasurementIfStale()
-   - Display code should read cached handler state/value only:
+   - Display code should read cached Controller state/value only:
      hasValue(), isWarmingUp(), isValueFresh(), averagedPercent(), errorString()
    - Acceptance: sketch compiles; display code does not know internal O2 states
 
@@ -41,6 +41,6 @@ Implementation plan
 
 Suggested commit messages
 - integration: wire TowerController into production sketch
-- integration: add Arduino adapters for O2Handler
-- integration: wire O2Handler into production sketch
+- integration: add Arduino adapters for O2Controller
+- integration: wire O2Controller into production sketch
 - dev: add fake O2 sensor adapter for bench testing without hardware

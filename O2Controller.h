@@ -1,6 +1,6 @@
-// O2Handler.h v2
-#ifndef O2_HANDLER_H
-#define O2_HANDLER_H
+// O2Controller.h v2
+#ifndef O2_CONTROLLER_H
+#define O2_CONTROLLER_H
 
 #include <stdint.h>
 #include "BinaryOutput.h"
@@ -14,7 +14,7 @@ public:
   virtual const char* errorString() const = 0;
 };
 
-class O2Handler {
+class O2Controller {
 public:
   struct Config {
     uint32_t warmupDurationMs;
@@ -40,8 +40,8 @@ public:
 
   static Config defaultConfig();
 
-  O2Handler(IClock& clock, IO2Sensor& sensor, IBinaryOutput& flushValve);
-  O2Handler(IClock& clock, IO2Sensor& sensor, IBinaryOutput& flushValve, const Config& config);
+  O2Controller(IClock& clock, IO2Sensor& sensor, IBinaryOutput& flushValve);
+  O2Controller(IClock& clock, IO2Sensor& sensor, IBinaryOutput& flushValve, const Config& config);
 
   bool begin();
   void tick();
@@ -80,4 +80,4 @@ private:
 };
 
 #endif
-// O2Handler.h v2
+// O2Controller.h v2

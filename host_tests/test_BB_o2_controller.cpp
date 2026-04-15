@@ -1,7 +1,7 @@
-// host_tests/test_BB_o2_handler.cpp v2
+// host_tests/test_BB_o2_Controller.cpp v2
 #include <stdio.h>
 
-#include "O2Handler.h"
+#include "O2Controller.h"
 
 class FakeClock : public IClock {
 public:
@@ -114,8 +114,8 @@ static bool require(bool condition, const char* message) {
   return true;
 }
 
-static O2Handler::Config testConfig() {
-  O2Handler::Config config;
+static O2Controller::Config testConfig() {
+  O2Controller::Config config;
   config.warmupDurationMs = 100U;
   config.measurementIntervalMs = 60000U;
   config.flushDurationMs = 3000U;
@@ -131,13 +131,13 @@ static bool test_BB_beginStartsWarmupWithClosedValve() {
   FakeClock clock;
   FakeO2Sensor sensor;
   FakeBinaryOutput valve;
-  O2Handler handler(clock, sensor, valve, testConfig());
+  O2Controller Controller(clock, sensor, valve, testConfig());
 
-  if (!require(handler.begin(), "begin() should succeed")) return false;
-  if (!require(handler.state() == O2Handler::STATE_WARMUP, "begin() should enter warmup")) return false;
-  if (!require(handler.isWarmingUp(), "handler should report warming up")) return false;
+  if (!require(Controller.begin(), "begin() should succeed")) return false;
+  if (!require(Controller.state() == O2Controller::STATE_WARMUP, "begin() should enter warmup")) return false;
+  if (!require(Controller.isWarmingUp(), "Controller should report warming up")) return false;
   if (!require(!valve.isOn(), "flush valve should be closed during warmup")) return false;
-  if (!require(!handler.hasValue(), "handler should not have value immediately after begin")) return false;
+  if (!require(!Controller.hasValue(), "Controller should not have value immediately after begin")) return false;
 
   return true;
 }
@@ -146,47 +146,47 @@ static bool test_BB_fullCycleProducesCachedAverage() {
   FakeClock clock;
   FakeO2Sensor sensor;
   FakeBinaryOutput valve;
-  O2Handler handler(clock, sensor, valve, testConfig());
+  O2Controller Controller(clock, sensor, valve, testConfig());
 
   sensor.queueSample(true, 20.0f, "");
   sensor.queueSample(true, 21.0f, "");
   sensor.queueSample(true, 22.0f, "");
 
-  if (!require(handler.begin(), "begin() should succeed")) return false;
+  if (!require(Controller.begin(), "begin() should succeed")) return false;
 
   clock.advanceMs(100U);
-  handler.tick();
-  if (!require(handler.state() == O2Handler::STATE_WAITING_TO_FLUSH, "warmup expiry should enter waiting state")) return false;
+  Controller.tick();
+  if (!require(Controller.state() == O2Controller::STATE_WAITING_TO_FLUSH, "warmup expiry should enter waiting state")) return false;
 
-  handler.tick();
-  if (!require(handler.state() == O2Handler::STATE_FLUSHING, "waiting state should start flush cycle")) return false;
+  Controller.tick();
+  if (!require(Controller.state() == O2Controller::STATE_FLUSHING, "waiting state should start flush cycle")) return false;
   if (!require(valve.isOn(), "flush valve should open during flush")) return false;
 
   clock.advanceMs(3000U);
-  handler.tick();
-  if (!require(handler.state() == O2Handler::STATE_SETTLING, "flush expiry should enter settling")) return false;
+  Controller.tick();
+  if (!require(Controller.state() == O2Controller::STATE_SETTLING, "flush expiry should enter settling")) return false;
   if (!require(!valve.isOn(), "flush valve should close after flush")) return false;
 
   clock.advanceMs(500U);
-  handler.tick();
-  if (!require(handler.state() == O2Handler::STATE_SAMPLING, "settle expiry should enter sampling")) return false;
+  Controller.tick();
+  if (!require(Controller.state() == O2Controller::STATE_SAMPLING, "settle expiry should enter sampling")) return false;
 
-  handler.tick();
-  if (!require(handler.state() == O2Handler::STATE_WAITING_FOR_NEXT_SAMPLE, "first sample should wait for next sample")) return false;
-
-  clock.advanceMs(250U);
-  handler.tick();
-  handler.tick();
-  if (!require(handler.state() == O2Handler::STATE_WAITING_FOR_NEXT_SAMPLE, "second sample should still wait for next sample")) return false;
+  Controller.tick();
+  if (!require(Controller.state() == O2Controller::STATE_WAITING_FOR_NEXT_SAMPLE, "first sample should wait for next sample")) return false;
 
   clock.advanceMs(250U);
-  handler.tick();
-  handler.tick();
+  Controller.tick();
+  Controller.tick();
+  if (!require(Controller.state() == O2Controller::STATE_WAITING_FOR_NEXT_SAMPLE, "second sample should still wait for next sample")) return false;
 
-  if (!require(handler.state() == O2Handler::STATE_WAITING_TO_FLUSH, "third sample should finish cycle")) return false;
-  if (!require(handler.hasValue(), "completed cycle should cache a value")) return false;
-  if (!require(handler.averagedPercent() > 20.9f && handler.averagedPercent() < 21.1f, "average should be about 21.0")) return false;
-  if (!require(handler.isValueFresh(), "newly completed value should be fresh")) return false;
+  clock.advanceMs(250U);
+  Controller.tick();
+  Controller.tick();
+
+  if (!require(Controller.state() == O2Controller::STATE_WAITING_TO_FLUSH, "third sample should finish cycle")) return false;
+  if (!require(Controller.hasValue(), "completed cycle should cache a value")) return false;
+  if (!require(Controller.averagedPercent() > 20.9f && Controller.averagedPercent() < 21.1f, "average should be about 21.0")) return false;
+  if (!require(Controller.isValueFresh(), "newly completed value should be fresh")) return false;
   if (!require(!valve.isOn(), "flush valve should be closed after completed cycle")) return false;
 
   return true;
@@ -196,7 +196,7 @@ static bool test_BB_staleRequestTriggersEarlyCycle() {
   FakeClock clock;
   FakeO2Sensor sensor;
   FakeBinaryOutput valve;
-  O2Handler handler(clock, sensor, valve, testConfig());
+  O2Controller Controller(clock, sensor, valve, testConfig());
 
   sensor.queueSample(true, 20.0f, "");
   sensor.queueSample(true, 20.0f, "");
@@ -205,32 +205,32 @@ static bool test_BB_staleRequestTriggersEarlyCycle() {
   sensor.queueSample(true, 21.0f, "");
   sensor.queueSample(true, 21.0f, "");
 
-  if (!require(handler.begin(), "begin() should succeed")) return false;
+  if (!require(Controller.begin(), "begin() should succeed")) return false;
 
   clock.advanceMs(100U);
-  handler.tick();
-  handler.tick();
+  Controller.tick();
+  Controller.tick();
   clock.advanceMs(3000U);
-  handler.tick();
+  Controller.tick();
   clock.advanceMs(500U);
-  handler.tick();
-  handler.tick();
+  Controller.tick();
+  Controller.tick();
   clock.advanceMs(250U);
-  handler.tick();
-  handler.tick();
+  Controller.tick();
+  Controller.tick();
   clock.advanceMs(250U);
-  handler.tick();
-  handler.tick();
+  Controller.tick();
+  Controller.tick();
 
-  if (!require(handler.hasValue(), "first cycle should produce cached value")) return false;
+  if (!require(Controller.hasValue(), "first cycle should produce cached value")) return false;
 
   clock.advanceMs(10001U);
-  if (!require(!handler.isValueFresh(), "cached value should become stale")) return false;
+  if (!require(!Controller.isValueFresh(), "cached value should become stale")) return false;
 
-  handler.requestMeasurementIfStale();
-  handler.tick();
+  Controller.requestMeasurementIfStale();
+  Controller.tick();
 
-  if (!require(handler.state() == O2Handler::STATE_FLUSHING, "stale request should start early flush cycle")) return false;
+  if (!require(Controller.state() == O2Controller::STATE_FLUSHING, "stale request should start early flush cycle")) return false;
   if (!require(valve.isOn(), "flush valve should open for early cycle")) return false;
 
   return true;
@@ -240,49 +240,49 @@ static bool test_BB_failedCyclePreservesLastCachedValueAndBacksOff() {
   FakeClock clock;
   FakeO2Sensor sensor;
   FakeBinaryOutput valve;
-  O2Handler handler(clock, sensor, valve, testConfig());
+  O2Controller Controller(clock, sensor, valve, testConfig());
 
   sensor.queueSample(true, 20.0f, "");
   sensor.queueSample(true, 21.0f, "");
   sensor.queueSample(true, 22.0f, "");
   sensor.queueSample(false, 0.0f, "sensor read failed");
 
-  if (!require(handler.begin(), "begin() should succeed")) return false;
+  if (!require(Controller.begin(), "begin() should succeed")) return false;
 
   clock.advanceMs(100U);
-  handler.tick();
-  handler.tick();
+  Controller.tick();
+  Controller.tick();
   clock.advanceMs(3000U);
-  handler.tick();
+  Controller.tick();
   clock.advanceMs(500U);
-  handler.tick();
-  handler.tick();
+  Controller.tick();
+  Controller.tick();
   clock.advanceMs(250U);
-  handler.tick();
-  handler.tick();
+  Controller.tick();
+  Controller.tick();
   clock.advanceMs(250U);
-  handler.tick();
-  handler.tick();
+  Controller.tick();
+  Controller.tick();
 
-  const float firstAverage = handler.averagedPercent();
+  const float firstAverage = Controller.averagedPercent();
 
   clock.advanceMs(10001U);
-  handler.requestMeasurementIfStale();
-  handler.tick();
+  Controller.requestMeasurementIfStale();
+  Controller.tick();
   clock.advanceMs(3000U);
-  handler.tick();
+  Controller.tick();
   clock.advanceMs(500U);
-  handler.tick();
-  handler.tick();
+  Controller.tick();
+  Controller.tick();
 
-  if (!require(handler.state() == O2Handler::STATE_ERROR_BACKOFF, "failed sample should enter error backoff")) return false;
-  if (!require(handler.hasValue(), "failed cycle should preserve prior cached value")) return false;
-  if (!require(handler.averagedPercent() == firstAverage, "failed cycle should not overwrite cached average")) return false;
+  if (!require(Controller.state() == O2Controller::STATE_ERROR_BACKOFF, "failed sample should enter error backoff")) return false;
+  if (!require(Controller.hasValue(), "failed cycle should preserve prior cached value")) return false;
+  if (!require(Controller.averagedPercent() == firstAverage, "failed cycle should not overwrite cached average")) return false;
   if (!require(!valve.isOn(), "flush valve should be closed on failure")) return false;
 
   clock.advanceMs(1000U);
-  handler.tick();
-  if (!require(handler.state() == O2Handler::STATE_WAITING_TO_FLUSH, "error backoff expiry should return to waiting")) return false;
+  Controller.tick();
+  if (!require(Controller.state() == O2Controller::STATE_WAITING_TO_FLUSH, "error backoff expiry should return to waiting")) return false;
 
   return true;
 }
@@ -293,7 +293,7 @@ int main() {
   if (!test_BB_staleRequestTriggersEarlyCycle()) return 1;
   if (!test_BB_failedCyclePreservesLastCachedValueAndBacksOff()) return 1;
 
-  printf("PASS: test_BB_o2_handler\n");
+  printf("PASS: test_BB_o2_Controller\n");
   return 0;
 }
-// host_tests/test_BB_o2_handler.cpp v2
+// host_tests/test_BB_o2_Controller.cpp v2
