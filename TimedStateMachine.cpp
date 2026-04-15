@@ -57,7 +57,6 @@ void TimedStateMachine::transitionTo(uint8_t newState) {
     Serial.print(stateNameFn_(oldState));
     Serial.print(F(" to "));
     Serial.println(stateNameFn_(newState));
-  
 #endif
     }
   state_ = newState;

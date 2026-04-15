@@ -1,151 +1,186 @@
-// N2Controller.cpp v2
-#include "N2Controller.h"
+// TowerController.cpp v4
+#include "TowerController.h"
 
 #ifdef ARDUINO
 #include <Arduino.h>
 #endif
 
-namespace {
-
-const char* n2StateName(uint8_t state) {
- switch (static_cast<N2Controller::State>(state)) {
- case N2Controller::STATE_LOW_INHIBIT_HIGH_PERMIT: return "LowInhibitHighPermit";
- case N2Controller::STATE_LOW_PERMIT_HIGH_PERMIT: return "LowPermitHighPermit";
- case N2Controller::STATE_LOW_PERMIT_HIGH_INHIBIT: return "LowPermitHighInhibit";
- case N2Controller::STATE_LOW_INHIBIT_HIGH_INHIBIT: return "LowInhibitHighInhibit";
- default: return "Unknown";
- }
-}
-
-bool lowPermitFromState(N2Controller::State state) {
- switch (state) {
- case N2Controller::STATE_LOW_PERMIT_HIGH_PERMIT:
- case N2Controller::STATE_LOW_PERMIT_HIGH_INHIBIT:
-  return true;
- case N2Controller::STATE_LOW_INHIBIT_HIGH_PERMIT:
- case N2Controller::STATE_LOW_INHIBIT_HIGH_INHIBIT:
- default:
-  return false;
- }
-}
-
-bool highPermitFromState(N2Controller::State state) {
- switch (state) {
- case N2Controller::STATE_LOW_INHIBIT_HIGH_PERMIT:
- case N2Controller::STATE_LOW_PERMIT_HIGH_PERMIT:
-  return true;
- case N2Controller::STATE_LOW_PERMIT_HIGH_INHIBIT:
- case N2Controller::STATE_LOW_INHIBIT_HIGH_INHIBIT:
- default:
-  return false;
- }
-}
-
-N2Controller::State stateFromLatches(bool lowPermit, bool highPermit) {
- if (lowPermit) {
-  return highPermit
-      ? N2Controller::STATE_LOW_PERMIT_HIGH_PERMIT
-      : N2Controller::STATE_LOW_PERMIT_HIGH_INHIBIT;
- }
- return highPermit
-     ? N2Controller::STATE_LOW_INHIBIT_HIGH_PERMIT
-     : N2Controller::STATE_LOW_INHIBIT_HIGH_INHIBIT;
-}
-
-void logUnexpectedDualInhibit() {
-#ifdef ARDUINO
- Serial.println(F("N2Controller: entered dual-inhibit state (low inhibited and high inhibited)."));
-#endif
-}
-
-} // namespace
-
-N2Controller::Config N2Controller::defaultConfig() {
+TowerController::Config TowerController::defaultConfig() {
  Config config;
- config.lowOffPsi_x100 = 1000U;   // 10.00 PSI
- config.lowOnPsi_x100 = 2000U;    // 20.00 PSI
- config.highOnPsi_x10 = 1000U;    // 100.0 PSI
- config.highOffPsi_x10 = 1200U;   // 120.0 PSI
+ config.leftOpenMs = 60000UL;
+ config.overlapMs = 750UL;
+ config.rightOpenMs = 60000UL;
+ config.lowSupplyPsi_x10 = 1000U; // 100.0 PSI
  return config;
 }
 
-N2Controller::N2Controller(IClock& clock, IBinaryOutput& compressorOutput)
- : timedStateMachine_(clock, STATE_LOW_INHIBIT_HIGH_PERMIT, "N2", n2StateName),
-   compressorOutput_(compressorOutput),
-   config_(defaultConfig()) {
- applyOutputForState(STATE_LOW_INHIBIT_HIGH_PERMIT);
+TowerController::TowerController(IClock& clock, IBinaryOutput& leftValve, IBinaryOutput& rightValve)
+ : timedStateMachine_(clock, STATE_INACTIVE),
+   leftValve_(leftValve),
+   rightValve_(rightValve),
+   config_(defaultConfig()),
+   enabled_(false) {
+ applyOutputsForState(STATE_INACTIVE);
 }
 
-N2Controller::N2Controller(IClock& clock, IBinaryOutput& compressorOutput, const Config& config)
- : timedStateMachine_(clock, STATE_LOW_INHIBIT_HIGH_PERMIT, "N2", n2StateName),
-   compressorOutput_(compressorOutput),
-   config_(config) {
- applyOutputForState(STATE_LOW_INHIBIT_HIGH_PERMIT);
+TowerController::TowerController(IClock& clock, IBinaryOutput& leftValve, IBinaryOutput& rightValve, const Config& config)
+ : timedStateMachine_(clock, STATE_INACTIVE),
+   leftValve_(leftValve),
+   rightValve_(rightValve),
+   config_(config),
+   enabled_(false) {
+ applyOutputsForState(STATE_INACTIVE);
 }
 
-void N2Controller::update(uint16_t lowPsi_x100, uint16_t highPsi_x10) {
- const State currentState = state();
-
- bool lowPermit = lowPermitFromState(currentState);
- bool highPermit = highPermitFromState(currentState);
-
- if (lowPsi_x100 < config_.lowOffPsi_x100) {
-  lowPermit = false;
- } else if (lowPsi_x100 > config_.lowOnPsi_x100) {
-  lowPermit = true;
+void TowerController::setEnabled(bool enabled) {
+ if (enabled == enabled_) {
+  return;
  }
 
- if (highPsi_x10 > config_.highOffPsi_x10) {
-  highPermit = false;
- } else if (highPsi_x10 < config_.highOnPsi_x10) {
-  highPermit = true;
+ enabled_ = enabled;
+ if (!enabled_) {
+  transitionTo(STATE_INACTIVE, 0U, false);
+  return;
  }
 
- const State nextState = stateFromLatches(lowPermit, highPermit);
- if (nextState != currentState) {
-  transitionTo(nextState);
+ transitionTo(STATE_LEFT_ONLY, config_.leftOpenMs, true);
+}
+
+bool TowerController::isEnabled() const {
+ return enabled_;
+}
+
+void TowerController::tick(uint16_t supplyPsi_x10) {
+ if (!enabled_) {
+  return;
+ }
+
+ if (!isSupplySufficient(supplyPsi_x10)) {
+  if (state() != STATE_LOW_SUPPLY) {
+   transitionTo(STATE_LOW_SUPPLY, 0U, false);
+  }
+  return;
+ }
+
+ if (state() == STATE_LOW_SUPPLY) {
+  transitionTo(STATE_LEFT_ONLY, config_.leftOpenMs, true);
+  return;
+ }
+
+ if (!timedStateMachine_.isExpired()) {
+  return;
+ }
+
+ switch (state()) {
+ case STATE_LEFT_ONLY:
+#ifdef ARDUINO
+  Serial.println(F("Tower Transitioning from LEFT_ONLY to BOTH_AFTER_LEFT"));
+#endif
+  transitionTo(STATE_BOTH_AFTER_LEFT, config_.overlapMs, true);
+  return;
+
+ case STATE_BOTH_AFTER_LEFT:
+#ifdef ARDUINO
+  Serial.println(F("Tower Transitioning from BOTH_AFTER_LEFT to RIGHT_ONLY"));
+#endif
+  transitionTo(STATE_RIGHT_ONLY, config_.rightOpenMs, true);
+  return;
+
+ case STATE_RIGHT_ONLY:
+#ifdef ARDUINO
+  Serial.println(F("Tower Transitioning from RIGHT_ONLY to BOTH_AFTER_RIGHT"));
+#endif
+  transitionTo(STATE_BOTH_AFTER_RIGHT, config_.overlapMs, true);
+  return;
+
+ case STATE_BOTH_AFTER_RIGHT:
+#ifdef ARDUINO
+  Serial.println(F("Tower Transitioning from BOTH_AFTER_RIGHT to LEFT_ONLY"));
+#endif
+  transitionTo(STATE_LEFT_ONLY, config_.leftOpenMs, true);
+  return;
+
+ case STATE_INACTIVE:
+ case STATE_LOW_SUPPLY:
+ default:
+  return;
  }
 }
 
-N2Controller::State N2Controller::state() const {
+TowerController::State TowerController::state() const {
  return static_cast<State>(timedStateMachine_.state());
 }
 
-const N2Controller::Config& N2Controller::config() const {
+bool TowerController::isActive() const {
+ switch (state()) {
+ case STATE_LEFT_ONLY:
+ case STATE_BOTH_AFTER_LEFT:
+ case STATE_RIGHT_ONLY:
+ case STATE_BOTH_AFTER_RIGHT:
+  return true;
+
+ case STATE_INACTIVE:
+ case STATE_LOW_SUPPLY:
+ default:
+  return false;
+ }
+}
+
+const TowerController::Config& TowerController::config() const {
  return config_;
 }
 
-void N2Controller::setConfig(const Config& config) {
+void TowerController::setConfig(const Config& config) {
  config_ = config;
 }
 
-bool N2Controller::isCompressorOn() const {
- return state() == STATE_LOW_PERMIT_HIGH_PERMIT;
+bool TowerController::isSupplySufficient(uint16_t supplyPsi_x10) const {
+ return supplyPsi_x10 >= config_.lowSupplyPsi_x10;
 }
 
-void N2Controller::transitionTo(State nextState) {
- if (nextState == STATE_LOW_INHIBIT_HIGH_INHIBIT &&
-     state() != STATE_LOW_INHIBIT_HIGH_INHIBIT) {
-  logUnexpectedDualInhibit();
+void TowerController::transitionTo(State nextState, uint32_t durationMs, bool timed) {
+ if (timed) {
+  timedStateMachine_.transitionToFor(static_cast<uint8_t>(nextState), durationMs);
+ } else {
+  timedStateMachine_.transitionTo(static_cast<uint8_t>(nextState));
  }
 
- timedStateMachine_.transitionTo(static_cast<uint8_t>(nextState));
- applyOutputForState(nextState);
+ applyOutputsForState(nextState);
 }
 
-void N2Controller::applyOutputForState(State state) {
+void TowerController::applyOutputsForState(State state) {
  switch (state) {
- case STATE_LOW_PERMIT_HIGH_PERMIT:
-  compressorOutput_.setOn(true);
+ case STATE_INACTIVE:
+ case STATE_LOW_SUPPLY:
+  leftValve_.setOn(false);
+  rightValve_.setOn(false);
   return;
 
- case STATE_LOW_INHIBIT_HIGH_PERMIT:
- case STATE_LOW_PERMIT_HIGH_INHIBIT:
- case STATE_LOW_INHIBIT_HIGH_INHIBIT:
+ case STATE_LEFT_ONLY:
+  leftValve_.setOn(true);
+  rightValve_.setOn(false);
+  return;
+
+ case STATE_BOTH_AFTER_LEFT:
+  leftValve_.setOn(true);
+  rightValve_.setOn(true);
+  return;
+
+ case STATE_RIGHT_ONLY:
+  leftValve_.setOn(false);
+  rightValve_.setOn(true);
+  return;
+
+ case STATE_BOTH_AFTER_RIGHT:
+  leftValve_.setOn(true);
+  rightValve_.setOn(true);
+  return;
+
  default:
-  compressorOutput_.setOn(false);
+  leftValve_.setOn(false);
+  rightValve_.setOn(false);
   return;
  }
 }
 
-// N2Controller.cpp v2
+// TowerController.cpp v4

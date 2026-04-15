@@ -17,13 +17,11 @@
 const char* PROGRAM_VERSION = "4.2"; // update this major.minor. TODO add change log
 
 /* -- N2 pressure sensor thresholds -- */
-/* -- N2 pressure sensor thresholds -- */
 
 constexpr uint16_t N2_LOW_OFF_PSI_x100 = 1000U;   // 10.00 PSI
 constexpr uint16_t N2_LOW_ON_PSI_x100  = 2000U;   // 20.00 PSI
 constexpr uint16_t N2_HIGH_ON_PSI_x10  = 1000U;   // 100.0 PSI
 constexpr uint16_t N2_HIGH_OFF_PSI_x10 = 1200U;   // 120.0 PSI
-
 
 constexpr uint16_t N2_HIGH_OFF_PSI = 2000U;
 
@@ -165,7 +163,6 @@ Setup for N2 controller
 *********************************************************
 */
 ArduinoDigitalOutput compressorSsr(SSR_Pin);
-
 N2Controller::Config n2Config = {
  N2_LOW_OFF_PSI_x100,
  N2_LOW_ON_PSI_x100,
@@ -255,18 +252,24 @@ O2Handler o2Handler(timerClock, o2Sensor, o2FlushValve, o2Config);
 Setup for Tower control
 *********************************************************
 */
-constexpr uint16_t airMinimumPSI = 90; // disable towers when air supply is below this
-constexpr uint32_t LEFT_OPEN_MS = 60000UL;
-constexpr uint32_t OVERLAP_MS = 750UL;
-constexpr uint32_t RIGHT_OPEN_MS = 60000UL;
+
+// disable towers when air supply is below this
+constexpr uint16_t TOWER_LOW_SUPPLY_PSI_x10 = 90;
+
+// TODO: Maybe these two should collapse?
+constexpr uint32_t LEFT_OPEN_MS = 60000UL;    // 60 seconds
+constexpr uint32_t RIGHT_OPEN_MS = 60000UL;  // 60 seconds
+
+constexpr uint32_t OVERLAP_MS = 750UL;  // 750 ms
 
 ArduinoDigitalOutput leftTowerValve(LEFT_TOWER_VALVE_PIN);
 ArduinoDigitalOutput rightTowerValve(RIGHT_TOWER_VALVE_PIN);
 
 TowerController::Config towerConfig = {
-  LEFT_OPEN_MS,
-  OVERLAP_MS,
-  RIGHT_OPEN_MS,
+ LEFT_OPEN_MS,
+ OVERLAP_MS,
+ RIGHT_OPEN_MS,
+ TOWER_LOW_SUPPLY_PSI_x10,
 };
 
 TowerController towerController(timerClock, leftTowerValve, rightTowerValve, towerConfig);
@@ -430,7 +433,7 @@ void displayO2() {
 }
 
 /*
-readRotarySwitch -- TODO verify this works, and decode appropriately
+readRotarySwitch
 */
 uint8_t readRotarySwitch() {
   uint8_t buttonValue;
@@ -479,29 +482,11 @@ General switch / shutdown / display helpers
 /*
 readBlackSwitch()
 reads the black on/off switch (frequently)
-TODO: check sense (on/off is high or low), and correct if necessary
 */
 void readBlackSwitch() {
   systemEnabled = !digitalRead(blackSwitchPin);
 }
 
-/*
-shutdown()
-*/
-void shutdown() {
-  Serial.println("shutting down");
-  if (systemWasEnabled) { Serial.println(F("Black switch off; Scheduler disabled; Shutting down.")); }
-  systemWasEnabled = false;
-
-  towerController.setEnabled(false); // Stop tower, closes both valves
-  o2FlushValve.setOn(false); // close O2 flush valve
-
-  previousSSR = false;
-  compressorSsr.setOn(previousSSR); // stop compressor
-
-  disableDisplay4(); // close displays
-  disableDisplay20x4();
-}
 
 void enableDisplay20x4() {
   display20x4.backlightOn();
@@ -637,20 +622,41 @@ This is a tight loop, which runs continuously
 If the black switch is off, it checks less often.
 */
 void loop() {
+
+    bool lastN2ControllerOk = true;
   readBlackSwitch();
   if (systemEnabled) {
+      readPressureSensors();
+
     towerController.setEnabled(systemEnabled);
-    towerController.tick(); // advance tower controller if necessary
+    towerController.tick(supplyPsi_x10); // advance tower controller if necessary
+    
     o2Handler.tick(); // advance o2 handler if necessary
 
-    readPressureSensors();
-    n2Controller.update(scaledLowN2PSI); // update N2 controller with current low pressure N2 reading
+    bool n2ControllerOk = n2Controller.update(lowN2Psi_x100, highN2Psi_x10);
+    if (!n2ControllerOk && lastN2ControllerOk)
+    {Serial.println(F("N2Controller: entered dual-inhibit state (low inhibited and high inhibited)."));}
+    lastN2ControllerOk = n2ControllerOk;
 
     displaySelectedValue(); // read rotary switch and display corresponding value in disp4
   } else {
     shutdown(); // TODO can this run once per tight loop?
     delay(10000); // check less often when system is disabled
   }
+}
+
+void shutdown() {
+  if (systemWasEnabled) { Serial.println(F("Black switch off; Scheduler disabled; Shutting down.")); }
+  systemWasEnabled = false;
+
+  towerController.setEnabled(false); // Stop tower, closes both valves
+  o2FlushValve.setOn(false); // close O2 flush valve
+
+  previousSSR = false;
+  compressorSsr.setOn(previousSSR); // stop compressor
+
+  disableDisplay4(); // turn off displays
+  disableDisplay20x4();
 }
 
 // EOF

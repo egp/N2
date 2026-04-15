@@ -13,6 +13,7 @@ HOST_COMMON_SOURCES := TimedStateMachine.cpp TowerController.cpp N2Controller.cp
 .PHONY: host-test clean
 
 host-test:
+
 	@set -euo pipefail; \
 	mkdir -p build/host; \
 	for test_src in $(HOST_TEST_FILES); do \
@@ -23,5 +24,7 @@ host-test:
 	done
 
 clean:
+
 	@rm -rf build
+
 # Makefile v3

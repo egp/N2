@@ -1,22 +1,42 @@
-// host_tests/test_BB_n2_controller.cpp v1
+// host_tests/test_BB_n2_controller.cpp v2
 #include <stdio.h>
+#include "BinaryOutput.h"
 #include "N2Controller.h"
 
 class FakeClock : public IClock {
+
 public:
+
  FakeClock() : nowMs_(0U) {}
- uint32_t nowMs() const override { return nowMs_; }
+
+ uint32_t nowMs() const override {
+  return nowMs_;
+ }
+
 private:
+
  uint32_t nowMs_;
+
 };
 
 class FakeBinaryOutput : public IBinaryOutput {
+
 public:
- FakeBinaryOutput() : isOn_(false) {}
- void setOn(bool on) override { isOn_ = on; }
- bool isOn() const { return isOn_; }
+
+ FakeBinaryOutput() : on_(false) {}
+
+ void setOn(bool on) override {
+  on_ = on;
+ }
+
+ bool isOn() const {
+  return on_;
+ }
+
 private:
- bool isOn_;
+
+ bool on_;
+
 };
 
 static bool require(bool condition, const char* message) {
@@ -24,6 +44,7 @@ static bool require(bool condition, const char* message) {
   printf("FAIL: %s\n", message);
   return false;
  }
+
  return true;
 }
 
@@ -35,6 +56,46 @@ static N2Controller::Config testConfig() {
  config.highOffPsi_x10 = 1200U;
  return config;
 }
+
+static bool test_BB_dualInhibitReturnsFalse() {
+ FakeClock clock;
+ FakeBinaryOutput compressor;
+ N2Controller controller(clock, compressor, testConfig());
+
+ const bool ok = controller.update(900U, 1300U);
+
+ if (!require(!ok, "dual-inhibit state should return false")) return false;
+ if (!require(controller.state() == N2Controller::STATE_LOW_INHIBIT_HIGH_INHIBIT, "controller should enter dual-inhibit state")) return false;
+ if (!require(!compressor.isOn(), "compressor should be off in dual-inhibit state")) return false;
+ return true;
+}
+
+static bool test_BB_permitPermitReturnsTrueAndTurnsOnCompressor() {
+ FakeClock clock;
+ FakeBinaryOutput compressor;
+ N2Controller controller(clock, compressor, testConfig());
+
+ const bool ok = controller.update(2500U, 900U);
+
+ if (!require(ok, "permit/permit state should return true")) return false;
+ if (!require(controller.state() == N2Controller::STATE_LOW_PERMIT_HIGH_PERMIT, "controller should enter permit/permit state")) return false;
+ if (!require(compressor.isOn(), "compressor should be on in permit/permit state")) return false;
+ return true;
+}
+
+static bool test_BB_singleInhibitStillReturnsTrue() {
+ FakeClock clock;
+ FakeBinaryOutput compressor;
+ N2Controller controller(clock, compressor, testConfig());
+
+ const bool ok = controller.update(2500U, 1300U);
+
+ if (!require(ok, "single-inhibit state should still return true")) return false;
+ if (!require(controller.state() == N2Controller::STATE_LOW_PERMIT_HIGH_INHIBIT, "controller should enter low-permit/high-inhibit state")) return false;
+ if (!require(!compressor.isOn(), "compressor should be off in single-inhibit state")) return false;
+ return true;
+}
+
 
 static bool test_BB_startsOff() {
  FakeClock clock;
@@ -139,8 +200,11 @@ int main() {
  if (!test_BB_highOffTurnsCompressorOff()) return 1;
  if (!test_BB_highBandHoldsPreviousInhibit()) return 1;
  if (!test_BB_dualInhibitStateExists()) return 1;
+ if (!test_BB_dualInhibitReturnsFalse()) return 1;
+ if (!test_BB_permitPermitReturnsTrueAndTurnsOnCompressor()) return 1;
+ if (!test_BB_singleInhibitStillReturnsTrue()) return 1;
 
  printf("PASS: test_BB_n2_controller\n");
  return 0;
 }
-// host_tests/test_BB_n2_controller.cpp v1
+// host_tests/test_BB_n2_controller.cpp v2
