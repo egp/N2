@@ -14,13 +14,6 @@
 #include "ArduinoDigitalOutput.h"
 #include "UnoR4PinAssignments.h"
 
-/*
-Use these to remove dependence on Tom's hardware to run everything
-*/
-#if defined(ARDUINO_MINIMA)
-#elif defined(ARDUINO_UNOWIFIR4)
-#endif
-
 const char* PROGRAM_VERSION = "4.3";  // update this major.minor. TODO add change log
 
 /* -- N2 pressure sensor thresholds -- */
@@ -614,19 +607,14 @@ void setup() {
   display20x4.begin();
   enableDisplay20x4();
 
-  sprintf(sprintfBuffer, "N2 v %s, compiled %s at %s with IDE %d", PROGRAM_VERSION, __DATE__, __TIME__, ARDUINO);
+
+#if defined(ARDUINO_MINIMA)
+  sprintf(sprintfBuffer, "N2 v %s, compiled %s at %s with IDE %d for UNO R4 Minima", PROGRAM_VERSION, __DATE__, __TIME__, ARDUINO);
+#elif defined(ARDUINO_UNOWIFIR4)
+  sprintf(sprintfBuffer, "N2 v %s, compiled %s at %s with IDE %d for UNO R4 Wifi", PROGRAM_VERSION, __DATE__, __TIME__, ARDUINO);
+#endif
+
   Serial.println(sprintfBuffer);
-
-  // Serial.print(ARDUINO_BOARD);
-  // Serial.print(" ");
-  // Serial.print(ARDUINO_VARIANT);
-  // Serial.print(" ");
-  // Serial.println(ARDUINO_BOARD_VARIANT);
-  // Serial.print(" ");
-  // Serial.print(ARDUINO_UNOWIFIR4);
-  // Serial.print(" "  );
-  // Serial.print(ARDUINO_MINIMA);
-
 
   if (rtcPresent) {
     rtc.readTime(rtc_dt);
