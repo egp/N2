@@ -46,6 +46,8 @@ public:
 
  void setConfig(const Config& config);
 
+ friend struct TowerControllerTestProbe;
+
 private:
 
  bool isSupplySufficient(uint16_t supplyPsi_x10) const;
