@@ -1,5 +1,10 @@
-// host_tests/test_BB_o2_Controller.cpp v2
+// host_tests/test_BB_o2_controller.cpp v2
+#include <math.h>
 #include <stdio.h>
+#include <string.h>
+
+#include <initializer_list>
+#include <vector>
 
 #include "O2Controller.h"
 
@@ -7,39 +12,64 @@ class FakeClock : public IClock {
 public:
   FakeClock() : nowMs_(0U) {}
 
-  uint32_t nowMs() const override {
-    return nowMs_;
-  }
+  uint32_t nowMs() const override { return nowMs_; }
 
-  void setNowMs(uint32_t nowMs) {
-    nowMs_ = nowMs;
-  }
+  void setNowMs(uint32_t nowMs) { nowMs_ = nowMs; }
 
-  void advanceMs(uint32_t deltaMs) {
-    nowMs_ += deltaMs;
-  }
+  void advanceMs(uint32_t deltaMs) { nowMs_ += deltaMs; }
 
 private:
   uint32_t nowMs_;
 };
 
+class FakeBinaryOutput : public IBinaryOutput {
+public:
+  FakeBinaryOutput() : on_(false) {}
+
+  void setOn(bool on) override { on_ = on; }
+
+  bool isOn() const { return on_; }
+
+private:
+  bool on_;
+};
+
 class FakeO2Sensor : public IO2Sensor {
 public:
-  struct Sample {
-    bool ok;
-    float percentVol;
-    const char* error;
-  };
-
   FakeO2Sensor()
       : beginOk_(true),
+        beginError_("begin failed"),
         lastError_("no error"),
-        nextSampleIndex_(0U),
-        sampleCount_(0U) {}
+        pendingReadFailures_(0U),
+        readFailureError_("read failed"),
+        nextReadIndex_(0U),
+        beginCallCount_(0U),
+        readCallCount_(0U) {}
+
+  void setBeginResult(bool ok, const char* error = "begin failed") {
+    beginOk_ = ok;
+    beginError_ = error;
+  }
+
+  void queueRead(float percentVol) { queuedReads_.push_back(percentVol); }
+
+  void queueReads(std::initializer_list<float> values) {
+    queuedReads_.insert(queuedReads_.end(), values.begin(), values.end());
+  }
+
+  void failNextReads(uint32_t count, const char* error = "read failed") {
+    pendingReadFailures_ = count;
+    readFailureError_ = error;
+  }
+
+  uint32_t beginCallCount() const { return beginCallCount_; }
+
+  uint32_t readCallCount() const { return readCallCount_; }
 
   bool begin() override {
+    ++beginCallCount_;
     if (!beginOk_) {
-      lastError_ = "begin failed";
+      lastError_ = beginError_;
       return false;
     }
     lastError_ = "no error";
@@ -47,63 +77,36 @@ public:
   }
 
   bool readOxygenPercent(float& percentVol) override {
-    if (nextSampleIndex_ >= sampleCount_) {
+    ++readCallCount_;
+
+    if (pendingReadFailures_ > 0U) {
+      --pendingReadFailures_;
+      lastError_ = readFailureError_;
+      return false;
+    }
+
+    if (nextReadIndex_ >= queuedReads_.size()) {
       lastError_ = "no queued sample";
       return false;
     }
 
-    const Sample& sample = samples_[nextSampleIndex_++];
-    if (!sample.ok) {
-      lastError_ = sample.error;
-      return false;
-    }
-
-    percentVol = sample.percentVol;
+    percentVol = queuedReads_[nextReadIndex_++];
     lastError_ = "no error";
     return true;
   }
 
-  const char* errorString() const override {
-    return lastError_;
-  }
-
-  void setBeginOk(bool beginOk) {
-    beginOk_ = beginOk;
-  }
-
-  void queueSample(bool ok, float percentVol, const char* error) {
-    if (sampleCount_ < kMaxSamples) {
-      samples_[sampleCount_].ok = ok;
-      samples_[sampleCount_].percentVol = percentVol;
-      samples_[sampleCount_].error = error;
-      ++sampleCount_;
-    }
-  }
+  const char* errorString() const override { return lastError_; }
 
 private:
-  static const uint8_t kMaxSamples = 16U;
-
   bool beginOk_;
+  const char* beginError_;
   const char* lastError_;
-  Sample samples_[kMaxSamples];
-  uint8_t nextSampleIndex_;
-  uint8_t sampleCount_;
-};
-
-class FakeBinaryOutput : public IBinaryOutput {
-public:
-  FakeBinaryOutput() : on_(false) {}
-
-  void setOn(bool on) override {
-    on_ = on;
-  }
-
-  bool isOn() const {
-    return on_;
-  }
-
-private:
-  bool on_;
+  uint32_t pendingReadFailures_;
+  const char* readFailureError_;
+  std::vector<float> queuedReads_;
+  size_t nextReadIndex_;
+  uint32_t beginCallCount_;
+  uint32_t readCallCount_;
 };
 
 static bool require(bool condition, const char* message) {
@@ -114,186 +117,394 @@ static bool require(bool condition, const char* message) {
   return true;
 }
 
+static bool requireNear(float actual, float expected, float tolerance, const char* message) {
+  if (fabsf(actual - expected) > tolerance) {
+    printf("FAIL: %s (actual=%.6f expected=%.6f)\n", message, actual, expected);
+    return false;
+  }
+  return true;
+}
+
 static O2Controller::Config testConfig() {
   O2Controller::Config config;
-  config.warmupDurationMs = 100U;
-  config.measurementIntervalMs = 60000U;
-  config.flushDurationMs = 3000U;
-  config.settleDurationMs = 500U;
-  config.sampleIntervalMs = 250U;
+  config.warmupDurationMs = 10U;
+  config.measurementIntervalMs = 50U;
+  config.flushDurationMs = 3U;
+  config.settleDurationMs = 2U;
+  config.sampleIntervalMs = 4U;
   config.sampleCount = 3U;
-  config.freshnessThresholdMs = 10000U;
-  config.errorBackoffMs = 1000U;
+  config.freshnessThresholdMs = 20U;
+  config.errorBackoffMs = 5U;
   return config;
 }
 
-static bool test_BB_beginStartsWarmupWithClosedValve() {
-  FakeClock clock;
-  FakeO2Sensor sensor;
-  FakeBinaryOutput valve;
-  O2Controller Controller(clock, sensor, valve, testConfig());
+static O2Controller::Config oneSampleConfig() {
+  O2Controller::Config config = testConfig();
+  config.sampleCount = 1U;
+  return config;
+}
 
-  if (!require(Controller.begin(), "begin() should succeed")) return false;
-  if (!require(Controller.state() == O2Controller::STATE_WARMUP, "begin() should enter warmup")) return false;
-  if (!require(Controller.isWarmingUp(), "Controller should report warming up")) return false;
-  if (!require(!valve.isOn(), "flush valve should be closed during warmup")) return false;
-  if (!require(!Controller.hasValue(), "Controller should not have value immediately after begin")) return false;
+static bool beginAndReachWaitingToFlush(
+    O2Controller& controller,
+    FakeClock& clock,
+    const O2Controller::Config& config) {
+  if (!require(controller.begin(), "begin() should succeed")) return false;
+  if (!require(controller.state() == O2Controller::STATE_WARMUP,
+               "begin() should enter warmup")) return false;
+
+  clock.advanceMs(config.warmupDurationMs);
+  controller.tick();
+
+  if (!require(controller.state() == O2Controller::STATE_WAITING_TO_FLUSH,
+               "warmup expiry should enter waiting-to-flush")) return false;
+  return true;
+}
+
+static bool driveCycleToSampling(
+    O2Controller& controller,
+    FakeClock& clock,
+    const O2Controller::Config& config) {
+  controller.tick();
+  if (!require(controller.state() == O2Controller::STATE_FLUSHING,
+               "waiting-to-flush should start flushing")) return false;
+
+  clock.advanceMs(config.flushDurationMs);
+  controller.tick();
+  if (!require(controller.state() == O2Controller::STATE_SETTLING,
+               "flush expiry should enter settling")) return false;
+
+  clock.advanceMs(config.settleDurationMs);
+  controller.tick();
+  if (!require(controller.state() == O2Controller::STATE_SAMPLING,
+               "settle expiry should enter sampling")) return false;
 
   return true;
 }
 
-static bool test_BB_fullCycleProducesCachedAverage() {
+static bool completeSuccessfulCycle(
+    O2Controller& controller,
+    FakeClock& clock,
+    const O2Controller::Config& config) {
+  if (!driveCycleToSampling(controller, clock, config)) return false;
+
+  for (uint8_t i = 0U; i < config.sampleCount; ++i) {
+    controller.tick();
+
+    if (i + 1U < config.sampleCount) {
+      if (!require(controller.state() == O2Controller::STATE_WAITING_FOR_NEXT_SAMPLE,
+                   "intermediate sample should enter waiting-for-next-sample")) return false;
+
+      clock.advanceMs(config.sampleIntervalMs);
+      controller.tick();
+
+      if (!require(controller.state() == O2Controller::STATE_SAMPLING,
+                   "sample-interval expiry should re-enter sampling")) return false;
+    }
+  }
+
+  if (!require(controller.state() == O2Controller::STATE_WAITING_TO_FLUSH,
+               "final sample should finish cycle into waiting-to-flush")) return false;
+  return true;
+}
+
+static bool seedSuccessfulMeasurement(
+    O2Controller& controller,
+    FakeClock& clock,
+    FakeO2Sensor& sensor,
+    const O2Controller::Config& config,
+    std::initializer_list<float> samples) {
+  if (!beginAndReachWaitingToFlush(controller, clock, config)) return false;
+  sensor.queueReads(samples);
+  return completeSuccessfulCycle(controller, clock, config);
+}
+
+static bool test_BB_beginStartsWarmupWithClosedFlushValve() {
   FakeClock clock;
   FakeO2Sensor sensor;
-  FakeBinaryOutput valve;
-  O2Controller Controller(clock, sensor, valve, testConfig());
+  FakeBinaryOutput flushValve;
+  const O2Controller::Config config = testConfig();
+  O2Controller controller(clock, sensor, flushValve, config);
 
-  sensor.queueSample(true, 20.0f, "");
-  sensor.queueSample(true, 21.0f, "");
-  sensor.queueSample(true, 22.0f, "");
+  if (!require(controller.begin(), "begin() should succeed")) return false;
+  if (!require(sensor.beginCallCount() == 1U, "sensor begin should be called exactly once")) return false;
+  if (!require(controller.state() == O2Controller::STATE_WARMUP,
+               "begin() should enter warmup")) return false;
+  if (!require(controller.isWarmingUp(), "controller should report warming up")) return false;
+  if (!require(!controller.isBusy(), "warmup should not report busy")) return false;
+  if (!require(!flushValve.isOn(), "flush valve should be closed during warmup")) return false;
+  if (!require(!controller.hasValue(), "controller should start without a cached value")) return false;
+  return true;
+}
 
-  if (!require(Controller.begin(), "begin() should succeed")) return false;
+static bool test_BB_beginFailsWhenSampleCountZero() {
+  FakeClock clock;
+  FakeO2Sensor sensor;
+  FakeBinaryOutput flushValve;
+  O2Controller::Config config = testConfig();
+  config.sampleCount = 0U;
+  O2Controller controller(clock, sensor, flushValve, config);
 
-  clock.advanceMs(100U);
-  Controller.tick();
-  if (!require(Controller.state() == O2Controller::STATE_WAITING_TO_FLUSH, "warmup expiry should enter waiting state")) return false;
+  if (!require(!controller.begin(), "begin() should fail when sampleCount is zero")) return false;
+  if (!require(controller.state() == O2Controller::STATE_UNINITIALIZED,
+               "failed begin should remain uninitialized")) return false;
+  if (!require(strcmp(controller.errorString(), "sampleCount must be > 0") == 0,
+               "begin() should report sampleCount error")) return false;
+  if (!require(!flushValve.isOn(), "flush valve should be closed after failed begin")) return false;
+  return true;
+}
 
-  Controller.tick();
-  if (!require(Controller.state() == O2Controller::STATE_FLUSHING, "waiting state should start flush cycle")) return false;
-  if (!require(valve.isOn(), "flush valve should open during flush")) return false;
+static bool test_BB_beginFailsWhenSensorBeginFails() {
+  FakeClock clock;
+  FakeO2Sensor sensor;
+  FakeBinaryOutput flushValve;
+  const O2Controller::Config config = testConfig();
+  sensor.setBeginResult(false, "sensor begin failed");
+  O2Controller controller(clock, sensor, flushValve, config);
 
-  clock.advanceMs(3000U);
-  Controller.tick();
-  if (!require(Controller.state() == O2Controller::STATE_SETTLING, "flush expiry should enter settling")) return false;
-  if (!require(!valve.isOn(), "flush valve should close after flush")) return false;
+  if (!require(!controller.begin(), "begin() should fail when sensor begin fails")) return false;
+  if (!require(controller.state() == O2Controller::STATE_UNINITIALIZED,
+               "failed sensor begin should leave controller uninitialized")) return false;
+  if (!require(strcmp(controller.errorString(), "sensor begin failed") == 0,
+               "begin() should forward sensor error")) return false;
+  if (!require(!flushValve.isOn(), "flush valve should be closed after sensor begin failure")) return false;
+  return true;
+}
 
-  clock.advanceMs(500U);
-  Controller.tick();
-  if (!require(Controller.state() == O2Controller::STATE_SAMPLING, "settle expiry should enter sampling")) return false;
+static bool test_BB_fullCycleProducesCachedAverageAndFreshValue() {
+  FakeClock clock;
+  FakeO2Sensor sensor;
+  FakeBinaryOutput flushValve;
+  const O2Controller::Config config = testConfig();
+  O2Controller controller(clock, sensor, flushValve, config);
 
-  Controller.tick();
-  if (!require(Controller.state() == O2Controller::STATE_WAITING_FOR_NEXT_SAMPLE, "first sample should wait for next sample")) return false;
+  if (!seedSuccessfulMeasurement(controller, clock, sensor, config, {20.0f, 21.0f, 22.0f})) return false;
 
-  clock.advanceMs(250U);
-  Controller.tick();
-  Controller.tick();
-  if (!require(Controller.state() == O2Controller::STATE_WAITING_FOR_NEXT_SAMPLE, "second sample should still wait for next sample")) return false;
-
-  clock.advanceMs(250U);
-  Controller.tick();
-  Controller.tick();
-
-  if (!require(Controller.state() == O2Controller::STATE_WAITING_TO_FLUSH, "third sample should finish cycle")) return false;
-  if (!require(Controller.hasValue(), "completed cycle should cache a value")) return false;
-  if (!require(Controller.averagedPercent() > 20.9f && Controller.averagedPercent() < 21.1f, "average should be about 21.0")) return false;
-  if (!require(Controller.isValueFresh(), "newly completed value should be fresh")) return false;
-  if (!require(!valve.isOn(), "flush valve should be closed after completed cycle")) return false;
-
+  if (!require(controller.hasValue(), "successful cycle should cache a value")) return false;
+  if (!requireNear(controller.averagedPercent(), 21.0f, 0.0001f,
+                   "successful cycle should average samples")) return false;
+  if (!require(controller.isValueFresh(), "newly completed value should be fresh")) return false;
+  if (!require(strcmp(controller.errorString(), "no error") == 0,
+               "successful cycle should clear error string")) return false;
+  if (!require(!flushValve.isOn(), "flush valve should be closed after successful cycle")) return false;
+  if (!require(!controller.isBusy(), "waiting-to-flush should not report busy")) return false;
   return true;
 }
 
 static bool test_BB_staleRequestTriggersEarlyCycle() {
   FakeClock clock;
   FakeO2Sensor sensor;
-  FakeBinaryOutput valve;
-  O2Controller Controller(clock, sensor, valve, testConfig());
+  FakeBinaryOutput flushValve;
+  const O2Controller::Config config = testConfig();
+  O2Controller controller(clock, sensor, flushValve, config);
 
-  sensor.queueSample(true, 20.0f, "");
-  sensor.queueSample(true, 20.0f, "");
-  sensor.queueSample(true, 20.0f, "");
-  sensor.queueSample(true, 21.0f, "");
-  sensor.queueSample(true, 21.0f, "");
-  sensor.queueSample(true, 21.0f, "");
+  if (!seedSuccessfulMeasurement(controller, clock, sensor, config, {20.0f, 21.0f, 22.0f})) return false;
 
-  if (!require(Controller.begin(), "begin() should succeed")) return false;
+  clock.advanceMs(config.freshnessThresholdMs + 1U);
+  controller.requestMeasurementIfStale();
+  controller.tick();
 
-  clock.advanceMs(100U);
-  Controller.tick();
-  Controller.tick();
-  clock.advanceMs(3000U);
-  Controller.tick();
-  clock.advanceMs(500U);
-  Controller.tick();
-  Controller.tick();
-  clock.advanceMs(250U);
-  Controller.tick();
-  Controller.tick();
-  clock.advanceMs(250U);
-  Controller.tick();
-  Controller.tick();
+  if (!require(controller.state() == O2Controller::STATE_FLUSHING,
+               "stale request should start an early measurement cycle")) return false;
+  if (!require(flushValve.isOn(), "flush valve should open for early cycle")) return false;
+  return true;
+}
 
-  if (!require(Controller.hasValue(), "first cycle should produce cached value")) return false;
+static bool test_BB_requestMeasurementIfStaleDoesNothingWhileFresh() {
+  FakeClock clock;
+  FakeO2Sensor sensor;
+  FakeBinaryOutput flushValve;
+  const O2Controller::Config config = testConfig();
+  O2Controller controller(clock, sensor, flushValve, config);
 
-  clock.advanceMs(10001U);
-  if (!require(!Controller.isValueFresh(), "cached value should become stale")) return false;
+  if (!seedSuccessfulMeasurement(controller, clock, sensor, config, {20.0f, 21.0f, 22.0f})) return false;
 
-  Controller.requestMeasurementIfStale();
-  Controller.tick();
+  clock.advanceMs(config.freshnessThresholdMs - 1U);
+  controller.requestMeasurementIfStale();
+  controller.tick();
 
-  if (!require(Controller.state() == O2Controller::STATE_FLUSHING, "stale request should start early flush cycle")) return false;
-  if (!require(valve.isOn(), "flush valve should open for early cycle")) return false;
+  if (!require(controller.state() == O2Controller::STATE_WAITING_TO_FLUSH,
+               "fresh value should not trigger early measurement")) return false;
+  if (!require(!flushValve.isOn(), "flush valve should remain closed while fresh")) return false;
+  return true;
+}
+
+static bool test_BB_freshnessBoundaryExactThresholdStillFresh() {
+  FakeClock clock;
+  FakeO2Sensor sensor;
+  FakeBinaryOutput flushValve;
+  const O2Controller::Config config = testConfig();
+  O2Controller controller(clock, sensor, flushValve, config);
+
+  if (!seedSuccessfulMeasurement(controller, clock, sensor, config, {20.0f, 21.0f, 22.0f})) return false;
+
+  clock.advanceMs(config.freshnessThresholdMs);
+  if (!require(controller.isValueFresh(),
+               "value should still be fresh exactly at freshness threshold")) return false;
+
+  clock.advanceMs(1U);
+  if (!require(!controller.isValueFresh(),
+               "value should become stale immediately after freshness threshold")) return false;
+  return true;
+}
+
+static bool test_BB_scheduledCycleStartsAutomaticallyAfterMeasurementInterval() {
+  FakeClock clock;
+  FakeO2Sensor sensor;
+  FakeBinaryOutput flushValve;
+  const O2Controller::Config config = testConfig();
+  O2Controller controller(clock, sensor, flushValve, config);
+
+  if (!seedSuccessfulMeasurement(controller, clock, sensor, config, {20.0f, 21.0f, 22.0f})) return false;
+
+  clock.advanceMs(config.measurementIntervalMs - 1U);
+  controller.tick();
+  if (!require(controller.state() == O2Controller::STATE_WAITING_TO_FLUSH,
+               "scheduled cycle should not start before interval boundary")) return false;
+
+  clock.advanceMs(1U);
+  controller.tick();
+  if (!require(controller.state() == O2Controller::STATE_FLUSHING,
+               "scheduled cycle should start at interval boundary")) return false;
+  if (!require(flushValve.isOn(), "flush valve should open for scheduled cycle")) return false;
+  return true;
+}
+
+static bool test_BB_busyStatesAndFlushValveBehaviorAcrossCycle() {
+  FakeClock clock;
+  FakeO2Sensor sensor;
+  FakeBinaryOutput flushValve;
+  const O2Controller::Config config = testConfig();
+  O2Controller controller(clock, sensor, flushValve, config);
+
+  if (!beginAndReachWaitingToFlush(controller, clock, config)) return false;
+
+  sensor.queueReads({20.0f, 21.0f, 22.0f});
+
+  controller.tick();
+  if (!require(controller.state() == O2Controller::STATE_FLUSHING,
+               "cycle should start in flushing")) return false;
+  if (!require(controller.isBusy(), "flushing should report busy")) return false;
+  if (!require(flushValve.isOn(), "flush valve should be open in flushing")) return false;
+
+  clock.advanceMs(config.flushDurationMs);
+  controller.tick();
+  if (!require(controller.state() == O2Controller::STATE_SETTLING,
+               "flush expiry should enter settling")) return false;
+  if (!require(controller.isBusy(), "settling should report busy")) return false;
+  if (!require(!flushValve.isOn(), "flush valve should be closed in settling")) return false;
+
+  clock.advanceMs(config.settleDurationMs);
+  controller.tick();
+  if (!require(controller.state() == O2Controller::STATE_SAMPLING,
+               "settle expiry should enter sampling")) return false;
+  if (!require(controller.isBusy(), "sampling should report busy")) return false;
+  if (!require(!flushValve.isOn(), "flush valve should be closed in sampling")) return false;
+
+  controller.tick();
+  if (!require(controller.state() == O2Controller::STATE_WAITING_FOR_NEXT_SAMPLE,
+               "intermediate sample should enter waiting-for-next-sample")) return false;
+  if (!require(controller.isBusy(), "waiting-for-next-sample should report busy")) return false;
+  if (!require(!flushValve.isOn(), "flush valve should be closed while waiting for next sample")) return false;
 
   return true;
 }
 
-static bool test_BB_failedCyclePreservesLastCachedValueAndBacksOff() {
+static bool test_BB_oneSampleModeCompletesCorrectly() {
   FakeClock clock;
   FakeO2Sensor sensor;
-  FakeBinaryOutput valve;
-  O2Controller Controller(clock, sensor, valve, testConfig());
+  FakeBinaryOutput flushValve;
+  const O2Controller::Config config = oneSampleConfig();
+  O2Controller controller(clock, sensor, flushValve, config);
 
-  sensor.queueSample(true, 20.0f, "");
-  sensor.queueSample(true, 21.0f, "");
-  sensor.queueSample(true, 22.0f, "");
-  sensor.queueSample(false, 0.0f, "sensor read failed");
+  if (!beginAndReachWaitingToFlush(controller, clock, config)) return false;
 
-  if (!require(Controller.begin(), "begin() should succeed")) return false;
+  sensor.queueRead(20.5f);
+  if (!driveCycleToSampling(controller, clock, config)) return false;
 
-  clock.advanceMs(100U);
-  Controller.tick();
-  Controller.tick();
-  clock.advanceMs(3000U);
-  Controller.tick();
-  clock.advanceMs(500U);
-  Controller.tick();
-  Controller.tick();
-  clock.advanceMs(250U);
-  Controller.tick();
-  Controller.tick();
-  clock.advanceMs(250U);
-  Controller.tick();
-  Controller.tick();
+  controller.tick();
 
-  const float firstAverage = Controller.averagedPercent();
+  if (!require(controller.state() == O2Controller::STATE_WAITING_TO_FLUSH,
+               "one-sample mode should finish immediately after first sample")) return false;
+  if (!require(controller.hasValue(), "one-sample mode should cache a value")) return false;
+  if (!requireNear(controller.averagedPercent(), 20.5f, 0.0001f,
+                   "one-sample mode should cache the single sample")) return false;
+  if (!require(!flushValve.isOn(), "flush valve should be closed after one-sample completion")) return false;
+  return true;
+}
 
-  clock.advanceMs(10001U);
-  Controller.requestMeasurementIfStale();
-  Controller.tick();
-  clock.advanceMs(3000U);
-  Controller.tick();
-  clock.advanceMs(500U);
-  Controller.tick();
-  Controller.tick();
+static bool test_BB_repeatedFailuresPreserveCachedValueStayBoundedAndRecover() {
+  FakeClock clock;
+  FakeO2Sensor sensor;
+  FakeBinaryOutput flushValve;
+  const O2Controller::Config config = oneSampleConfig();
+  O2Controller controller(clock, sensor, flushValve, config);
 
-  if (!require(Controller.state() == O2Controller::STATE_ERROR_BACKOFF, "failed sample should enter error backoff")) return false;
-  if (!require(Controller.hasValue(), "failed cycle should preserve prior cached value")) return false;
-  if (!require(Controller.averagedPercent() == firstAverage, "failed cycle should not overwrite cached average")) return false;
-  if (!require(!valve.isOn(), "flush valve should be closed on failure")) return false;
+  if (!beginAndReachWaitingToFlush(controller, clock, config)) return false;
 
-  clock.advanceMs(1000U);
-  Controller.tick();
-  if (!require(Controller.state() == O2Controller::STATE_WAITING_TO_FLUSH, "error backoff expiry should return to waiting")) return false;
+  sensor.queueRead(20.0f);
+  if (!completeSuccessfulCycle(controller, clock, config)) return false;
+  if (!requireNear(controller.averagedPercent(), 20.0f, 0.0001f,
+                   "seed cycle should establish cached value")) return false;
 
+  sensor.failNextReads(2U, "forced read failure");
+
+  for (uint32_t attempt = 0U; attempt < 2U; ++attempt) {
+    clock.advanceMs(config.freshnessThresholdMs + 1U);
+    controller.requestMeasurementIfStale();
+
+    if (!driveCycleToSampling(controller, clock, config)) return false;
+
+    controller.tick();
+    if (!require(controller.state() == O2Controller::STATE_ERROR_BACKOFF,
+                 "failed sample should enter error backoff")) return false;
+    if (!requireNear(controller.averagedPercent(), 20.0f, 0.0001f,
+                     "failed cycle should preserve cached value")) return false;
+    if (!require(controller.hasValue(), "failed cycle should preserve hasValue")) return false;
+    if (!require(strcmp(controller.errorString(), "forced read failure") == 0,
+                 "failed cycle should preserve sensor error")) return false;
+    if (!require(!flushValve.isOn(), "flush valve should be closed during error backoff")) return false;
+
+    clock.advanceMs(config.errorBackoffMs - 1U);
+    controller.tick();
+    if (!require(controller.state() == O2Controller::STATE_ERROR_BACKOFF,
+                 "controller should remain in backoff until deadline")) return false;
+
+    clock.advanceMs(1U);
+    controller.tick();
+    if (!require(controller.state() == O2Controller::STATE_WAITING_TO_FLUSH,
+                 "backoff expiry should return to waiting-to-flush")) return false;
+  }
+
+  clock.advanceMs(config.freshnessThresholdMs + 1U);
+  controller.requestMeasurementIfStale();
+  sensor.queueRead(21.0f);
+
+  if (!driveCycleToSampling(controller, clock, config)) return false;
+
+  controller.tick();
+  if (!require(controller.state() == O2Controller::STATE_WAITING_TO_FLUSH,
+               "recovery sample should finish cycle")) return false;
+  if (!requireNear(controller.averagedPercent(), 21.0f, 0.0001f,
+                   "recovery cycle should update cached value")) return false;
+  if (!require(strcmp(controller.errorString(), "no error") == 0,
+               "recovery cycle should clear error string")) return false;
   return true;
 }
 
 int main() {
-  if (!test_BB_beginStartsWarmupWithClosedValve()) return 1;
-  if (!test_BB_fullCycleProducesCachedAverage()) return 1;
+  if (!test_BB_beginStartsWarmupWithClosedFlushValve()) return 1;
+  if (!test_BB_beginFailsWhenSampleCountZero()) return 1;
+  if (!test_BB_beginFailsWhenSensorBeginFails()) return 1;
+  if (!test_BB_fullCycleProducesCachedAverageAndFreshValue()) return 1;
   if (!test_BB_staleRequestTriggersEarlyCycle()) return 1;
-  if (!test_BB_failedCyclePreservesLastCachedValueAndBacksOff()) return 1;
+  if (!test_BB_requestMeasurementIfStaleDoesNothingWhileFresh()) return 1;
+  if (!test_BB_freshnessBoundaryExactThresholdStillFresh()) return 1;
+  if (!test_BB_scheduledCycleStartsAutomaticallyAfterMeasurementInterval()) return 1;
+  if (!test_BB_busyStatesAndFlushValveBehaviorAcrossCycle()) return 1;
+  if (!test_BB_oneSampleModeCompletesCorrectly()) return 1;
+  if (!test_BB_repeatedFailuresPreserveCachedValueStayBoundedAndRecover()) return 1;
 
-  printf("PASS: test_BB_o2_Controller\n");
+  printf("PASS: test_BB_o2_controller\n");
   return 0;
 }
-// host_tests/test_BB_o2_Controller.cpp v2
+// host_tests/test_BB_o2_controller.cpp v2

@@ -57,6 +57,8 @@ public:
   const Config& config() const;
   void setConfig(const Config& config);
 
+friend struct O2ControllerTestProbe;
+
 private:
   bool shouldStartScheduledCycle(uint32_t nowMs) const;
   void beginMeasurementCycle();
