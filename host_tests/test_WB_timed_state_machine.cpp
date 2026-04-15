@@ -163,14 +163,36 @@ static bool test_WB_transitionToForUsesTransitionThenSetsInternalDeadline() {
   return true;
 }
 
+
+
+static bool test_WB_isExpiredBoundaryUsesInclusiveDeadline() {
+  FakeClock clock;
+  clock.setNowMs(10U);
+
+  TimedStateMachine machine(clock, 1U);
+  machine.setDeadlineFromNow(5U);
+
+  clock.setNowMs(14U);
+  if (!require(!machine.isExpired(),
+               "now before deadline should not be expired")) return false;
+
+  clock.setNowMs(15U);
+  if (!require(machine.isExpired(),
+               "now exactly at deadline should be expired")) return false;
+
+  return true;
+}
+
 int main() {
   if (!test_WB_namedConstructorStoresClockAndOptionalNames()) return 1;
   if (!test_WB_setDeadlineFromNowWritesInternalDeadlineState()) return 1;
   if (!test_WB_clearDeadlineZerosInternalDeadlineState()) return 1;
   if (!test_WB_transitionToMutatesInternalStateAndClearsInternalDeadline()) return 1;
   if (!test_WB_transitionToForUsesTransitionThenSetsInternalDeadline()) return 1;
-
+  if (!test_WB_isExpiredBoundaryUsesInclusiveDeadline()) return 1;
+  
   printf("PASS: test_WB_timed_state_machine\n");
   return 0;
 }
+
 // host_tests/test_WB_timed_state_machine.cpp v1

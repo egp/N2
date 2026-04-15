@@ -403,6 +403,28 @@ static bool test_BB_exactLowSupplyThresholdIsSufficient() {
   return true;
 }
 
+static bool test_BB_lowSupplyWinsOverTimedTransitionAtExpiryBoundary() {
+  FakeClock clock;
+  FakeBinaryOutput leftValve;
+  FakeBinaryOutput rightValve;
+  const TowerController::Config config = fastConfig();
+  TowerController controller(clock, leftValve, rightValve, config);
+
+  controller.setEnabled(true);
+
+  clock.advanceMs(config.leftOpenMs);
+  controller.tick(900U);
+
+  if (!require(controller.state() == TowerController::STATE_LOW_SUPPLY,
+               "low supply should win over left-only expiry transition at the boundary")) return false;
+  if (!require(!controller.isActive(),
+               "low-supply boundary result should not be active")) return false;
+  if (!require(!leftValve.isOn() && !rightValve.isOn(),
+               "low-supply boundary result should close both valves")) return false;
+
+  return true;
+}
+
 int main() {
   if (!test_BB_startsInactiveWithBothValvesClosed()) return 1;
   if (!test_BB_enableImmediatelyStartsLeftOnly()) return 1;
@@ -416,6 +438,7 @@ int main() {
   if (!test_BB_disableFromLowSupplyForcesInactive()) return 1;
   if (!test_BB_lowSupplyWhileInactiveDoesNotActivate()) return 1;
   if (!test_BB_exactLowSupplyThresholdIsSufficient()) return 1;
+  if (!test_BB_lowSupplyWinsOverTimedTransitionAtExpiryBoundary()) return 1;
 
   printf("PASS: test_BB_tower_controller\n");
   return 0;

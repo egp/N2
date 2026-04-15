@@ -239,6 +239,62 @@ static bool test_BB_outputIsOnOnlyInPermitPermit() {
   return true;
 }
 
+static bool test_BB_hysteresisMemorySurvivesOscillationInsideBothHoldBands() {
+  FakeClock clock;
+  FakeBinaryOutput compressor;
+  N2Controller controller(clock, compressor, testConfig());
+
+  if (!require(controller.update(2500U, 900U),
+               "initial permit/permit update should return true")) return false;
+  if (!require(controller.state() == N2Controller::STATE_LOW_PERMIT_HIGH_PERMIT,
+               "controller should enter permit/permit")) return false;
+
+  if (!require(controller.update(1500U, 1100U),
+               "both hold-band inputs should still return true")) return false;
+  if (!require(controller.state() == N2Controller::STATE_LOW_PERMIT_HIGH_PERMIT,
+               "both hold bands should preserve prior permit/permit latch state")) return false;
+  if (!require(compressor.isOn(),
+               "compressor should remain on while both latches hold permit")) return false;
+
+  if (!require(controller.update(1500U, 1300U),
+               "high inhibit transition should still return true")) return false;
+  if (!require(controller.state() == N2Controller::STATE_LOW_PERMIT_HIGH_INHIBIT,
+               "controller should enter low-permit/high-inhibit")) return false;
+  if (!require(!compressor.isOn(),
+               "compressor should turn off when high inhibits")) return false;
+
+  if (!require(controller.update(1500U, 1100U),
+               "high hold-band input should still return true")) return false;
+  if (!require(controller.state() == N2Controller::STATE_LOW_PERMIT_HIGH_INHIBIT,
+               "high hold band should preserve prior high-inhibit latch state")) return false;
+
+  if (!require(!controller.update(900U, 1100U),
+               "dual-inhibit state should return false")) return false;
+  if (!require(controller.state() == N2Controller::STATE_LOW_INHIBIT_HIGH_INHIBIT,
+               "controller should enter dual-inhibit")) return false;
+  if (!require(!compressor.isOn(),
+               "compressor should remain off in dual-inhibit")) return false;
+
+  if (!require(!controller.update(1500U, 1100U),
+               "both hold-band inputs should preserve dual-inhibit latch state")) return false;
+  if (!require(controller.state() == N2Controller::STATE_LOW_INHIBIT_HIGH_INHIBIT,
+               "both hold bands should preserve prior dual-inhibit latch state")) return false;
+
+  if (!require(controller.update(1500U, 900U),
+               "high permit transition should return true")) return false;
+  if (!require(controller.state() == N2Controller::STATE_LOW_INHIBIT_HIGH_PERMIT,
+               "controller should enter low-inhibit/high-permit")) return false;
+  if (!require(!compressor.isOn(),
+               "compressor should stay off while low still inhibits")) return false;
+
+  if (!require(controller.update(1500U, 1100U),
+               "final hold-band inputs should still return true")) return false;
+  if (!require(controller.state() == N2Controller::STATE_LOW_INHIBIT_HIGH_PERMIT,
+               "hold bands should preserve low-inhibit/high-permit latch state")) return false;
+
+  return true;
+}
+
 int main() {
   if (!test_BB_startsInSafeOffState()) return 1;
   if (!test_BB_turnsOnOnlyWhenBothPermit()) return 1;
@@ -250,6 +306,7 @@ int main() {
   if (!test_BB_singleInhibitStatesReturnTrue()) return 1;
   if (!test_BB_exactThresholdBoundariesHoldPriorLatchState()) return 1;
   if (!test_BB_outputIsOnOnlyInPermitPermit()) return 1;
+  if (!test_BB_hysteresisMemorySurvivesOscillationInsideBothHoldBands()) return 1;
 
   printf("PASS: test_BB_n2_controller\n");
   return 0;
