@@ -1,4 +1,4 @@
-# Makefile v5
+# Makefile v6
 
 SHELL := /bin/bash
 
@@ -9,6 +9,7 @@ COVERAGE_FLAGS := -fprofile-instr-generate -fcoverage-mapping
 
 HOST_TEST_FILES := $(wildcard host_tests/*.cpp)
 HOST_COMMON_SOURCES := $(wildcard *.cpp)
+COVERAGE_REPORT_SOURCES := TimedStateMachine.cpp O2Controller.cpp TowerController.cpp N2Controller.cpp
 
 .PHONY: host-test coverage clean
 
@@ -39,15 +40,17 @@ coverage:
 	for ((i = 1; i < $${#bins[@]}; ++i)); do \
 		cmd+=(-object "$${bins[$$i]}"); \
 	done; \
-	for src in $(HOST_COMMON_SOURCES); do \
+	for src in $(COVERAGE_REPORT_SOURCES); do \
 		cmd+=("$$src"); \
 	done; \
 	"$${cmd[@]}"; \
 	echo; \
-	echo "Coverage detail example:"; \
-	echo "  llvm-cov show $${bins[0]} -instr-profile=build/host/tests.profdata N2Controller.cpp"
+	echo "Per-file coverage detail commands:"; \
+	for src in $(COVERAGE_REPORT_SOURCES); do \
+		echo "  llvm-cov show $${bins[0]} -instr-profile=build/host/tests.profdata $$src"; \
+	done
 
 clean:
 	@rm -rf build
 
-# Makefile v5
+# Makefile v6
