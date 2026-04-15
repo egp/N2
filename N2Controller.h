@@ -1,4 +1,4 @@
-// N2Controller.h v1
+// N2Controller.h v2
 #ifndef N2_CONTROLLER_H
 #define N2_CONTROLLER_H
 
@@ -7,44 +7,52 @@
 #include "TimedStateMachine.h"
 
 class N2Controller {
+
 public:
-  struct Config {
-    uint16_t lowOffPsi;
-    uint16_t lowOnPsi;
-    uint16_t highOnPsi;
-    uint16_t highOffPsi;
-  };
 
-  enum State : uint8_t {
-    STATE_BELOW_LOW_OFF = 0,
-    STATE_LOW_BAND_RISING,
-    STATE_MIDDLE_ON,
-    STATE_HIGH_BAND_RISING,
-    STATE_ABOVE_HIGH_OFF,
-    STATE_HIGH_BAND_FALLING,
-    STATE_LOW_BAND_FALLING
-  };
+ struct Config {
+  uint16_t lowOffPsi_x100;
+  uint16_t lowOnPsi_x100;
+  uint16_t highOnPsi_x10;
+  uint16_t highOffPsi_x10;
+ };
 
-  static Config defaultConfig();
+ enum State : uint8_t {
+  STATE_LOW_INHIBIT_HIGH_PERMIT = 0,
+  STATE_LOW_PERMIT_HIGH_PERMIT,
+  STATE_LOW_PERMIT_HIGH_INHIBIT,
+  STATE_LOW_INHIBIT_HIGH_INHIBIT
+ };
 
-  N2Controller(IClock& clock, IBinaryOutput& compressorOutput);
-  N2Controller(IClock& clock, IBinaryOutput& compressorOutput, const Config& config);
+ static Config defaultConfig();
 
-  void update(uint16_t lowPsi);
+ N2Controller(IClock& clock, IBinaryOutput& compressorOutput);
+ N2Controller(IClock& clock, IBinaryOutput& compressorOutput, const Config& config);
 
-  State state() const;
-  const Config& config() const;
-  void setConfig(const Config& config);
-  bool isCompressorOn() const;
+ void update(uint16_t lowPsi_x100, uint16_t highPsi_x10);
+
+ State state() const;
+
+ const Config& config() const;
+
+ void setConfig(const Config& config);
+
+ bool isCompressorOn() const;
 
 private:
-  void transitionTo(State nextState);
-  void applyOutputForState(State state);
 
-  TimedStateMachine timedStateMachine_;
-  IBinaryOutput& compressorOutput_;
-  Config config_;
+ void transitionTo(State nextState);
+
+ void applyOutputForState(State state);
+
+ TimedStateMachine timedStateMachine_;
+
+ IBinaryOutput& compressorOutput_;
+
+ Config config_;
+
 };
 
 #endif
-// N2Controller.h v1
+
+// N2Controller.h v2

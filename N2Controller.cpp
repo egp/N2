@@ -1,171 +1,151 @@
-// N2Controller.cpp v1
+// N2Controller.cpp v2
 #include "N2Controller.h"
 
+#ifdef ARDUINO
+#include <Arduino.h>
+#endif
+
 namespace {
+
 const char* n2StateName(uint8_t state) {
-  switch (static_cast<N2Controller::State>(state)) {
-    case N2Controller::STATE_BELOW_LOW_OFF:   return "BelowLowOff";
-    case N2Controller::STATE_LOW_BAND_RISING: return "LowBandRising";
-    case N2Controller::STATE_MIDDLE_ON:       return "MiddleOn";
-    case N2Controller::STATE_HIGH_BAND_RISING:return "HighBandRising";
-    case N2Controller::STATE_ABOVE_HIGH_OFF:  return "AboveHighOff";
-    case N2Controller::STATE_HIGH_BAND_FALLING:return "HighBandFalling";
-    case N2Controller::STATE_LOW_BAND_FALLING:return "LowBandFalling";
-    default:                                  return "Unknown";
-  }
-}
+ switch (static_cast<N2Controller::State>(state)) {
+ case N2Controller::STATE_LOW_INHIBIT_HIGH_PERMIT: return "LowInhibitHighPermit";
+ case N2Controller::STATE_LOW_PERMIT_HIGH_PERMIT: return "LowPermitHighPermit";
+ case N2Controller::STATE_LOW_PERMIT_HIGH_INHIBIT: return "LowPermitHighInhibit";
+ case N2Controller::STATE_LOW_INHIBIT_HIGH_INHIBIT: return "LowInhibitHighInhibit";
+ default: return "Unknown";
+ }
 }
 
+bool lowPermitFromState(N2Controller::State state) {
+ switch (state) {
+ case N2Controller::STATE_LOW_PERMIT_HIGH_PERMIT:
+ case N2Controller::STATE_LOW_PERMIT_HIGH_INHIBIT:
+  return true;
+ case N2Controller::STATE_LOW_INHIBIT_HIGH_PERMIT:
+ case N2Controller::STATE_LOW_INHIBIT_HIGH_INHIBIT:
+ default:
+  return false;
+ }
+}
+
+bool highPermitFromState(N2Controller::State state) {
+ switch (state) {
+ case N2Controller::STATE_LOW_INHIBIT_HIGH_PERMIT:
+ case N2Controller::STATE_LOW_PERMIT_HIGH_PERMIT:
+  return true;
+ case N2Controller::STATE_LOW_PERMIT_HIGH_INHIBIT:
+ case N2Controller::STATE_LOW_INHIBIT_HIGH_INHIBIT:
+ default:
+  return false;
+ }
+}
+
+N2Controller::State stateFromLatches(bool lowPermit, bool highPermit) {
+ if (lowPermit) {
+  return highPermit
+      ? N2Controller::STATE_LOW_PERMIT_HIGH_PERMIT
+      : N2Controller::STATE_LOW_PERMIT_HIGH_INHIBIT;
+ }
+ return highPermit
+     ? N2Controller::STATE_LOW_INHIBIT_HIGH_PERMIT
+     : N2Controller::STATE_LOW_INHIBIT_HIGH_INHIBIT;
+}
+
+void logUnexpectedDualInhibit() {
+#ifdef ARDUINO
+ Serial.println(F("N2Controller: entered dual-inhibit state (low inhibited and high inhibited)."));
+#endif
+}
+
+} // namespace
+
 N2Controller::Config N2Controller::defaultConfig() {
-  Config config;
-  config.lowOffPsi = 5U;        // scaled x100 
-  config.lowOnPsi = 10U;
-  config.highOnPsi = 15U;
-  config.highOffPsi = 20U;
-  return config;
+ Config config;
+ config.lowOffPsi_x100 = 1000U;   // 10.00 PSI
+ config.lowOnPsi_x100 = 2000U;    // 20.00 PSI
+ config.highOnPsi_x10 = 1000U;    // 100.0 PSI
+ config.highOffPsi_x10 = 1200U;   // 120.0 PSI
+ return config;
 }
 
 N2Controller::N2Controller(IClock& clock, IBinaryOutput& compressorOutput)
-    : timedStateMachine_(clock, STATE_BELOW_LOW_OFF, "N2", n2StateName),
-      compressorOutput_(compressorOutput),
-      config_(defaultConfig()) {
-  applyOutputForState(STATE_BELOW_LOW_OFF);
+ : timedStateMachine_(clock, STATE_LOW_INHIBIT_HIGH_PERMIT, "N2", n2StateName),
+   compressorOutput_(compressorOutput),
+   config_(defaultConfig()) {
+ applyOutputForState(STATE_LOW_INHIBIT_HIGH_PERMIT);
 }
 
 N2Controller::N2Controller(IClock& clock, IBinaryOutput& compressorOutput, const Config& config)
-    : timedStateMachine_(clock, STATE_BELOW_LOW_OFF, "N2", n2StateName),
-      compressorOutput_(compressorOutput),
-      config_(config) {
-  applyOutputForState(STATE_BELOW_LOW_OFF);
+ : timedStateMachine_(clock, STATE_LOW_INHIBIT_HIGH_PERMIT, "N2", n2StateName),
+   compressorOutput_(compressorOutput),
+   config_(config) {
+ applyOutputForState(STATE_LOW_INHIBIT_HIGH_PERMIT);
 }
 
-void N2Controller::update(uint16_t lowPsi) {
-  bool changed;
+void N2Controller::update(uint16_t lowPsi_x100, uint16_t highPsi_x10) {
+ const State currentState = state();
 
-  do {
-    changed = false;
+ bool lowPermit = lowPermitFromState(currentState);
+ bool highPermit = highPermitFromState(currentState);
 
-    switch (state()) {
-      case STATE_BELOW_LOW_OFF:
-        if (lowPsi > config_.lowOffPsi) {
-          transitionTo(STATE_LOW_BAND_RISING);
-          changed = true;
-        }
-        break;
+ if (lowPsi_x100 < config_.lowOffPsi_x100) {
+  lowPermit = false;
+ } else if (lowPsi_x100 > config_.lowOnPsi_x100) {
+  lowPermit = true;
+ }
 
-      case STATE_LOW_BAND_RISING:
-        if (lowPsi < config_.lowOffPsi) {
-          transitionTo(STATE_BELOW_LOW_OFF);
-          changed = true;
-        } else if (lowPsi > config_.lowOnPsi) {
-          transitionTo(STATE_MIDDLE_ON);
-          changed = true;
-        }
-        break;
+ if (highPsi_x10 > config_.highOffPsi_x10) {
+  highPermit = false;
+ } else if (highPsi_x10 < config_.highOnPsi_x10) {
+  highPermit = true;
+ }
 
-      case STATE_MIDDLE_ON:
-        if (lowPsi < config_.lowOnPsi) {
-          transitionTo(STATE_LOW_BAND_FALLING);
-          changed = true;
-        } else if (lowPsi > config_.highOnPsi) {
-          transitionTo(STATE_HIGH_BAND_RISING);
-          changed = true;
-        }
-        break;
-
-      case STATE_HIGH_BAND_RISING:
-        if (lowPsi < config_.highOnPsi) {
-          transitionTo(STATE_MIDDLE_ON);
-          changed = true;
-        } else if (lowPsi > config_.highOffPsi) {
-          transitionTo(STATE_ABOVE_HIGH_OFF);
-          changed = true;
-        }
-        break;
-
-      case STATE_ABOVE_HIGH_OFF:
-        if (lowPsi < config_.highOffPsi) {
-          transitionTo(STATE_HIGH_BAND_FALLING);
-          changed = true;
-        }
-        break;
-
-      case STATE_HIGH_BAND_FALLING:
-        if (lowPsi > config_.highOffPsi) {
-          transitionTo(STATE_ABOVE_HIGH_OFF);
-          changed = true;
-        } else if (lowPsi < config_.highOnPsi) {
-          transitionTo(STATE_MIDDLE_ON);
-          changed = true;
-        }
-        break;
-
-      case STATE_LOW_BAND_FALLING:
-        if (lowPsi > config_.lowOnPsi) {
-          transitionTo(STATE_MIDDLE_ON);
-          changed = true;
-        } else if (lowPsi < config_.lowOffPsi) {
-          transitionTo(STATE_BELOW_LOW_OFF);
-          changed = true;
-        }
-        break;
-
-      default:
-        transitionTo(STATE_BELOW_LOW_OFF);
-        changed = true;
-        break;
-    }
-  } while (changed);
+ const State nextState = stateFromLatches(lowPermit, highPermit);
+ if (nextState != currentState) {
+  transitionTo(nextState);
+ }
 }
 
 N2Controller::State N2Controller::state() const {
-  return static_cast<State>(timedStateMachine_.state());
+ return static_cast<State>(timedStateMachine_.state());
 }
 
 const N2Controller::Config& N2Controller::config() const {
-  return config_;
+ return config_;
 }
 
 void N2Controller::setConfig(const Config& config) {
-  config_ = config;
+ config_ = config;
 }
 
 bool N2Controller::isCompressorOn() const {
-  switch (state()) {
-    case STATE_MIDDLE_ON:
-    case STATE_HIGH_BAND_RISING:
-    case STATE_LOW_BAND_FALLING:
-      return true;
-
-    case STATE_BELOW_LOW_OFF:
-    case STATE_LOW_BAND_RISING:
-    case STATE_ABOVE_HIGH_OFF:
-    case STATE_HIGH_BAND_FALLING:
-    default:
-      return false;
-  }
+ return state() == STATE_LOW_PERMIT_HIGH_PERMIT;
 }
 
 void N2Controller::transitionTo(State nextState) {
-  timedStateMachine_.transitionTo(static_cast<uint8_t>(nextState));
-  applyOutputForState(nextState);
+ if (nextState == STATE_LOW_INHIBIT_HIGH_INHIBIT &&
+     state() != STATE_LOW_INHIBIT_HIGH_INHIBIT) {
+  logUnexpectedDualInhibit();
+ }
+
+ timedStateMachine_.transitionTo(static_cast<uint8_t>(nextState));
+ applyOutputForState(nextState);
 }
 
 void N2Controller::applyOutputForState(State state) {
-  switch (state) {
-    case STATE_MIDDLE_ON:
-    case STATE_HIGH_BAND_RISING:
-    case STATE_LOW_BAND_FALLING:
-      compressorOutput_.setOn(true);
-      return;
+ switch (state) {
+ case STATE_LOW_PERMIT_HIGH_PERMIT:
+  compressorOutput_.setOn(true);
+  return;
 
-    case STATE_BELOW_LOW_OFF:
-    case STATE_LOW_BAND_RISING:
-    case STATE_ABOVE_HIGH_OFF:
-    case STATE_HIGH_BAND_FALLING:
-    default:
-      compressorOutput_.setOn(false);
-      return;
-  }
+ case STATE_LOW_INHIBIT_HIGH_PERMIT:
+ case STATE_LOW_PERMIT_HIGH_INHIBIT:
+ case STATE_LOW_INHIBIT_HIGH_INHIBIT:
+ default:
+  compressorOutput_.setOn(false);
+  return;
+ }
 }
-// N2Controller.cpp v1
+
+// N2Controller.cpp v2
