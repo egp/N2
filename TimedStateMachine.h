@@ -32,6 +32,8 @@ public:
   void setDeadlineFromNow(uint32_t durationMs);
   void clearDeadline();
 
+  friend struct TimedStateMachineTestProbe;
+
 private:
   IClock& clock_;
   uint8_t state_;
