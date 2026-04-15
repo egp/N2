@@ -29,10 +29,9 @@ compile_commands.json
 # Linux
 *~
 
-# Windows
-Thumbs.db
-ehthumbs.db
-Desktop.ini
+# Coverage artifacts
+*.profraw
+*.profdata
 
 # claude
 resume_claude.txt
