@@ -1,11 +1,11 @@
 #include <Arduino.h>
 #include <Wire.h>
 
-#include <BitBang_I2C.h>  // v2.2.1 https://github.com/bitbank2/BitBang_I2C
-#include <TCP1650.h>      // https://github.com/egp/TCP1650
-#include <TCP20x4.h>      // https://github.com/egp/TCP20x4
-#include <TCP0465.h>      // https://github.com/egp/TCP0465
-#include <TCP3231.h>      // https://github.com/egp/TCP3231
+#include <TCP1819.h>  // clone of BitBang lib
+#include <TCP1650.h>  // https://github.com/egp/TCP1650
+#include <TCP20x4.h>  // https://github.com/egp/TCP20x4
+#include <TCP0465.h>  // https://github.com/egp/TCP0465
+#include <TCP3231.h>  // https://github.com/egp/TCP3231
 
 #include "TimedStateMachine.h"
 #include "O2Controller.h"

@@ -491,6 +491,65 @@ static bool test_BB_repeatedFailuresPreserveCachedValueStayBoundedAndRecover() {
   return true;
 }
 
+static bool test_BB_staleRequestWhileBusyDoesNotPerturbInFlightCycle() {
+  FakeClock clock;
+  FakeO2Sensor sensor;
+  FakeBinaryOutput flushValve;
+  const O2Controller::Config config = testConfig();
+  O2Controller controller(clock, sensor, flushValve, config);
+
+  if (!beginAndReachWaitingToFlush(controller, clock, config)) return false;
+
+  sensor.queueReads({20.0f, 21.0f, 22.0f});
+
+  controller.tick();
+  if (!require(controller.state() == O2Controller::STATE_FLUSHING,
+               "precondition: cycle should enter flushing")) return false;
+
+  controller.requestMeasurementIfStale();
+  if (!require(controller.state() == O2Controller::STATE_FLUSHING,
+               "stale request while busy should not restart or change flushing state")) return false;
+  if (!require(flushValve.isOn(),
+               "flush valve should remain open while flushing")) return false;
+
+  clock.advanceMs(config.flushDurationMs);
+  controller.tick();
+  if (!require(controller.state() == O2Controller::STATE_SETTLING,
+               "cycle should continue normally into settling")) return false;
+
+  clock.advanceMs(config.settleDurationMs);
+  controller.tick();
+  if (!require(controller.state() == O2Controller::STATE_SAMPLING,
+               "cycle should continue normally into sampling")) return false;
+
+  controller.tick();
+  if (!require(controller.state() == O2Controller::STATE_WAITING_FOR_NEXT_SAMPLE,
+               "first sample should enter waiting-for-next-sample")) return false;
+
+  clock.advanceMs(config.sampleIntervalMs);
+  controller.tick();
+  controller.tick();
+  if (!require(controller.state() == O2Controller::STATE_WAITING_FOR_NEXT_SAMPLE,
+               "second sample should again enter waiting-for-next-sample")) return false;
+
+  clock.advanceMs(config.sampleIntervalMs);
+  controller.tick();
+  controller.tick();
+
+  if (!require(controller.state() == O2Controller::STATE_WAITING_TO_FLUSH,
+               "final sample should finish the in-flight cycle normally")) return false;
+  if (!require(controller.hasValue(),
+               "completed in-flight cycle should still produce a cached value")) return false;
+  if (!requireNear(controller.averagedPercent(), 21.0f, 0.0001f,
+                   "busy stale request should not perturb averaging")) return false;
+  if (!require(sensor.readCallCount() == 3U,
+               "busy stale request should not trigger extra in-flight reads")) return false;
+  if (!require(!flushValve.isOn(),
+               "flush valve should be closed after normal cycle completion")) return false;
+
+  return true;
+}
+
 int main() {
   if (!test_BB_beginStartsWarmupWithClosedFlushValve()) return 1;
   if (!test_BB_beginFailsWhenSampleCountZero()) return 1;
@@ -503,6 +562,7 @@ int main() {
   if (!test_BB_busyStatesAndFlushValveBehaviorAcrossCycle()) return 1;
   if (!test_BB_oneSampleModeCompletesCorrectly()) return 1;
   if (!test_BB_repeatedFailuresPreserveCachedValueStayBoundedAndRecover()) return 1;
+  if (!test_BB_staleRequestWhileBusyDoesNotPerturbInFlightCycle()) return 1;
 
   printf("PASS: test_BB_o2_controller\n");
   return 0;
