@@ -653,28 +653,10 @@ void setup() {
 /*
 This is a tight loop, which runs continuously
 If the black switch is off, it checks less often.
-*/
-void loop() {
-
-  bool lastN2ControllerOk = true;
-  readBlackSwitch();
-
+*/void loop() {
 #if defined(ARDUINO_UNOWIFIR4)
-  systemEnabled = inputSnapshot.blackSwitchEnabled;
-#endif
-
-  if (systemEnabled) {
-
-    readPressureSensors();
-    enableDisplay4();
-    enableDisplay20x4();
-    handleDisplayPowerTransition();
-
-#if defined(ARDUINO_UNOWIFIR4)
-    systemProfileConsumeSerialCommand(timerClock, systemContext);
-#endif
-
-    systemProfileRefreshInputs(
+  systemProfileConsumeSerialCommand(timerClock, systemContext);
+  systemProfileRefreshInputs(
       systemContext,
       timerClock,
       systemEnabled,
@@ -684,34 +666,48 @@ void loop() {
       lowN2Psi_x100,
       highN2Psi_x10);
 
-#if defined(ARDUINO_UNOWIFIR4)
-    supplyPsi_x10 = inputSnapshot.supplyPsi_x10;
-    scaledLeftPSI = inputSnapshot.leftTowerPsi_x10;
-    scaledRightPSI = inputSnapshot.rightTowerPsi_x10;
-    lowN2Psi_x100 = inputSnapshot.lowN2Psi_x100;
-    highN2Psi_x10 = inputSnapshot.highN2Psi_x10;
+  systemEnabled = inputSnapshot.blackSwitchEnabled;
+
+  supplyPsi_x10 = inputSnapshot.supplyPsi_x10;
+  scaledLeftPSI = inputSnapshot.leftTowerPsi_x10;
+  scaledRightPSI = inputSnapshot.rightTowerPsi_x10;
+  lowN2Psi_x100 = inputSnapshot.lowN2Psi_x100;
+  highN2Psi_x10 = inputSnapshot.highN2Psi_x10;
+#else
+  readBlackSwitch();
+  systemEnabled = !digitalRead(blackSwitchPin);
+
+  if (systemEnabled) {
+    readPressureSensors();
+    refreshInputSnapshot();
+  }
 #endif
 
-    o2Controller.step(inputSnapshot);
+  handleDisplayPowerTransition();
 
+  if (systemEnabled) {
+    o2Controller.step(inputSnapshot);
     towerController.setEnabled(inputSnapshot.blackSwitchEnabled);
     towerController.step(inputSnapshot);
-
     n2Controller.step(inputSnapshot);
-    bool n2ControllerOk = n2Controller.isOk();
-    if (!n2ControllerOk && lastN2ControllerOk) { Serial.println(F("N2Controller: entered dual-inhibit state (low inhibited and high inhibited).")); }
-    lastN2ControllerOk = n2ControllerOk;
+
+    bool& lastN2ControllerOk = systemRuntime.lastN2ControllerOk;
 
     refreshSystemSnapshot();
+#if defined(ARDUINO_UNOWIFIR4)
     printScenarioBanner();
-    displaySelectedValue();  // read rotary switch and display corresponding value in disp4
-
+#endif
+    displaySelectedValue();
   } else {
-    shutdown();    // TODO can this run once per tight loop?
-    delay(10000);  // check less often when system is disabled
+    shutdown();
+#if !defined(ARDUINO_UNOWIFIR4)
+    delay(10000);
+#endif
   }
 }
-
+/*
+********************************************************************
+*/
 void shutdown() {
   if (systemWasEnabled) { Serial.println(F("Black switch off; Scheduler disabled; Shutting down.")); }
   systemWasEnabled = false;
