@@ -17,7 +17,7 @@ struct ScenarioStep {
   float o2Percent;
 };
 
-constexpr uint32_t kScenarioTickMs = 100U;
+constexpr uint32_t kScenarioTickMs = 1000U;
 
 const ScenarioStep kScenario[] = {
     // Start disabled with healthy supply and low N2 demand.

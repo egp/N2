@@ -304,9 +304,10 @@ int scalePressure(int pressure, int fullScale) {
 }
 
 /* -- read air supply pressure and scale it -- */
+
 void readSupplyPressure() {
-  supplyPressure = analogRead(supplyPressurePin);       // int
-  supplyPsi_x10 = scalePressure(supplyPressure, 1500);  // tenths of PSI
+  supplyPressure = analogRead(supplyPressurePin);
+  supplyPsi_x10 = scalePressure(supplyPressure, 1500);
 }
 
 /* -- read left tower pressure and scale it -- */
@@ -350,7 +351,12 @@ const uint8_t rotaryN2Percent = 0x6C;  // 0x6C N2 percent
 displaySelectedValue()
 */
 void displaySelectedValue() {
+
+#if defined(ARDUINO_UNOWIFIR4)
+  rotarySwitchStatus = rotaryN2Percent;  // or rotarySupply for early smoke tests
+#else
   rotarySwitchStatus = readRotarySwitch();
+#endif
 
   switch (rotarySwitchStatus) {
     case rotaryOff:  // 0
@@ -428,7 +434,7 @@ uint8_t readRotarySwitch() {
   uint8_t buttonValue;
 
   Wire.requestFrom(0x24, 1, true);
-  buttonValue = 0x3F && Wire.read();  // read from TM1650_DCTRL_BASE == 0x24
+  buttonValue = 0x3F & Wire.read();  // read from TM1650_DCTRL_BASE == 0x24
 
   if (buttonValue != previousButtonValue) {
     sprintf(sprintfBuffer, "rotary switch changed from %02X to %02X", previousButtonValue, buttonValue);
@@ -547,6 +553,50 @@ static void printFourDigits(uint16_t value) {
   Serial.print(value);
 }
 
+void printScenarioBanner() {
+#if defined(ARDUINO_UNOWIFIR4)
+  static uint32_t lastPrintedMs = 0xFFFFFFFFu;
+  if (inputSnapshot.sampledAtMs == lastPrintedMs) {
+    return;
+  }
+  lastPrintedMs = inputSnapshot.sampledAtMs;
+
+  Serial.print(F("SCEN t="));
+  Serial.print(inputSnapshot.sampledAtMs);
+  Serial.print(F(" en="));
+  Serial.print(inputSnapshot.blackSwitchEnabled ? 1 : 0);
+  Serial.print(F(" sup="));
+  Serial.print(inputSnapshot.supplyPsi_x10);
+  Serial.print(F(" L="));
+  Serial.print(inputSnapshot.leftTowerPsi_x10);
+  Serial.print(F(" R="));
+  Serial.print(inputSnapshot.rightTowerPsi_x10);
+  Serial.print(F(" low="));
+  Serial.print(inputSnapshot.lowN2Psi_x100);
+  Serial.print(F(" high="));
+  Serial.print(inputSnapshot.highN2Psi_x10);
+  Serial.print(F(" O2="));
+  Serial.print(systemSnapshot.o2.o2Percent, 2);
+  Serial.print(F(" Ts="));
+  Serial.print(static_cast<uint8_t>(systemSnapshot.tower.state));
+  Serial.print(F(" Os="));
+  Serial.print(static_cast<uint8_t>(systemSnapshot.o2.state));
+  Serial.print(F(" Ns="));
+  Serial.println(static_cast<uint8_t>(systemSnapshot.n2.state));
+#endif
+}
+
+void handleDisplayPowerTransition() {
+  if (systemEnabled && !systemWasEnabled) {
+    enableDisplay4();
+    enableDisplay20x4();
+  } else if (!systemEnabled && systemWasEnabled) {
+    disableDisplay4();
+    disableDisplay20x4();
+  }
+  systemWasEnabled = systemEnabled;
+}
+
 /* ---------- Arduino setup ---------- */
 void setup() {
   Serial.begin(115200);           // handshake with USB
@@ -608,8 +658,26 @@ void loop() {
 
   bool lastN2ControllerOk = true;
   readBlackSwitch();
+  systemProfileRefreshInputs(
+    systemContext,
+    timerClock,
+    systemEnabled,
+    supplyPsi_x10,
+    scaledLeftPSI,
+    scaledRightPSI,
+    lowN2Psi_x100,
+    highN2Psi_x10);
+
+#if defined(ARDUINO_UNOWIFIR4)
+  systemEnabled = inputSnapshot.blackSwitchEnabled;
+#endif
+
   if (systemEnabled) {
+
     readPressureSensors();
+    enableDisplay4();
+    enableDisplay20x4();
+    handleDisplayPowerTransition();
 
     // refreshInputSnapshot();
     systemProfileRefreshInputs(
@@ -633,6 +701,7 @@ void loop() {
     lastN2ControllerOk = n2ControllerOk;
 
     refreshSystemSnapshot();
+    printScenarioBanner();
     displaySelectedValue();  // read rotary switch and display corresponding value in disp4
 
   } else {
