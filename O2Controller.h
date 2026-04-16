@@ -69,8 +69,6 @@ public:
   IClock& clock() const override;
   const ControllerState& getState() const override;
 
-  bool begin();
-  void tick();
   void requestMeasurementIfStale();
 
   bool isWarmingUp() const;

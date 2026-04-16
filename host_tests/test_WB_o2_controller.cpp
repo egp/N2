@@ -290,7 +290,7 @@ static bool test_WB_snapshotTimestampMirrorsTimedStateMachineAndZerosMissingValu
   O2Controller controller(clock, sensor, flushValve, config);
 
   clock.setNowMs(12U);
-  controller.begin();
+  controller.init();
 
   const O2Controller::Snapshot snapshot = controller.snapshot();
 

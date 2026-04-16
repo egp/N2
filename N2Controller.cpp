@@ -130,7 +130,27 @@ void N2Controller::setEnabled(bool enabled) {
 }
 
 void N2Controller::step(const InputSnapshot& inputs) {
- (void)update(inputs);
+  const State currentState = state();
+
+  bool lowPermit = lowPermitFromState(currentState);
+  bool highPermit = highPermitFromState(currentState);
+
+  if (inputs.lowN2Psi_x100 < config_.lowOffPsi_x100) {
+    lowPermit = false;
+  } else if (inputs.lowN2Psi_x100 > config_.lowOnPsi_x100) {
+    lowPermit = true;
+  }
+
+  if (inputs.highN2Psi_x10 > config_.highOffPsi_x10) {
+    highPermit = false;
+  } else if (inputs.highN2Psi_x10 < config_.highOnPsi_x10) {
+    highPermit = true;
+  }
+
+  const State nextState = stateFromLatches(lowPermit, highPermit);
+  if (nextState != currentState) {
+    transitionTo(nextState);
+  }
 }
 
 void N2Controller::shutdown() {
@@ -143,32 +163,6 @@ IClock& N2Controller::clock() const {
 
 const ControllerState& N2Controller::getState() const {
  return stateView_;
-}
-
-bool N2Controller::update(const InputSnapshot& inputs) {
- const State currentState = state();
-
- bool lowPermit = lowPermitFromState(currentState);
- bool highPermit = highPermitFromState(currentState);
-
- if (inputs.lowN2Psi_x100 < config_.lowOffPsi_x100) {
-  lowPermit = false;
- } else if (inputs.lowN2Psi_x100 > config_.lowOnPsi_x100) {
-  lowPermit = true;
- }
-
- if (inputs.highN2Psi_x10 > config_.highOffPsi_x10) {
-  highPermit = false;
- } else if (inputs.highN2Psi_x10 < config_.highOnPsi_x10) {
-  highPermit = true;
- }
-
- const State nextState = stateFromLatches(lowPermit, highPermit);
- if (nextState != currentState) {
-  transitionTo(nextState);
- }
-
- return nextState != STATE_LOW_INHIBIT_HIGH_INHIBIT;
 }
 
 N2Controller::State N2Controller::state() const {

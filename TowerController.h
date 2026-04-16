@@ -58,8 +58,6 @@ public:
 
  bool isEnabled() const;
 
- void tick(const InputSnapshot& inputs);
-
  State state() const;
 
  bool isActive() const;

@@ -599,7 +599,7 @@ void setup() {
   compressorSsr.begin(false);
   o2FlushValve.begin(false);
 
-  if (!o2Controller.begin()) {
+  if (!o2Controller.init()) {
     Serial.print("O2Controller begin() failed: ");
     Serial.println(o2Controller.errorString());
   }
@@ -644,12 +644,13 @@ void loop() {
     readPressureSensors();
     refreshInputSnapshot();
 
-    o2Controller.tick();  // advance o2 if necessary
+    o2Controller.step(inputSnapshot);
 
     towerController.setEnabled(inputSnapshot.blackSwitchEnabled);
-    towerController.tick(inputSnapshot);
+    towerController.step(inputSnapshot);
 
-    bool n2ControllerOk = n2Controller.update(inputSnapshot);
+    n2Controller.step(inputSnapshot);
+    bool n2ControllerOk = n2Controller.isOk();
     if (!n2ControllerOk && lastN2ControllerOk) { Serial.println(F("N2Controller: entered dual-inhibit state (low inhibited and high inhibited).")); }
     lastN2ControllerOk = n2ControllerOk;
 

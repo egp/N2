@@ -115,7 +115,7 @@ static bool test_BB_tickBeforeExpiryDoesNotTransition() {
 
   controller.setEnabled(true);
   clock.advanceMs(config.leftOpenMs - 1U);
-  controller.tick(makeInputs(1500U));
+  controller.step(makeInputs(1500U));
 
   if (!require(controller.state() == TowerController::STATE_LEFT_ONLY,
                "tick before expiry should not leave left-only")) return false;
@@ -142,28 +142,28 @@ static bool test_BB_fullCycleAdvancesWithMockClockWhenSupplyIsSufficient() {
                "right valve should be closed in left-only state")) return false;
 
   clock.advanceMs(config.leftOpenMs);
-  controller.tick(makeInputs(1500U));
+  controller.step(makeInputs(1500U));
   if (!require(controller.state() == TowerController::STATE_BOTH_AFTER_LEFT,
                "left-only should transition to first overlap")) return false;
   if (!require(leftValve.isOn() && rightValve.isOn(),
                "both valves should be open in first overlap")) return false;
 
   clock.advanceMs(config.overlapMs);
-  controller.tick(makeInputs(1500U));
+  controller.step(makeInputs(1500U));
   if (!require(controller.state() == TowerController::STATE_RIGHT_ONLY,
                "first overlap should transition to right-only")) return false;
   if (!require(!leftValve.isOn() && rightValve.isOn(),
                "only right valve should be open in right-only")) return false;
 
   clock.advanceMs(config.rightOpenMs);
-  controller.tick(makeInputs(1500U));
+  controller.step(makeInputs(1500U));
   if (!require(controller.state() == TowerController::STATE_BOTH_AFTER_RIGHT,
                "right-only should transition to second overlap")) return false;
   if (!require(leftValve.isOn() && rightValve.isOn(),
                "both valves should be open in second overlap")) return false;
 
   clock.advanceMs(config.overlapMs);
-  controller.tick(makeInputs(1500U));
+  controller.step(makeInputs(1500U));
   if (!require(controller.state() == TowerController::STATE_LEFT_ONLY,
                "second overlap should transition back to left-only")) return false;
   if (!require(leftValve.isOn() && !rightValve.isOn(),
@@ -181,7 +181,7 @@ static bool test_BB_disableForcesImmediateInactiveFromActiveState() {
 
   controller.setEnabled(true);
   clock.advanceMs(config.leftOpenMs);
-  controller.tick(makeInputs(1500U));
+  controller.step(makeInputs(1500U));
 
   if (!require(controller.state() == TowerController::STATE_BOTH_AFTER_LEFT,
                "precondition: controller should reach overlap state")) return false;
@@ -216,7 +216,7 @@ static bool test_BB_perStateOutputsAndIsActive() {
                "left-only outputs should be left on, right off")) return false;
 
   clock.advanceMs(config.leftOpenMs);
-  controller.tick(makeInputs(1500U));
+  controller.step(makeInputs(1500U));
   if (!require(controller.state() == TowerController::STATE_BOTH_AFTER_LEFT,
                "should enter both-after-left")) return false;
   if (!require(controller.isActive(),
@@ -225,7 +225,7 @@ static bool test_BB_perStateOutputsAndIsActive() {
                "both-after-left outputs should be both on")) return false;
 
   clock.advanceMs(config.overlapMs);
-  controller.tick(makeInputs(1500U));
+  controller.step(makeInputs(1500U));
   if (!require(controller.state() == TowerController::STATE_RIGHT_ONLY,
                "should enter right-only")) return false;
   if (!require(controller.isActive(),
@@ -234,7 +234,7 @@ static bool test_BB_perStateOutputsAndIsActive() {
                "right-only outputs should be left off, right on")) return false;
 
   clock.advanceMs(config.rightOpenMs);
-  controller.tick(makeInputs(1500U));
+  controller.step(makeInputs(1500U));
   if (!require(controller.state() == TowerController::STATE_BOTH_AFTER_RIGHT,
                "should enter both-after-right")) return false;
   if (!require(controller.isActive(),
@@ -242,7 +242,7 @@ static bool test_BB_perStateOutputsAndIsActive() {
   if (!require(leftValve.isOn() && rightValve.isOn(),
                "both-after-right outputs should be both on")) return false;
 
-  controller.tick(makeInputs(900U));
+  controller.step(makeInputs(900U));
   if (!require(controller.state() == TowerController::STATE_LOW_SUPPLY,
                "low supply should force low-supply state")) return false;
   if (!require(!controller.isActive(),
@@ -277,32 +277,32 @@ static bool test_BB_configOverrideChangesTiming() {
   controller.setEnabled(true);
 
   clock.advanceMs(4U);
-  controller.tick(makeInputs(1500U));
+  controller.step(makeInputs(1500U));
   if (!require(controller.state() == TowerController::STATE_LEFT_ONLY,
                "custom left duration should not expire early")) return false;
 
   clock.advanceMs(1U);
-  controller.tick(makeInputs(1500U));
+  controller.step(makeInputs(1500U));
   if (!require(controller.state() == TowerController::STATE_BOTH_AFTER_LEFT,
                "custom left duration should expire at configured boundary")) return false;
 
   clock.advanceMs(1U);
-  controller.tick(makeInputs(1500U));
+  controller.step(makeInputs(1500U));
   if (!require(controller.state() == TowerController::STATE_BOTH_AFTER_LEFT,
                "custom overlap should hold before configured boundary")) return false;
 
   clock.advanceMs(1U);
-  controller.tick(makeInputs(1500U));
+  controller.step(makeInputs(1500U));
   if (!require(controller.state() == TowerController::STATE_RIGHT_ONLY,
                "custom overlap should expire at configured boundary")) return false;
 
   clock.advanceMs(6U);
-  controller.tick(makeInputs(1500U));
+  controller.step(makeInputs(1500U));
   if (!require(controller.state() == TowerController::STATE_RIGHT_ONLY,
                "custom right duration should hold before configured boundary")) return false;
 
   clock.advanceMs(1U);
-  controller.tick(makeInputs(1500U));
+  controller.step(makeInputs(1500U));
   if (!require(controller.state() == TowerController::STATE_BOTH_AFTER_RIGHT,
                "custom right duration should expire at configured boundary")) return false;
 
@@ -316,7 +316,7 @@ static bool test_BB_lowSupplyForcesDedicatedLowSupplyState() {
   TowerController controller(clock, leftValve, rightValve, testConfig());
 
   controller.setEnabled(true);
-  controller.tick(makeInputs(900U));
+  controller.step(makeInputs(900U));
 
   if (!require(controller.state() == TowerController::STATE_LOW_SUPPLY,
                "low supply should force low-supply state")) return false;
@@ -335,12 +335,12 @@ static bool test_BB_recoveryFromLowSupplyRestartsAtLeftOnly() {
   TowerController controller(clock, leftValve, rightValve, testConfig());
 
   controller.setEnabled(true);
-  controller.tick(makeInputs(900U));
+  controller.step(makeInputs(900U));
 
   if (!require(controller.state() == TowerController::STATE_LOW_SUPPLY,
                "precondition: controller should enter low-supply")) return false;
 
-  controller.tick(makeInputs(1100U));
+  controller.step(makeInputs(1100U));
 
   if (!require(controller.state() == TowerController::STATE_LEFT_ONLY,
                "recovery should restart at left-only")) return false;
@@ -359,7 +359,7 @@ static bool test_BB_disableFromLowSupplyForcesInactive() {
   TowerController controller(clock, leftValve, rightValve, testConfig());
 
   controller.setEnabled(true);
-  controller.tick(makeInputs(900U));
+  controller.step(makeInputs(900U));
 
   if (!require(controller.state() == TowerController::STATE_LOW_SUPPLY,
                "precondition: controller should be in low-supply")) return false;
@@ -382,7 +382,7 @@ static bool test_BB_lowSupplyWhileInactiveDoesNotActivate() {
   FakeBinaryOutput rightValve;
   TowerController controller(clock, leftValve, rightValve, testConfig());
 
-  controller.tick(makeInputs(0U));
+  controller.step(makeInputs(0U));
 
   if (!require(controller.state() == TowerController::STATE_INACTIVE,
                "tick while disabled should stay inactive")) return false;
@@ -403,7 +403,7 @@ static bool test_BB_exactLowSupplyThresholdIsSufficient() {
   TowerController controller(clock, leftValve, rightValve, testConfig());
 
   controller.setEnabled(true);
-  controller.tick(makeInputs(1000U));
+  controller.step(makeInputs(1000U));
 
   if (!require(controller.state() == TowerController::STATE_LEFT_ONLY,
                "exact low-supply threshold should be treated as sufficient")) return false;
@@ -423,7 +423,7 @@ static bool test_BB_lowSupplyWinsOverTimedTransitionAtExpiryBoundary() {
   controller.setEnabled(true);
 
   clock.advanceMs(config.leftOpenMs);
-  controller.tick(makeInputs(900U));
+  controller.step(makeInputs(900U));
 
   if (!require(controller.state() == TowerController::STATE_LOW_SUPPLY,
                "low supply should win over left-only expiry transition at the boundary")) return false;
@@ -451,7 +451,7 @@ static bool test_BB_snapshotReflectsCurrentTowerState() {
                "tower snapshot should report left-only after enable")) return false;
 
   clock.advanceMs(config.leftOpenMs);
-  controller.tick(makeInputs(1500U));
+  controller.step(makeInputs(1500U));
   snapshot = controller.snapshot();
 
   if (!require(snapshot.createdAtMs == config.leftOpenMs,

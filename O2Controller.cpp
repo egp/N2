@@ -93,29 +93,6 @@ const ControllerState& O2Controller::getState() const {
 }
 
 bool O2Controller::init() {
-  return begin();
-}
-
-void O2Controller::setEnabled(bool enabled) {
-  (void)enabled;
-}
-
-void O2Controller::step(const InputSnapshot& inputs) {
-  (void)inputs;
-  tick();
-}
-
-void O2Controller::shutdown() {
-  flushValve_.setOn(false);
-  earlyMeasurementRequested_ = false;
-  transitionTo(STATE_UNINITIALIZED);
-}
-
-IClock& O2Controller::clock() const {
-  return clock_;
-}
-
-bool O2Controller::begin() {
   flushValve_.setOn(false);
 
   if (config_.sampleCount == 0U) {
@@ -141,7 +118,13 @@ bool O2Controller::begin() {
   return true;
 }
 
-void O2Controller::tick() {
+void O2Controller::setEnabled(bool enabled) {
+  (void)enabled;
+}
+
+void O2Controller::step(const InputSnapshot& inputs) {
+  (void)inputs;
+
   switch (state()) {
     case STATE_UNINITIALIZED:
       return;
@@ -207,6 +190,16 @@ void O2Controller::tick() {
     default:
       return;
   }
+}
+
+void O2Controller::shutdown() {
+  flushValve_.setOn(false);
+  earlyMeasurementRequested_ = false;
+  transitionTo(STATE_UNINITIALIZED);
+}
+
+IClock& O2Controller::clock() const {
+  return clock_;
 }
 
 void O2Controller::requestMeasurementIfStale() {

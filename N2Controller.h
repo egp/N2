@@ -54,8 +54,6 @@ public:
  IClock& clock() const override;
  const ControllerState& getState() const override;
 
- bool update(const InputSnapshot& inputs);
-
  State state() const;
 
  Snapshot snapshot() const;
