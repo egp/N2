@@ -8,8 +8,6 @@
 #include <TCP3231.h>  // https://github.com/egp/TCP3231
 
 #include "TimedStateMachine.h"
-// #include "InputSnapshot.h"
-// #include "SystemSnapshot.h"
 #include "SystemContext.h"
 #include "O2Controller.h"
 #include "TowerController.h"
@@ -72,9 +70,11 @@ uint8_t rotarySwitchStatus;  // holds current status of rotary switch
 /* -- previous values to reduce chatter -- */
 uint8_t previousButtonValue = 0;
 
-
+// Forward declarations
 SystemConfig makeSystemConfig();
 SystemContext makeSystemContext();
+void refreshInputSnapshot();
+void refreshSystemSnapshot();
 
 SystemContext systemContext = makeSystemContext();
 
@@ -176,6 +176,43 @@ public:
 
 ArduinoClock timerClock;
 
+N2Controller::Config n2Config = {
+  systemConfig.n2.lowOffPsi_x100,
+  systemConfig.n2.lowOnPsi_x100,
+  systemConfig.n2.highOnPsi_x10,
+  systemConfig.n2.highOffPsi_x10,
+};
+
+O2Controller::Config o2Config = {
+  systemConfig.o2.warmupDurationMs,
+  systemConfig.o2.measurementIntervalMs,
+  systemConfig.o2.flushDurationMs,
+  systemConfig.o2.settleDurationMs,
+  systemConfig.o2.sampleIntervalMs,
+  systemConfig.o2.sampleCount,
+  systemConfig.o2.freshnessThresholdMs,
+  systemConfig.o2.errorBackoffMs,
+};
+
+TowerController::Config towerConfig = {
+  systemConfig.tower.leftOpenMs,
+  systemConfig.tower.overlapMs,
+  systemConfig.tower.rightOpenMs,
+  systemConfig.tower.lowSupplyPsi_x10,
+};
+
+ArduinoDigitalOutput leftTowerValve(LEFT_TOWER_VALVE_PIN);
+ArduinoDigitalOutput rightTowerValve(RIGHT_TOWER_VALVE_PIN);
+TowerController towerController(timerClock, leftTowerValve, rightTowerValve, towerConfig);
+
+TCP0465SensorAdapter o2Sensor{ i2c_o2, TCP0465::DEFAULT_ADDRESS };
+ArduinoDigitalOutput o2FlushValve(O2_FLUSH_VALVE_PIN);
+O2Controller o2Controller(timerClock, o2Sensor, o2FlushValve, o2Config);
+
+ArduinoDigitalOutput compressorSsr(SSR_Pin);
+N2Controller n2Controller(timerClock, compressorSsr, n2Config);
+
+
 void refreshInputSnapshot() {
   inputSnapshot.sampledAtMs = timerClock.nowMs();
   inputSnapshot.blackSwitchEnabled = systemEnabled;
@@ -223,23 +260,6 @@ SystemContext makeSystemContext() {
   ctx.config = makeSystemConfig();
   return ctx;
 }
-
-/*
-*********************************************************
-Setup for N2 controller
-*********************************************************
-*/
-ArduinoDigitalOutput compressorSsr(SSR_Pin);
-
-N2Controller::Config n2Config = {
-  systemConfig.n2.lowOffPsi_x100,
-  systemConfig.n2.lowOnPsi_x100,
-  systemConfig.n2.highOnPsi_x10,
-  systemConfig.n2.highOffPsi_x10,
-};
-
-
-N2Controller n2Controller(timerClock, compressorSsr, n2Config);
 
 /*
 *********************************************************
@@ -299,22 +319,7 @@ private:
 };
 
 // Create the instance of the O2 sensor adapter, it will be initialized during setup()
-TCP0465SensorAdapter o2Sensor{ i2c_o2, TCP0465::DEFAULT_ADDRESS };
 
-ArduinoDigitalOutput o2FlushValve(O2_FLUSH_VALVE_PIN);
-
-O2Controller::Config o2Config = {
-  systemConfig.o2.warmupDurationMs,
-  systemConfig.o2.measurementIntervalMs,
-  systemConfig.o2.flushDurationMs,
-  systemConfig.o2.settleDurationMs,
-  systemConfig.o2.sampleIntervalMs,
-  systemConfig.o2.sampleCount,
-  systemConfig.o2.freshnessThresholdMs,
-  systemConfig.o2.errorBackoffMs,
-};
-
-O2Controller o2Controller(timerClock, o2Sensor, o2FlushValve, o2Config);
 
 /*
 *********************************************************
@@ -331,17 +336,6 @@ constexpr uint32_t RIGHT_OPEN_MS = 60000UL;  // 60 seconds
 
 constexpr uint32_t OVERLAP_MS = 750UL;  // 750 ms
 
-ArduinoDigitalOutput leftTowerValve(LEFT_TOWER_VALVE_PIN);
-ArduinoDigitalOutput rightTowerValve(RIGHT_TOWER_VALVE_PIN);
-
-TowerController::Config towerConfig = {
-  systemConfig.tower.leftOpenMs,
-  systemConfig.tower.overlapMs,
-  systemConfig.tower.rightOpenMs,
-  systemConfig.tower.lowSupplyPsi_x10,
-};
-
-TowerController towerController(timerClock, leftTowerValve, rightTowerValve, towerConfig);
 
 /*
 *********************************************************
