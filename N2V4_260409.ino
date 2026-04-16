@@ -615,14 +615,7 @@ void setup() {
 
   setupI2C();  // setup all the I2C buses
 
-  pinMode(blackSwitchPin, INPUT_PULLUP);  // D0
-  pinMode(theOtherButton, INPUT_PULLUP);  // D1
-
-  pinMode(supplyPressurePin, INPUT);      // A0
-  pinMode(leftTowerPressurePin, INPUT);   // A1
-  pinMode(rightTowerPressurePin, INPUT);  // A2
-  pinMode(lowPressureN2Pin, INPUT);       // A3
-  pinMode(highPressureN2Pin, INPUT);      // A4
+  setPinMode();   // setup all pin modes.
 
   leftTowerValve.begin(false);
   rightTowerValve.begin(false);
