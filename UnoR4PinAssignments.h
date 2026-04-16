@@ -15,13 +15,15 @@ const uint8_t unusedA5 = A5;               // analog input pin 19
 
 const uint8_t blackSwitchPin = D0;  // digital input
 const uint8_t theOtherButton = D1;  // aux button
+
 const uint8_t I2C_BUSA_SDA = D2;
 const uint8_t I2C_BUSA_SCL = D3;
 const uint8_t LEFT_TOWER_VALVE_PIN = D4;  // digital output
 const uint8_t I2C_BUSB_SDA = D5;
 const uint8_t I2C_BUSB_SCL = D6;
 const uint8_t RIGHT_TOWER_VALVE_PIN = D7;  // digital output
-const uint8_t SSR_Pin = D8;             // digital output TODO verify correct pin Relay_3
+
+const uint8_t SSR_Pin = D8;  // digital output TODO verify correct pin Relay_3
 const uint8_t I2C_BUSC_SDA = D9;
 const uint8_t I2C_BUSC_SCL = D10;
 const uint8_t O2_FLUSH_VALVE_PIN = D11;  // PWM digital output TODO verify correct pin Relay_4
@@ -30,4 +32,30 @@ const uint8_t I2C_BUSD_SCL = D13;
 const uint8_t UNAVAILABLE_D14 = D14;  // Alias for (A0 == D14, and D15 == A5)
 const uint8_t UNAVAILABLE_D15 = D15;  // Alias -- tied together on both R4 Minima and R4 Wifi
 #endif
+
+void setPinMode() {
+  pinMode(onboardLED, INPUT_PULLUP);
+  pinMode(supplyPressurePin, INPUT);
+  pinMode(leftTowerPressurePin, INPUT);
+  pinMode(rightTowerPressurePin, INPUT);
+  pinMode(lowPressureN2Pin, INPUT);
+  pinMode(highPressureN2Pin, INPUT);
+
+  pinMode(blackSwitchPin, INPUT_PULLUP);
+  pinMode(theOtherButton, INPUT_PULLUP);
+
+  pinMode(I2C_BUSA_SDA, INPUT_PULLUP);
+  pinMode(I2C_BUSA_SCL, INPUT_PULLUP);
+  pinMode(LEFT_TOWER_VALVE_PIN, OUTPUT);
+  pinMode(I2C_BUSB_SDA, INPUT_PULLUP);
+  pinMode(I2C_BUSB_SCL, INPUT_PULLUP);
+  pinMode(RIGHT_TOWER_VALVE_PIN, OUTPUT);
+
+  pinMode(SSR_Pin, OUTPUT);
+  pinMode(I2C_BUSC_SDA, INPUT_PULLUP);
+  pinMode(I2C_BUSC_SCL, INPUT_PULLUP);
+  pinMode(O2_FLUSH_VALVE_PIN, OUTPUT);
+  pinMode(I2C_BUSD_SDA, INPUT_PULLUP);
+  pinMode(I2C_BUSD_SCL, INPUT_PULLUP);
+}
 // UnoR4PinAssignments.h v1
