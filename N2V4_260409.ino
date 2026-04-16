@@ -15,6 +15,14 @@
 #include "ArduinoDigitalOutput.h"
 #include "UnoR4PinAssignments.h"
 
+#if defined(ARDUINO_MINIMA)
+#include "SystemProfile_minima.h"
+#elif defined(ARDUINO_UNOWIFIR4)
+#include "SystemProfile_wifi_scenario.h"
+#else
+#error "No system profile selected"
+#endif
+
 const char* PROGRAM_VERSION = "4.3";  // update this major.minor. TODO add change log
 
 /* -- N2 pressure sensor thresholds -- */
@@ -71,7 +79,6 @@ uint8_t rotarySwitchStatus;  // holds current status of rotary switch
 uint8_t previousButtonValue = 0;
 
 // Forward declarations
-SystemConfig makeSystemConfig();
 SystemContext makeSystemContext();
 void refreshInputSnapshot();
 void refreshSystemSnapshot();
@@ -227,13 +234,14 @@ public:
   }
 };
 
-ArduinoClock timerClock;
+// ArduinoClock timerClock;
+ProfileClock timerClock;
 
 ArduinoDigitalOutput leftTowerValve(LEFT_TOWER_VALVE_PIN);
 ArduinoDigitalOutput rightTowerValve(RIGHT_TOWER_VALVE_PIN);
 ArduinoDigitalOutput o2FlushValve(O2_FLUSH_VALVE_PIN);
 ArduinoDigitalOutput compressorSsr(SSR_Pin);
-TCP0465SensorAdapter o2Sensor{ i2c_o2, TCP0465::DEFAULT_ADDRESS };
+ProfileO2Sensor o2Sensor{ i2c_o2, I2C_O2 };
 
 TowerController towerController(timerClock, leftTowerValve, rightTowerValve, systemConfig);
 O2Controller o2Controller(timerClock, o2Sensor, o2FlushValve, systemConfig);
@@ -256,31 +264,6 @@ void refreshSystemSnapshot() {
   systemSnapshot.n2 = n2Controller.snapshot();
 }
 
-SystemConfig makeSystemConfig() {
-  SystemConfig config{};
-
-  config.n2.lowOffPsi_x100 = N2_LOW_OFF_PSI_x100;
-  config.n2.lowOnPsi_x100 = N2_LOW_ON_PSI_x100;
-  config.n2.highOnPsi_x10 = N2_HIGH_ON_PSI_x10;
-  config.n2.highOffPsi_x10 = N2_HIGH_OFF_PSI_x10;
-
-  config.o2.warmupDurationMs = 300000UL;
-  config.o2.measurementIntervalMs = 60000UL;
-  config.o2.flushDurationMs = 3000UL;
-  config.o2.settleDurationMs = 2000UL;
-  config.o2.sampleIntervalMs = 250U;
-  config.o2.sampleCount = 10U;
-  config.o2.freshnessThresholdMs = 15000UL;
-  config.o2.errorBackoffMs = 1000UL;
-
-  config.tower.leftOpenMs = LEFT_OPEN_MS;
-  config.tower.overlapMs = OVERLAP_MS;
-  config.tower.rightOpenMs = RIGHT_OPEN_MS;
-  config.tower.lowSupplyPsi_x10 = TOWER_LOW_SUPPLY_PSI_x10;
-
-  return config;
-}
-
 SystemContext makeSystemContext() {
   SystemContext ctx{};
   ctx.config = makeSystemConfig();
@@ -294,12 +277,6 @@ RTC
 *********************************************************
 */
 TCP3231 rtc(i2c_rtc);
-
-/*
-*********************************************************
-N2 pressure sensing and controller support
-*********************************************************
-*/
 
 /*
 Each pressure sensor callback set corresponding variable on schedule
@@ -416,11 +393,8 @@ void displaySelectedValue() {
   displayToLCD20x4();
 }
 
-/* ---------- support functions ------------- */
-
 /*
 setDotTenths()
-
 Note: decimal point appears to the left of the specified digit
 */
 void setDotTenths() {
@@ -429,7 +403,6 @@ void setDotTenths() {
 
 /*
 setDotHundredths()
-
 Note: decimal point appears to the left of the specified digit
 */
 void setDotHundredths() {
@@ -490,19 +463,12 @@ void displayToLCD20x4() {
 }
 
 /*
-*********************************************************
-General switch / shutdown / display helpers
-*********************************************************
-*/
-
-/*
 readBlackSwitch()
 reads the black on/off switch (frequently)
 */
 void readBlackSwitch() {
   systemEnabled = !digitalRead(blackSwitchPin);
 }
-
 
 void enableDisplay20x4() {
   display20x4.backlightOn();
@@ -599,6 +565,8 @@ void setup() {
   compressorSsr.begin(false);
   o2FlushValve.begin(false);
 
+  systemProfileSetup(timerClock, o2Sensor);
+
   if (!o2Controller.init()) {
     Serial.print("O2Controller init() failed: ");
     Serial.println(o2Controller.errorString());
@@ -642,7 +610,17 @@ void loop() {
   readBlackSwitch();
   if (systemEnabled) {
     readPressureSensors();
-    refreshInputSnapshot();
+
+    // refreshInputSnapshot();
+    systemProfileRefreshInputs(
+      systemContext,
+      timerClock,
+      systemEnabled,
+      supplyPsi_x10,
+      scaledLeftPSI,
+      scaledRightPSI,
+      lowN2Psi_x100,
+      highN2Psi_x10);
 
     o2Controller.step(inputSnapshot);
 

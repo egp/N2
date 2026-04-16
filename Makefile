@@ -8,7 +8,7 @@ HOST_CXXFLAGS ?= -std=c++17 -Wall -Wextra -Werror -pedantic -I.
 COVERAGE_FLAGS := -fprofile-instr-generate -fcoverage-mapping
 
 HOST_TEST_FILES := $(wildcard host_tests/*.cpp)
-HOST_COMMON_SOURCES := $(wildcard *.cpp)
+HOST_COMMON_SOURCES := $(filter-out SystemProfile_%.cpp,$(wildcard *.cpp))
 COVERAGE_REPORT_SOURCES := TimedStateMachine.cpp O2Controller.cpp TowerController.cpp N2Controller.cpp
 
 .PHONY: host-test coverage clean
