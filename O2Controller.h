@@ -7,6 +7,7 @@
 #include "SystemConfig.h"
 #include "TimedStateMachine.h"
 #include "SystemConfig.h"
+#include "InputSnapshot.h"
 
 class IO2Sensor {
 public:
@@ -47,6 +48,12 @@ public:
   O2Controller(IClock& clock, IO2Sensor& sensor, IBinaryOutput& flushValve);
   O2Controller(IClock& clock, IO2Sensor& sensor, IBinaryOutput& flushValve, const SystemConfig& systemConfig);
   O2Controller(IClock& clock, IO2Sensor& sensor, IBinaryOutput& flushValve, const Config& config);
+
+  bool init();
+  void setEnabled(bool enabled);
+  void step(const InputSnapshot& inputs);
+  void shutdown();
+  IClock& clock() const;
 
   bool begin();
   void tick();

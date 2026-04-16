@@ -31,12 +31,29 @@ TowerController::TowerController(
     IBinaryOutput& leftValve,
     IBinaryOutput& rightValve,
     const Config& config)
- : timedStateMachine_(clock, STATE_INACTIVE),
+ : clock_(clock),
+   timedStateMachine_(clock, STATE_INACTIVE),
    leftValve_(leftValve),
    rightValve_(rightValve),
    config_(config),
    enabled_(false) {
   applyOutputsForState(STATE_INACTIVE);
+}
+
+bool TowerController::init() {
+  return true;
+}
+
+void TowerController::step(const InputSnapshot& inputs) {
+  tick(inputs);
+}
+
+void TowerController::shutdown() {
+  setEnabled(false);
+}
+
+IClock& TowerController::clock() const {
+  return clock_;
 }
 
 void TowerController::setEnabled(bool enabled) {

@@ -82,10 +82,35 @@ N2Controller::N2Controller(
     IClock& clock,
     IBinaryOutput& compressorOutput,
     const Config& config)
- : timedStateMachine_(clock, STATE_LOW_INHIBIT_HIGH_PERMIT, "N2", n2StateName),
+ : clock_(clock),
+   timedStateMachine_(clock, STATE_LOW_INHIBIT_HIGH_PERMIT, "N2", n2StateName),
    compressorOutput_(compressorOutput),
    config_(config) {
   applyOutputForState(STATE_LOW_INHIBIT_HIGH_PERMIT);
+}
+
+bool N2Controller::init() {
+  return true;
+}
+
+void N2Controller::setEnabled(bool enabled) {
+  (void)enabled;
+}
+
+void N2Controller::step(const InputSnapshot& inputs) {
+  (void)update(inputs);
+}
+
+void N2Controller::shutdown() {
+  transitionTo(STATE_LOW_INHIBIT_HIGH_PERMIT);
+}
+
+bool N2Controller::isOk() const {
+  return state() != STATE_LOW_INHIBIT_HIGH_INHIBIT;
+}
+
+IClock& N2Controller::clock() const {
+  return clock_;
 }
 
 bool N2Controller::update(const InputSnapshot& inputs) {

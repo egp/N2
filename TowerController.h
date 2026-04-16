@@ -36,6 +36,11 @@ public:
  TowerController(IClock& clock, IBinaryOutput& leftValve, IBinaryOutput& rightValve, const Config& config);
  TowerController(IClock& clock, IBinaryOutput& leftValve, IBinaryOutput& rightValve, const SystemConfig& systemConfig);
 
+ bool init();
+void step(const InputSnapshot& inputs);
+void shutdown();
+IClock& clock() const;
+
  void setEnabled(bool enabled);
 
  bool isEnabled() const;
@@ -62,13 +67,11 @@ private:
 
  void applyOutputsForState(State state);
 
+ IClock& clock_;
  TimedStateMachine timedStateMachine_;
-
  IBinaryOutput& leftValve_;
  IBinaryOutput& rightValve_;
-
  Config config_;
-
  bool enabled_;
 
 };

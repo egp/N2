@@ -35,9 +35,14 @@ using Config = SystemConfig::N2Config;
  N2Controller(IClock& clock, IBinaryOutput& compressorOutput, const Config& config);
 
  bool update(const InputSnapshot& inputs);
+ bool init();
+ void setEnabled(bool enabled);
+ void step(const InputSnapshot& inputs);
+ void shutdown();
+ bool isOk() const;
 
+ IClock& clock() const;
  State state() const;
-
  Snapshot snapshot() const;
 
  const Config& config() const;
@@ -54,10 +59,9 @@ private:
 
  void applyOutputForState(State state);
 
+ IClock& clock_;
  TimedStateMachine timedStateMachine_;
-
  IBinaryOutput& compressorOutput_;
-
  Config config_;
 
 };

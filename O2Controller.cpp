@@ -59,6 +59,29 @@ O2Controller::O2Controller(
   flushValve_.setOn(false);
 }
 
+bool O2Controller::init() {
+  return begin();
+}
+
+void O2Controller::setEnabled(bool enabled) {
+  (void)enabled;
+}
+
+void O2Controller::step(const InputSnapshot& inputs) {
+  (void)inputs;
+  tick();
+}
+
+void O2Controller::shutdown() {
+  flushValve_.setOn(false);
+  earlyMeasurementRequested_ = false;
+  transitionTo(STATE_UNINITIALIZED);
+}
+
+IClock& O2Controller::clock() const {
+  return clock_;
+}
+
 bool O2Controller::begin() {
   flushValve_.setOn(false);
 
