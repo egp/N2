@@ -76,6 +76,35 @@ SystemContext makeSystemContext();
 void refreshInputSnapshot();
 void refreshSystemSnapshot();
 
+/* ---------- Forward declarations --- */
+void refreshInputSnapshot();
+void refreshSystemSnapshot();
+void readPressureSensors();
+void displaySelectedValue();
+void displayO2();
+void readBlackSwitch();
+void setDotTenths();
+void setDotHundredths();
+void readSupplyPressure();
+void readLeftTowerPressure();
+void readRightTowerPressure();
+void readLowPressureN2();
+void readHighPressureN2();
+void displayToLCD20x4();
+void enableDisplay20x4();
+void disableDisplay20x4();
+void enableDisplay4();
+void disableDisplay4();
+void setupI2C();
+void printDateTime(const TCP3231::DateTime& dt);
+void printTwoDigits(uint8_t value);
+static void printFourDigits(uint16_t value);
+uint8_t readRotarySwitch();
+
+/*
+***************************************************************************************
+*/
+
 SystemContext systemContext = makeSystemContext();
 
 SystemConfig& systemConfig = systemContext.config;
@@ -86,6 +115,11 @@ SystemSnapshot& systemSnapshot = systemContext.snapshot;
 bool& systemWasEnabled = systemRuntime.systemWasEnabled;
 bool& systemEnabled = systemRuntime.systemEnabled;
 bool& lastN2ControllerOk = systemRuntime.lastN2ControllerOk;
+
+constexpr uint16_t TOWER_LOW_SUPPLY_PSI_x10 = 90;
+constexpr uint32_t LEFT_OPEN_MS = 60000UL;   // 60 seconds
+constexpr uint32_t RIGHT_OPEN_MS = 60000UL;  // 60 seconds
+constexpr uint32_t OVERLAP_MS = 750UL;       // 750 ms
 
 
 /* -- output buffers -- */
@@ -128,39 +162,58 @@ TCP20x4 display20x4(i2c_20x4, kLcdConfig);
 char commandBuffer[kCommandBufferSize];
 }
 
-/* ---------- Forward declarations --- */
-void refreshInputSnapshot();
-void refreshSystemSnapshot();
-void readPressureSensors();
 
-void displaySelectedValue();
-void displayO2();
 
-void readBlackSwitch();
+/* O2 sensor adapter class */
+class TCP0465SensorAdapter : public IO2Sensor {
+public:
+  TCP0465SensorAdapter()
+    : sensor_(),
+      i2c_(nullptr),
+      address_(TCP0465::DEFAULT_ADDRESS),
+      lastError_("I2C bus not configured") {}
 
-void setDotTenths();
-void setDotHundredths();
+  TCP0465SensorAdapter(BBI2C& i2c, uint8_t address)
+    : sensor_(),
+      i2c_(&i2c),
+      address_(address),
+      lastError_("not initialized") {}
 
-void readSupplyPressure();
-void readLeftTowerPressure();
-void readRightTowerPressure();
-void readLowPressureN2();
-void readHighPressureN2();
+  bool begin() override {
+    if (i2c_ == nullptr) {
+      lastError_ = "I2C bus not configured";
+      return false;
+    }
 
-void displayToLCD20x4();
+    if (!sensor_.begin(*i2c_, address_)) {
+      lastError_ = sensor_.errorString();
+      return false;
+    }
 
-void enableDisplay20x4();
-void disableDisplay20x4();
-void enableDisplay4();
-void disableDisplay4();
+    lastError_ = "no error";
+    return true;
+  }
 
-void setupI2C();
+  bool readOxygenPercent(float& percentVol) override {
+    if (!sensor_.readOxygenPercent(percentVol)) {
+      lastError_ = sensor_.errorString();
+      return false;
+    }
 
-void printDateTime(const TCP3231::DateTime& dt);
-void printTwoDigits(uint8_t value);
-static void printFourDigits(uint16_t value);
+    lastError_ = "no error";
+    return true;
+  }
 
-uint8_t readRotarySwitch();
+  const char* errorString() const override {
+    return lastError_;
+  }
+
+private:
+  TCP0465 sensor_;
+  BBI2C* i2c_;
+  uint8_t address_;
+  const char* lastError_;
+};
 
 /*
 *********************************************************
@@ -260,81 +313,6 @@ SystemContext makeSystemContext() {
   ctx.config = makeSystemConfig();
   return ctx;
 }
-
-/*
-*********************************************************
-Setup for O2 controller
-*********************************************************
-*/
-
-/* O2 sensor adapter class */
-class TCP0465SensorAdapter : public IO2Sensor {
-public:
-  TCP0465SensorAdapter()
-    : sensor_(),
-      i2c_(nullptr),
-      address_(TCP0465::DEFAULT_ADDRESS),
-      lastError_("I2C bus not configured") {}
-
-  TCP0465SensorAdapter(BBI2C& i2c, uint8_t address)
-    : sensor_(),
-      i2c_(&i2c),
-      address_(address),
-      lastError_("not initialized") {}
-
-  bool begin() override {
-    if (i2c_ == nullptr) {
-      lastError_ = "I2C bus not configured";
-      return false;
-    }
-
-    if (!sensor_.begin(*i2c_, address_)) {
-      lastError_ = sensor_.errorString();
-      return false;
-    }
-
-    lastError_ = "no error";
-    return true;
-  }
-
-  bool readOxygenPercent(float& percentVol) override {
-    if (!sensor_.readOxygenPercent(percentVol)) {
-      lastError_ = sensor_.errorString();
-      return false;
-    }
-
-    lastError_ = "no error";
-    return true;
-  }
-
-  const char* errorString() const override {
-    return lastError_;
-  }
-
-private:
-  TCP0465 sensor_;
-  BBI2C* i2c_;
-  uint8_t address_;
-  const char* lastError_;
-};
-
-// Create the instance of the O2 sensor adapter, it will be initialized during setup()
-
-
-/*
-*********************************************************
-Setup for Tower control
-*********************************************************
-*/
-
-// disable towers when air supply is below this
-constexpr uint16_t TOWER_LOW_SUPPLY_PSI_x10 = 90;
-
-// TODO: Maybe these two should collapse?
-constexpr uint32_t LEFT_OPEN_MS = 60000UL;   // 60 seconds
-constexpr uint32_t RIGHT_OPEN_MS = 60000UL;  // 60 seconds
-
-constexpr uint32_t OVERLAP_MS = 750UL;  // 750 ms
 
 
 /*
