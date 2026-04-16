@@ -8,8 +8,9 @@
 #include <TCP3231.h>  // https://github.com/egp/TCP3231
 
 #include "TimedStateMachine.h"
-#include "InputSnapshot.h"
-#include "SystemSnapshot.h"
+// #include "InputSnapshot.h"
+// #include "SystemSnapshot.h"
+#include "SystemContext.h"
 #include "O2Controller.h"
 #include "TowerController.h"
 #include "N2Controller.h"
@@ -70,9 +71,22 @@ uint8_t rotarySwitchStatus;  // holds current status of rotary switch
 
 /* -- previous values to reduce chatter -- */
 uint8_t previousButtonValue = 0;
-bool systemWasEnabled = false;
-bool systemEnabled = false;
-InputSnapshot inputSnapshot{};
+
+
+SystemConfig makeSystemConfig();
+SystemContext makeSystemContext();
+
+SystemContext systemContext = makeSystemContext();
+
+SystemConfig& systemConfig = systemContext.config;
+SystemRuntime& systemRuntime = systemContext.runtime;
+InputSnapshot& inputSnapshot = systemContext.input;
+SystemSnapshot& systemSnapshot = systemContext.snapshot;
+
+bool& systemWasEnabled = systemRuntime.systemWasEnabled;
+bool& systemEnabled = systemRuntime.systemEnabled;
+bool& lastN2ControllerOk = systemRuntime.lastN2ControllerOk;
+
 
 /* -- output buffers -- */
 char sprintfBuffer[80];  // holds debugging information before printing
@@ -179,18 +193,51 @@ void refreshSystemSnapshot() {
   systemSnapshot.n2 = n2Controller.snapshot();
 }
 
+SystemConfig makeSystemConfig() {
+  SystemConfig config{};
+
+  config.n2.lowOffPsi_x100 = N2_LOW_OFF_PSI_x100;
+  config.n2.lowOnPsi_x100 = N2_LOW_ON_PSI_x100;
+  config.n2.highOnPsi_x10 = N2_HIGH_ON_PSI_x10;
+  config.n2.highOffPsi_x10 = N2_HIGH_OFF_PSI_x10;
+
+  config.o2.warmupDurationMs = 300000UL;
+  config.o2.measurementIntervalMs = 60000UL;
+  config.o2.flushDurationMs = 3000UL;
+  config.o2.settleDurationMs = 2000UL;
+  config.o2.sampleIntervalMs = 250U;
+  config.o2.sampleCount = 10U;
+  config.o2.freshnessThresholdMs = 15000UL;
+  config.o2.errorBackoffMs = 1000UL;
+
+  config.tower.leftOpenMs = LEFT_OPEN_MS;
+  config.tower.overlapMs = OVERLAP_MS;
+  config.tower.rightOpenMs = RIGHT_OPEN_MS;
+  config.tower.lowSupplyPsi_x10 = TOWER_LOW_SUPPLY_PSI_x10;
+
+  return config;
+}
+
+SystemContext makeSystemContext() {
+  SystemContext ctx{};
+  ctx.config = makeSystemConfig();
+  return ctx;
+}
+
 /*
 *********************************************************
 Setup for N2 controller
 *********************************************************
 */
 ArduinoDigitalOutput compressorSsr(SSR_Pin);
+
 N2Controller::Config n2Config = {
-  N2_LOW_OFF_PSI_x100,
-  N2_LOW_ON_PSI_x100,
-  N2_HIGH_ON_PSI_x10,
-  N2_HIGH_OFF_PSI_x10,
+  systemConfig.n2.lowOffPsi_x100,
+  systemConfig.n2.lowOnPsi_x100,
+  systemConfig.n2.highOnPsi_x10,
+  systemConfig.n2.highOffPsi_x10,
 };
+
 
 N2Controller n2Controller(timerClock, compressorSsr, n2Config);
 
@@ -257,14 +304,14 @@ TCP0465SensorAdapter o2Sensor{ i2c_o2, TCP0465::DEFAULT_ADDRESS };
 ArduinoDigitalOutput o2FlushValve(O2_FLUSH_VALVE_PIN);
 
 O2Controller::Config o2Config = {
-  300000UL,  // warmupDurationMs: 5 minutes
-  60000UL,   // measurementIntervalMs: once per minute
-  3000UL,    // flushDurationMs
-  2000UL,    // settleDurationMs
-  250U,      // sampleIntervalMs
-  10U,       // sampleCount
-  15000UL,   // freshnessThresholdMs
-  1000UL     // errorBackoffMs
+  systemConfig.o2.warmupDurationMs,
+  systemConfig.o2.measurementIntervalMs,
+  systemConfig.o2.flushDurationMs,
+  systemConfig.o2.settleDurationMs,
+  systemConfig.o2.sampleIntervalMs,
+  systemConfig.o2.sampleCount,
+  systemConfig.o2.freshnessThresholdMs,
+  systemConfig.o2.errorBackoffMs,
 };
 
 O2Controller o2Controller(timerClock, o2Sensor, o2FlushValve, o2Config);
@@ -288,10 +335,10 @@ ArduinoDigitalOutput leftTowerValve(LEFT_TOWER_VALVE_PIN);
 ArduinoDigitalOutput rightTowerValve(RIGHT_TOWER_VALVE_PIN);
 
 TowerController::Config towerConfig = {
-  LEFT_OPEN_MS,
-  OVERLAP_MS,
-  RIGHT_OPEN_MS,
-  TOWER_LOW_SUPPLY_PSI_x10,
+  systemConfig.tower.leftOpenMs,
+  systemConfig.tower.overlapMs,
+  systemConfig.tower.rightOpenMs,
+  systemConfig.tower.lowSupplyPsi_x10,
 };
 
 TowerController towerController(timerClock, leftTowerValve, rightTowerValve, towerConfig);
@@ -670,7 +717,7 @@ void loop() {
 
     refreshSystemSnapshot();
     displaySelectedValue();  // read rotary switch and display corresponding value in disp4
-    
+
   } else {
     shutdown();    // TODO can this run once per tight loop?
     delay(10000);  // check less often when system is disabled
