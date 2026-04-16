@@ -600,7 +600,7 @@ void setup() {
   o2FlushValve.begin(false);
 
   if (!o2Controller.init()) {
-    Serial.print("O2Controller begin() failed: ");
+    Serial.print("O2Controller init() failed: ");
     Serial.println(o2Controller.errorString());
   }
 

@@ -1,4 +1,4 @@
-// TowerController.cpp v8
+// TowerController.cpp v9
 #include "TowerController.h"
 
 #ifdef ARDUINO
@@ -80,75 +80,6 @@ bool TowerController::init() {
  return true;
 }
 
-void TowerController::step(const InputSnapshot& inputs) {
-  if (!enabled_) {
-    return;
-  }
-
-  if (!isSupplySufficient(inputs.supplyPsi_x10)) {
-    if (state() != STATE_LOW_SUPPLY) {
-      transitionTo(STATE_LOW_SUPPLY, 0U, false);
-    }
-    return;
-  }
-
-  if (state() == STATE_LOW_SUPPLY) {
-    transitionTo(STATE_LEFT_ONLY, config_.leftOpenMs, true);
-    return;
-  }
-
-  if (!timedStateMachine_.isExpired()) {
-    return;
-  }
-
-  switch (state()) {
-    case STATE_LEFT_ONLY:
-#ifdef ARDUINO
-      Serial.println(F("Tower Transitioning from LEFT_ONLY to BOTH_AFTER_LEFT"));
-#endif
-      transitionTo(STATE_BOTH_AFTER_LEFT, config_.overlapMs, true);
-      return;
-
-    case STATE_BOTH_AFTER_LEFT:
-#ifdef ARDUINO
-      Serial.println(F("Tower Transitioning from BOTH_AFTER_LEFT to RIGHT_ONLY"));
-#endif
-      transitionTo(STATE_RIGHT_ONLY, config_.rightOpenMs, true);
-      return;
-
-    case STATE_RIGHT_ONLY:
-#ifdef ARDUINO
-      Serial.println(F("Tower Transitioning from RIGHT_ONLY to BOTH_AFTER_RIGHT"));
-#endif
-      transitionTo(STATE_BOTH_AFTER_RIGHT, config_.overlapMs, true);
-      return;
-
-    case STATE_BOTH_AFTER_RIGHT:
-#ifdef ARDUINO
-      Serial.println(F("Tower Transitioning from BOTH_AFTER_RIGHT to LEFT_ONLY"));
-#endif
-      transitionTo(STATE_LEFT_ONLY, config_.leftOpenMs, true);
-      return;
-
-    case STATE_INACTIVE:
-    case STATE_LOW_SUPPLY:
-    default:
-      return;
-  }
-}
-
-void TowerController::shutdown() {
- setEnabled(false);
-}
-
-IClock& TowerController::clock() const {
- return clock_;
-}
-
-const ControllerState& TowerController::getState() const {
- return stateView_;
-}
-
 void TowerController::setEnabled(bool enabled) {
  if (enabled == enabled_) {
   return;
@@ -163,10 +94,78 @@ void TowerController::setEnabled(bool enabled) {
  transitionTo(STATE_LEFT_ONLY, config_.leftOpenMs, true);
 }
 
+void TowerController::step(const InputSnapshot& inputs) {
+ if (!enabled_) {
+  return;
+ }
+
+ if (!isSupplySufficient(inputs.supplyPsi_x10)) {
+  if (state() != STATE_LOW_SUPPLY) {
+   transitionTo(STATE_LOW_SUPPLY, 0U, false);
+  }
+  return;
+ }
+
+ if (state() == STATE_LOW_SUPPLY) {
+  transitionTo(STATE_LEFT_ONLY, config_.leftOpenMs, true);
+  return;
+ }
+
+ if (!timedStateMachine_.isExpired()) {
+  return;
+ }
+
+ switch (state()) {
+ case STATE_LEFT_ONLY:
+#ifdef ARDUINO
+  Serial.println(F("Tower Transitioning from LEFT_ONLY to BOTH_AFTER_LEFT"));
+#endif
+  transitionTo(STATE_BOTH_AFTER_LEFT, config_.overlapMs, true);
+  return;
+
+ case STATE_BOTH_AFTER_LEFT:
+#ifdef ARDUINO
+  Serial.println(F("Tower Transitioning from BOTH_AFTER_LEFT to RIGHT_ONLY"));
+#endif
+  transitionTo(STATE_RIGHT_ONLY, config_.rightOpenMs, true);
+  return;
+
+ case STATE_RIGHT_ONLY:
+#ifdef ARDUINO
+  Serial.println(F("Tower Transitioning from RIGHT_ONLY to BOTH_AFTER_RIGHT"));
+#endif
+  transitionTo(STATE_BOTH_AFTER_RIGHT, config_.overlapMs, true);
+  return;
+
+ case STATE_BOTH_AFTER_RIGHT:
+#ifdef ARDUINO
+  Serial.println(F("Tower Transitioning from BOTH_AFTER_RIGHT to LEFT_ONLY"));
+#endif
+  transitionTo(STATE_LEFT_ONLY, config_.leftOpenMs, true);
+  return;
+
+ case STATE_INACTIVE:
+ case STATE_LOW_SUPPLY:
+ default:
+  return;
+ }
+}
+
+void TowerController::shutdown() {
+ setEnabled(false);
+}
+
+IClock& TowerController::clock() const {
+ return clock_;
+}
+
+const ControllerState& TowerController::getState() const {
+ return stateView_;
+}
+
 bool TowerController::isEnabled() const {
  return enabled_;
 }
-
 
 TowerController::State TowerController::state() const {
  return static_cast<State>(timedStateMachine_.state());
@@ -250,5 +249,4 @@ void TowerController::applyOutputsForState(State state) {
   return;
  }
 }
-
-// TowerController.cpp v8
+// TowerController.cpp v9
