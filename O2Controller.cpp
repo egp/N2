@@ -15,6 +15,35 @@ static const char* o2StateName(uint8_t state) {
   }
 }
 
+O2Controller::StateView::StateView(const O2Controller& owner)
+    : owner_(owner) {}
+
+ControllerKind O2Controller::StateView::kind() const {
+  return ControllerKind::O2;
+}
+
+uint32_t O2Controller::StateView::enteredAtMs() const {
+  return owner_.timedStateMachine_.stateEnteredAtMs();
+}
+
+uint32_t O2Controller::StateView::code() const {
+  return static_cast<uint32_t>(owner_.state());
+}
+
+const char* O2Controller::StateView::name() const {
+  switch (owner_.state()) {
+    case O2Controller::STATE_UNINITIALIZED: return "Uninitialized";
+    case O2Controller::STATE_WARMUP: return "Warmup";
+    case O2Controller::STATE_WAITING_TO_FLUSH: return "WaitingToFlush";
+    case O2Controller::STATE_FLUSHING: return "Flushing";
+    case O2Controller::STATE_SETTLING: return "Settling";
+    case O2Controller::STATE_SAMPLING: return "Sampling";
+    case O2Controller::STATE_WAITING_FOR_NEXT_SAMPLE: return "WaitingForNextSample";
+    case O2Controller::STATE_ERROR_BACKOFF: return "ErrorBackoff";
+    default: return "Unknown";
+  }
+}
+
 O2Controller::Config O2Controller::defaultConfig() {
   Config config;
   config.warmupDurationMs = 300000UL;
@@ -55,8 +84,12 @@ O2Controller::O2Controller(
    cachedAveragePercent_(0.0f),
    runningSumPercent_(0.0f),
    samplesCollected_(0U),
-   lastError_("no error") {
+   lastError_("no error"),
+   stateView_(*this)  {
   flushValve_.setOn(false);
+}
+const ControllerState& O2Controller::getState() const {
+  return stateView_;
 }
 
 bool O2Controller::init() {

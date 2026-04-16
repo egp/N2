@@ -1,16 +1,51 @@
-// TowerController.cpp v5
+// TowerController.cpp v8
 #include "TowerController.h"
 
 #ifdef ARDUINO
 #include <Arduino.h>
 #endif
 
+TowerController::StateView::StateView(const TowerController& owner)
+ : owner_(owner) {
+}
+
+ControllerKind TowerController::StateView::kind() const {
+ return ControllerKind::Tower;
+}
+
+uint32_t TowerController::StateView::enteredAtMs() const {
+ return owner_.timedStateMachine_.stateEnteredAtMs();
+}
+
+uint32_t TowerController::StateView::code() const {
+ return static_cast<uint32_t>(owner_.state());
+}
+
+const char* TowerController::StateView::name() const {
+ switch (owner_.state()) {
+ case TowerController::STATE_INACTIVE:
+  return "Inactive";
+ case TowerController::STATE_LEFT_ONLY:
+  return "LeftOnly";
+ case TowerController::STATE_BOTH_AFTER_LEFT:
+  return "BothAfterLeft";
+ case TowerController::STATE_RIGHT_ONLY:
+  return "RightOnly";
+ case TowerController::STATE_BOTH_AFTER_RIGHT:
+  return "BothAfterRight";
+ case TowerController::STATE_LOW_SUPPLY:
+  return "LowSupply";
+ default:
+  return "Unknown";
+ }
+}
+
 TowerController::Config TowerController::defaultConfig() {
  Config config;
  config.leftOpenMs = 60000UL;
  config.overlapMs = 750UL;
  config.rightOpenMs = 60000UL;
- config.lowSupplyPsi_x10 = 1000U; // 100.0 PSI
+ config.lowSupplyPsi_x10 = 1000U;
  return config;
 }
 
@@ -36,24 +71,29 @@ TowerController::TowerController(
    leftValve_(leftValve),
    rightValve_(rightValve),
    config_(config),
-   enabled_(false) {
-  applyOutputsForState(STATE_INACTIVE);
+   enabled_(false),
+   stateView_(*this) {
+ applyOutputsForState(STATE_INACTIVE);
 }
 
 bool TowerController::init() {
-  return true;
+ return true;
 }
 
 void TowerController::step(const InputSnapshot& inputs) {
-  tick(inputs);
+ tick(inputs);
 }
 
 void TowerController::shutdown() {
-  setEnabled(false);
+ setEnabled(false);
 }
 
 IClock& TowerController::clock() const {
-  return clock_;
+ return clock_;
+}
+
+const ControllerState& TowerController::getState() const {
+ return stateView_;
 }
 
 void TowerController::setEnabled(bool enabled) {
@@ -214,4 +254,4 @@ void TowerController::applyOutputsForState(State state) {
  }
 }
 
-// TowerController.cpp v5
+// TowerController.cpp v8

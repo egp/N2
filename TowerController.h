@@ -1,16 +1,16 @@
-// TowerController.h v7
+// TowerController.h v8
 #ifndef TOWER_CONTROLLER_H
 #define TOWER_CONTROLLER_H
 
 #include <stdint.h>
 
 #include "BinaryOutput.h"
+#include "IController.h"
 #include "InputSnapshot.h"
 #include "SystemConfig.h"
 #include "TimedStateMachine.h"
-#include "SystemConfig.h"
 
-class TowerController {
+class TowerController : public IController {
 
 public:
 
@@ -30,18 +30,31 @@ public:
   State state;
  };
 
+ class StateView : public ControllerState {
+ public:
+  explicit StateView(const TowerController& owner);
+
+  ControllerKind kind() const override;
+  uint32_t enteredAtMs() const override;
+  uint32_t code() const override;
+  const char* name() const override;
+
+ private:
+  const TowerController& owner_;
+ };
+
  static Config defaultConfig();
 
  TowerController(IClock& clock, IBinaryOutput& leftValve, IBinaryOutput& rightValve);
  TowerController(IClock& clock, IBinaryOutput& leftValve, IBinaryOutput& rightValve, const Config& config);
  TowerController(IClock& clock, IBinaryOutput& leftValve, IBinaryOutput& rightValve, const SystemConfig& systemConfig);
 
- bool init();
-void step(const InputSnapshot& inputs);
-void shutdown();
-IClock& clock() const;
-
- void setEnabled(bool enabled);
+ bool init() override;
+ void setEnabled(bool enabled) override;
+ void step(const InputSnapshot& inputs) override;
+ void shutdown() override;
+ IClock& clock() const override;
+ const ControllerState& getState() const override;
 
  bool isEnabled() const;
 
@@ -73,9 +86,10 @@ private:
  IBinaryOutput& rightValve_;
  Config config_;
  bool enabled_;
+ StateView stateView_;
 
 };
 
 #endif
 
-// TowerController.h v7
+// TowerController.h v8

@@ -1,4 +1,4 @@
-// N2Controller.cpp v6
+// N2Controller.cpp v7
 #include "N2Controller.h"
 
 namespace {
@@ -58,12 +58,43 @@ N2Controller::State stateFromLatches(bool lowPermit, bool highPermit) {
 
 } // namespace
 
+N2Controller::StateView::StateView(const N2Controller& owner)
+ : owner_(owner) {
+}
+
+ControllerKind N2Controller::StateView::kind() const {
+ return ControllerKind::N2;
+}
+
+uint32_t N2Controller::StateView::enteredAtMs() const {
+ return owner_.timedStateMachine_.stateEnteredAtMs();
+}
+
+uint32_t N2Controller::StateView::code() const {
+ return static_cast<uint32_t>(owner_.state());
+}
+
+const char* N2Controller::StateView::name() const {
+ switch (owner_.state()) {
+ case N2Controller::STATE_LOW_INHIBIT_HIGH_PERMIT:
+  return "LowInhibitHighPermit";
+ case N2Controller::STATE_LOW_PERMIT_HIGH_PERMIT:
+  return "LowPermitHighPermit";
+ case N2Controller::STATE_LOW_PERMIT_HIGH_INHIBIT:
+  return "LowPermitHighInhibit";
+ case N2Controller::STATE_LOW_INHIBIT_HIGH_INHIBIT:
+  return "LowInhibitHighInhibit";
+ default:
+  return "Unknown";
+ }
+}
+
 N2Controller::Config N2Controller::defaultConfig() {
  Config config;
- config.lowOffPsi_x100 = 1000U;   // 10.00 PSI
- config.lowOnPsi_x100 = 2000U;    // 20.00 PSI
- config.highOnPsi_x10 = 1000U;    // 100.0 PSI
- config.highOffPsi_x10 = 1200U;   // 120.0 PSI
+ config.lowOffPsi_x100 = 1000U;
+ config.lowOnPsi_x100 = 2000U;
+ config.highOnPsi_x10 = 1000U;
+ config.highOffPsi_x10 = 1200U;
  return config;
 }
 
@@ -85,32 +116,33 @@ N2Controller::N2Controller(
  : clock_(clock),
    timedStateMachine_(clock, STATE_LOW_INHIBIT_HIGH_PERMIT, "N2", n2StateName),
    compressorOutput_(compressorOutput),
-   config_(config) {
-  applyOutputForState(STATE_LOW_INHIBIT_HIGH_PERMIT);
+   config_(config),
+   stateView_(*this) {
+ applyOutputForState(STATE_LOW_INHIBIT_HIGH_PERMIT);
 }
 
 bool N2Controller::init() {
-  return true;
+ return true;
 }
 
 void N2Controller::setEnabled(bool enabled) {
-  (void)enabled;
+ (void)enabled;
 }
 
 void N2Controller::step(const InputSnapshot& inputs) {
-  (void)update(inputs);
+ (void)update(inputs);
 }
 
 void N2Controller::shutdown() {
-  transitionTo(STATE_LOW_INHIBIT_HIGH_PERMIT);
-}
-
-bool N2Controller::isOk() const {
-  return state() != STATE_LOW_INHIBIT_HIGH_INHIBIT;
+ transitionTo(STATE_LOW_INHIBIT_HIGH_PERMIT);
 }
 
 IClock& N2Controller::clock() const {
-  return clock_;
+ return clock_;
+}
+
+const ControllerState& N2Controller::getState() const {
+ return stateView_;
 }
 
 bool N2Controller::update(const InputSnapshot& inputs) {
@@ -162,6 +194,10 @@ bool N2Controller::isCompressorOn() const {
  return state() == STATE_LOW_PERMIT_HIGH_PERMIT;
 }
 
+bool N2Controller::isOk() const {
+ return state() != STATE_LOW_INHIBIT_HIGH_INHIBIT;
+}
+
 void N2Controller::transitionTo(State nextState) {
  timedStateMachine_.transitionTo(static_cast<uint8_t>(nextState));
  applyOutputForState(nextState);
@@ -182,4 +218,4 @@ void N2Controller::applyOutputForState(State state) {
  }
 }
 
-// N2Controller.cpp v6
+// N2Controller.cpp v7

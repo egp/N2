@@ -1,13 +1,14 @@
-// O2Controller.h v4
+// O2Controller.h v5
 #ifndef O2_CONTROLLER_H
 #define O2_CONTROLLER_H
 
 #include <stdint.h>
+
 #include "BinaryOutput.h"
+#include "IController.h"
+#include "InputSnapshot.h"
 #include "SystemConfig.h"
 #include "TimedStateMachine.h"
-#include "SystemConfig.h"
-#include "InputSnapshot.h"
 
 class IO2Sensor {
 public:
@@ -17,9 +18,8 @@ public:
   virtual const char* errorString() const = 0;
 };
 
-class O2Controller {
+class O2Controller : public IController {
 public:
-
   using Config = SystemConfig::O2Config;
 
   enum State : uint8_t {
@@ -43,17 +43,31 @@ public:
     const char* errorString;
   };
 
+  class StateView : public ControllerState {
+  public:
+    explicit StateView(const O2Controller& owner);
+
+    ControllerKind kind() const override;
+    uint32_t enteredAtMs() const override;
+    uint32_t code() const override;
+    const char* name() const override;
+
+  private:
+    const O2Controller& owner_;
+  };
+
   static Config defaultConfig();
 
   O2Controller(IClock& clock, IO2Sensor& sensor, IBinaryOutput& flushValve);
   O2Controller(IClock& clock, IO2Sensor& sensor, IBinaryOutput& flushValve, const SystemConfig& systemConfig);
   O2Controller(IClock& clock, IO2Sensor& sensor, IBinaryOutput& flushValve, const Config& config);
 
-  bool init();
-  void setEnabled(bool enabled);
-  void step(const InputSnapshot& inputs);
-  void shutdown();
-  IClock& clock() const;
+  bool init() override;
+  void setEnabled(bool enabled) override;
+  void step(const InputSnapshot& inputs) override;
+  void shutdown() override;
+  IClock& clock() const override;
+  const ControllerState& getState() const override;
 
   bool begin();
   void tick();
@@ -92,7 +106,8 @@ private:
   float runningSumPercent_;
   uint8_t samplesCollected_;
   const char* lastError_;
+  StateView stateView_;
 };
 
 #endif
-// O2Controller.h v4
+// O2Controller.h v5
