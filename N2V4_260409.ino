@@ -507,11 +507,11 @@ void setupI2C() {
   i2c_20x4.bWire = 0;   // use bit banging
   i2c_rtc.bWire = 0;    // use bit banging
 
-  i2c_disp4.iSDA = A4;  // sharing the standard I2C bus for now.
-  i2c_disp4.iSCL = A5;
+  i2c_disp4.iSDA = I2C_BUSA_SDA;  // sharing the standard I2C bus for now.
+  i2c_disp4.iSCL = I2C_BUSA_SCL;
 
-  i2c_o2.iSDA = A4;
-  i2c_o2.iSCL = A5;
+  i2c_o2.iSDA = I2C_BUSB_SDA;
+  i2c_o2.iSCL = I2C_BUSB_SCL;
 
   i2c_20x4.iSDA = I2C_BUSC_SDA;
   i2c_20x4.iSCL = I2C_BUSC_SCL;
@@ -597,6 +597,21 @@ void handleDisplayPowerTransition() {
   systemWasEnabled = systemEnabled;
 }
 
+void displaySelfTest() {
+  enableDisplay4();
+  enableDisplay20x4();
+
+  disp4.setNumber(1234, true);
+  disp4.setDot(1, true);
+
+  display20x4.writeLine(0, "DISPLAY SELF TEST   ");
+  display20x4.writeLine(1, "1234 should show    ");
+  display20x4.writeLine(2, "If blank: I2C/wiring");
+  display20x4.writeLine(3, "not scenario logic  ");
+
+  Serial.println(F("Display self-test written."));
+}
+
 /* ---------- Arduino setup ---------- */
 void setup() {
   Serial.begin(115200);           // handshake with USB
@@ -631,6 +646,9 @@ void setup() {
   display20x4.begin();
   enableDisplay20x4();
 
+  displaySelfTest();
+  delay(3000);
+
 
 #if defined(ARDUINO_MINIMA)
   sprintf(sprintfBuffer, "N2 v %s, compiled %s at %s with IDE %d for UNO R4 Minima", PROGRAM_VERSION, __DATE__, __TIME__, ARDUINO);
@@ -653,18 +671,19 @@ void setup() {
 /*
 This is a tight loop, which runs continuously
 If the black switch is off, it checks less often.
-*/void loop() {
+*/
+void loop() {
 #if defined(ARDUINO_UNOWIFIR4)
   systemProfileConsumeSerialCommand(timerClock, systemContext);
   systemProfileRefreshInputs(
-      systemContext,
-      timerClock,
-      systemEnabled,
-      supplyPsi_x10,
-      scaledLeftPSI,
-      scaledRightPSI,
-      lowN2Psi_x100,
-      highN2Psi_x10);
+    systemContext,
+    timerClock,
+    systemEnabled,
+    supplyPsi_x10,
+    scaledLeftPSI,
+    scaledRightPSI,
+    lowN2Psi_x100,
+    highN2Psi_x10);
 
   systemEnabled = inputSnapshot.blackSwitchEnabled;
 
