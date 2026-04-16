@@ -1,4 +1,4 @@
-// O2Controller.h v2
+// O2Controller.h v3
 #ifndef O2_CONTROLLER_H
 #define O2_CONTROLLER_H
 
@@ -38,6 +38,16 @@ public:
     STATE_ERROR_BACKOFF
   };
 
+  struct Snapshot {
+    uint32_t createdAtMs;
+    State state;
+    bool hasValue;
+    bool isValueFresh;
+    float o2Percent;
+    float n2Percent;
+    const char* errorString;
+  };
+
   static Config defaultConfig();
 
   O2Controller(IClock& clock, IO2Sensor& sensor, IBinaryOutput& flushValve);
@@ -54,6 +64,7 @@ public:
   float averagedPercent() const;
   const char* errorString() const;
   State state() const;
+  Snapshot snapshot() const;
   const Config& config() const;
   void setConfig(const Config& config);
 
@@ -82,4 +93,4 @@ private:
 };
 
 #endif
-// O2Controller.h v2
+// O2Controller.h v3

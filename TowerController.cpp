@@ -126,6 +126,13 @@ bool TowerController::isActive() const {
  }
 }
 
+TowerController::Snapshot TowerController::snapshot() const {
+ return Snapshot{
+     timedStateMachine_.stateEnteredAtMs(),
+     state(),
+ };
+}
+
 const TowerController::Config& TowerController::config() const {
  return config_;
 }

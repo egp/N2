@@ -282,11 +282,41 @@ static bool test_WB_failMeasurementCycleClosesFlushPreservesCachedValueAndEnters
   return true;
 }
 
+static bool test_WB_snapshotTimestampMirrorsTimedStateMachineAndZerosMissingValue() {
+  FakeClock clock;
+  FakeO2Sensor sensor;
+  FakeBinaryOutput flushValve;
+  const O2Controller::Config config = testConfig();
+  O2Controller controller(clock, sensor, flushValve, config);
+
+  clock.setNowMs(12U);
+  controller.begin();
+
+  const O2Controller::Snapshot snapshot = controller.snapshot();
+
+  if (!require(snapshot.createdAtMs ==
+                   O2ControllerTestProbe::timedStateMachine(controller).stateEnteredAtMs(),
+               "o2 snapshot timestamp should mirror timed-state-machine entered-at")) return false;
+  if (!require(snapshot.state == O2Controller::STATE_WARMUP,
+               "o2 snapshot should report warmup after begin")) return false;
+  if (!require(!snapshot.hasValue,
+               "o2 snapshot should report no cached value before first measurement")) return false;
+  if (!require(!snapshot.isValueFresh,
+               "o2 snapshot should report not-fresh before first measurement")) return false;
+  if (!requireNear(snapshot.o2Percent, 0.0f, 0.0001f,
+                   "o2 snapshot should zero o2 percent when no cached value exists")) return false;
+  if (!requireNear(snapshot.n2Percent, 0.0f, 0.0001f,
+                   "o2 snapshot should zero n2 percent when no cached value exists")) return false;
+
+  return true;
+}
+
 int main() {
   if (!test_WB_shouldStartScheduledCycleBeforeFirstValueAndAfterCachedValue()) return 1;
   if (!test_WB_beginMeasurementCycleClearsAccumulatorsAndOpensFlush()) return 1;
   if (!test_WB_finishMeasurementCycleUpdatesCacheTimestampFreshnessAndError()) return 1;
   if (!test_WB_failMeasurementCycleClosesFlushPreservesCachedValueAndEntersBackoff()) return 1;
+  if (!test_WB_snapshotTimestampMirrorsTimedStateMachineAndZerosMissingValue()) return 1;
 
   printf("PASS: test_WB_o2_controller\n");
   return 0;

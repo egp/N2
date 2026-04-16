@@ -190,6 +190,22 @@ O2Controller::State O2Controller::state() const {
   return static_cast<State>(timedStateMachine_.state());
 }
 
+O2Controller::Snapshot O2Controller::snapshot() const {
+  const bool valuePresent = hasValue();
+  const float o2Percent = valuePresent ? averagedPercent() : 0.0f;
+  const float n2Percent = valuePresent ? (100.0f - o2Percent) : 0.0f;
+
+  return Snapshot{
+      timedStateMachine_.stateEnteredAtMs(),
+      state(),
+      valuePresent,
+      isValueFresh(),
+      o2Percent,
+      n2Percent,
+      errorString(),
+  };
+}
+
 const O2Controller::Config& O2Controller::config() const {
   return config_;
 }

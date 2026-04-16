@@ -218,6 +218,30 @@ static bool test_WB_applyOutputsForStateMatchesEveryState() {
   return true;
 }
 
+static bool test_WB_snapshotTimestampMirrorsTimedStateMachineEnteredAt() {
+  FakeClock clock;
+  FakeBinaryOutput leftValve;
+  FakeBinaryOutput rightValve;
+  TowerController controller(clock, leftValve, rightValve, testConfig());
+
+  clock.setNowMs(55U);
+  TowerControllerTestProbe::transitionTo(
+      controller,
+      TowerController::STATE_RIGHT_ONLY,
+      12U,
+      true);
+
+  const TowerController::Snapshot snapshot = controller.snapshot();
+
+  if (!require(snapshot.createdAtMs ==
+                   TowerControllerTestProbe::timedStateMachine(controller).stateEnteredAtMs(),
+               "tower snapshot timestamp should mirror timed-state-machine entered-at")) return false;
+  if (!require(snapshot.state == TowerController::STATE_RIGHT_ONLY,
+               "tower snapshot should mirror current state")) return false;
+
+  return true;
+}
+
 int main() {
   if (!test_WB_defaultConfigIncludesLowSupplyThreshold()) return 1;
   if (!test_WB_constructorSeedsConfigAndDisabledState()) return 1;
@@ -225,6 +249,7 @@ int main() {
   if (!test_WB_transitionToTimedSetsDeadlineAndOutputs()) return 1;
   if (!test_WB_transitionToUntimedClearsDeadlineAndOutputs()) return 1;
   if (!test_WB_applyOutputsForStateMatchesEveryState()) return 1;
+  if (!test_WB_snapshotTimestampMirrorsTimedStateMachineEnteredAt()) return 1;
 
   printf("PASS: test_WB_tower_controller\n");
   return 0;

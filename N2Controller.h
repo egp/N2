@@ -1,4 +1,4 @@
-// N2Controller.h v4
+// N2Controller.h v5
 #ifndef N2_CONTROLLER_H
 #define N2_CONTROLLER_H
 
@@ -26,6 +26,11 @@ public:
   STATE_LOW_INHIBIT_HIGH_INHIBIT
  };
 
+ struct Snapshot {
+  uint32_t createdAtMs;
+  State state;
+ };
+
  static Config defaultConfig();
 
  N2Controller(IClock& clock, IBinaryOutput& compressorOutput);
@@ -34,6 +39,8 @@ public:
  bool update(const InputSnapshot& inputs);
 
  State state() const;
+
+ Snapshot snapshot() const;
 
  const Config& config() const;
 
@@ -59,4 +66,4 @@ private:
 
 #endif
 
-// N2Controller.h v4
+// N2Controller.h v5

@@ -550,6 +550,35 @@ static bool test_BB_staleRequestWhileBusyDoesNotPerturbInFlightCycle() {
   return true;
 }
 
+static bool test_BB_snapshotReflectsCompletedMeasurement() {
+  FakeClock clock;
+  FakeO2Sensor sensor;
+  FakeBinaryOutput flushValve;
+  const O2Controller::Config config = testConfig();
+  O2Controller controller(clock, sensor, flushValve, config);
+
+  if (!seedSuccessfulMeasurement(controller, clock, sensor, config, {20.0f, 21.0f, 22.0f})) return false;
+
+  const O2Controller::Snapshot snapshot = controller.snapshot();
+
+  if (!require(snapshot.createdAtMs == clock.nowMs(),
+               "o2 snapshot timestamp should match completion transition time")) return false;
+  if (!require(snapshot.state == O2Controller::STATE_WAITING_TO_FLUSH,
+               "o2 snapshot should report waiting-to-flush after successful cycle")) return false;
+  if (!require(snapshot.hasValue,
+               "o2 snapshot should report cached value present")) return false;
+  if (!require(snapshot.isValueFresh,
+               "o2 snapshot should report fresh value immediately after completion")) return false;
+  if (!requireNear(snapshot.o2Percent, 21.0f, 0.0001f,
+                   "o2 snapshot should expose cached o2 percent")) return false;
+  if (!requireNear(snapshot.n2Percent, 79.0f, 0.0001f,
+                   "o2 snapshot should expose derived n2 percent")) return false;
+  if (!require(strcmp(snapshot.errorString, "no error") == 0,
+               "o2 snapshot should expose no-error state after success")) return false;
+
+  return true;
+}
+
 int main() {
   if (!test_BB_beginStartsWarmupWithClosedFlushValve()) return 1;
   if (!test_BB_beginFailsWhenSampleCountZero()) return 1;
@@ -563,6 +592,7 @@ int main() {
   if (!test_BB_oneSampleModeCompletesCorrectly()) return 1;
   if (!test_BB_repeatedFailuresPreserveCachedValueStayBoundedAndRecover()) return 1;
   if (!test_BB_staleRequestWhileBusyDoesNotPerturbInFlightCycle()) return 1;
+  if (!test_BB_snapshotReflectsCompletedMeasurement()) return 1;
 
   printf("PASS: test_BB_o2_controller\n");
   return 0;

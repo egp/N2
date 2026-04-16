@@ -435,6 +435,33 @@ static bool test_BB_lowSupplyWinsOverTimedTransitionAtExpiryBoundary() {
   return true;
 }
 
+static bool test_BB_snapshotReflectsCurrentTowerState() {
+  FakeClock clock;
+  FakeBinaryOutput leftValve;
+  FakeBinaryOutput rightValve;
+  const TowerController::Config config = fastConfig();
+  TowerController controller(clock, leftValve, rightValve, config);
+
+  controller.setEnabled(true);
+  TowerController::Snapshot snapshot = controller.snapshot();
+
+  if (!require(snapshot.createdAtMs == 0U,
+               "tower snapshot should start at initial transition time")) return false;
+  if (!require(snapshot.state == TowerController::STATE_LEFT_ONLY,
+               "tower snapshot should report left-only after enable")) return false;
+
+  clock.advanceMs(config.leftOpenMs);
+  controller.tick(makeInputs(1500U));
+  snapshot = controller.snapshot();
+
+  if (!require(snapshot.createdAtMs == config.leftOpenMs,
+               "tower snapshot timestamp should refresh on state transition")) return false;
+  if (!require(snapshot.state == TowerController::STATE_BOTH_AFTER_LEFT,
+               "tower snapshot should report updated state after transition")) return false;
+
+  return true;
+}
+
 int main() {
   if (!test_BB_startsInactiveWithBothValvesClosed()) return 1;
   if (!test_BB_enableImmediatelyStartsLeftOnly()) return 1;
@@ -449,6 +476,7 @@ int main() {
   if (!test_BB_lowSupplyWhileInactiveDoesNotActivate()) return 1;
   if (!test_BB_exactLowSupplyThresholdIsSufficient()) return 1;
   if (!test_BB_lowSupplyWinsOverTimedTransitionAtExpiryBoundary()) return 1;
+  if (!test_BB_snapshotReflectsCurrentTowerState()) return 1;
 
   printf("PASS: test_BB_tower_controller\n");
   return 0;

@@ -111,6 +111,13 @@ N2Controller::State N2Controller::state() const {
  return static_cast<State>(timedStateMachine_.state());
 }
 
+N2Controller::Snapshot N2Controller::snapshot() const {
+ return Snapshot{
+     timedStateMachine_.stateEnteredAtMs(),
+     state(),
+ };
+}
+
 const N2Controller::Config& N2Controller::config() const {
  return config_;
 }

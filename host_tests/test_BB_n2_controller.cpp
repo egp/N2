@@ -305,6 +305,22 @@ static bool test_BB_hysteresisMemorySurvivesOscillationInsideBothHoldBands() {
   return true;
 }
 
+static bool test_BB_snapshotReflectsCurrentN2State() {
+  FakeClock clock;
+  FakeBinaryOutput compressor;
+  N2Controller controller(clock, compressor, testConfig());
+
+  controller.update(makeInputs(2500U, 900U));
+  const N2Controller::Snapshot snapshot = controller.snapshot();
+
+  if (!require(snapshot.createdAtMs == 0U,
+               "n2 snapshot timestamp should reflect state entry time")) return false;
+  if (!require(snapshot.state == N2Controller::STATE_LOW_PERMIT_HIGH_PERMIT,
+               "n2 snapshot should report current state")) return false;
+
+  return true;
+}
+
 int main() {
   if (!test_BB_startsInSafeOffState()) return 1;
   if (!test_BB_turnsOnOnlyWhenBothPermit()) return 1;
@@ -317,6 +333,7 @@ int main() {
   if (!test_BB_exactThresholdBoundariesHoldPriorLatchState()) return 1;
   if (!test_BB_outputIsOnOnlyInPermitPermit()) return 1;
   if (!test_BB_hysteresisMemorySurvivesOscillationInsideBothHoldBands()) return 1;
+  if (!test_BB_snapshotReflectsCurrentN2State()) return 1;
 
   printf("PASS: test_BB_n2_controller\n");
   return 0;

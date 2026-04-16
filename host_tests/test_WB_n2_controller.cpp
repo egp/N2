@@ -139,11 +139,29 @@ static bool test_WB_applyOutputForStateMatchesOnlyPermitPermit() {
   return true;
 }
 
+static bool test_WB_snapshotTimestampMirrorsTimedStateMachineEnteredAt() {
+  FakeClock clock;
+  FakeBinaryOutput compressor;
+  N2Controller controller(clock, compressor, N2Controller::defaultConfig());
+
+  N2ControllerTestProbe::transitionTo(controller, N2Controller::STATE_LOW_PERMIT_HIGH_INHIBIT);
+  const N2Controller::Snapshot snapshot = controller.snapshot();
+
+  if (!require(snapshot.createdAtMs ==
+                   N2ControllerTestProbe::timedStateMachine(controller).stateEnteredAtMs(),
+               "n2 snapshot timestamp should mirror timed-state-machine entered-at")) return false;
+  if (!require(snapshot.state == N2Controller::STATE_LOW_PERMIT_HIGH_INHIBIT,
+               "n2 snapshot should report current state")) return false;
+
+  return true;
+}
+
 int main() {
   if (!test_WB_defaultConfigUsesScaledThresholds()) return 1;
   if (!test_WB_constructorSeedsSafeStateAndDefaultConfig()) return 1;
   if (!test_WB_transitionToUpdatesStateAndOutput()) return 1;
   if (!test_WB_applyOutputForStateMatchesOnlyPermitPermit()) return 1;
+  if (!test_WB_snapshotTimestampMirrorsTimedStateMachineEnteredAt()) return 1;
 
   printf("PASS: test_WB_n2_controller\n");
   return 0;

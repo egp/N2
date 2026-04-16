@@ -1,4 +1,4 @@
-// TowerController.h v5
+// TowerController.h v6
 #ifndef TOWER_CONTROLLER_H
 #define TOWER_CONTROLLER_H
 
@@ -28,6 +28,11 @@ public:
   STATE_LOW_SUPPLY
  };
 
+ struct Snapshot {
+  uint32_t createdAtMs;
+  State state;
+ };
+
  static Config defaultConfig();
 
  TowerController(IClock& clock, IBinaryOutput& leftValve, IBinaryOutput& rightValve);
@@ -42,6 +47,8 @@ public:
  State state() const;
 
  bool isActive() const;
+
+ Snapshot snapshot() const;
 
  const Config& config() const;
 
@@ -70,4 +77,4 @@ private:
 
 #endif
 
-// TowerController.h v5
+// TowerController.h v6

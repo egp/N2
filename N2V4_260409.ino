@@ -9,6 +9,7 @@
 
 #include "TimedStateMachine.h"
 #include "InputSnapshot.h"
+#include "SystemSnapshot.h"
 #include "O2Controller.h"
 #include "TowerController.h"
 #include "N2Controller.h"
@@ -115,6 +116,7 @@ char commandBuffer[kCommandBufferSize];
 
 /* ---------- Forward declarations --- */
 void refreshInputSnapshot();
+void refreshSystemSnapshot();
 void readPressureSensors();
 
 void displaySelectedValue();
@@ -160,13 +162,21 @@ public:
 
 ArduinoClock timerClock;
 
-
 void refreshInputSnapshot() {
   inputSnapshot.sampledAtMs = timerClock.nowMs();
   inputSnapshot.blackSwitchEnabled = systemEnabled;
   inputSnapshot.supplyPsi_x10 = supplyPsi_x10;
+  inputSnapshot.leftTowerPsi_x10 = scaledLeftPSI;
+  inputSnapshot.rightTowerPsi_x10 = scaledRightPSI;
   inputSnapshot.lowN2Psi_x100 = lowN2Psi_x100;
   inputSnapshot.highN2Psi_x10 = highN2Psi_x10;
+}
+
+void refreshSystemSnapshot() {
+  systemSnapshot.input = inputSnapshot;
+  systemSnapshot.tower = towerController.snapshot();
+  systemSnapshot.o2 = o2Controller.snapshot();
+  systemSnapshot.n2 = n2Controller.snapshot();
 }
 
 /*
@@ -658,7 +668,9 @@ void loop() {
     if (!n2ControllerOk && lastN2ControllerOk) { Serial.println(F("N2Controller: entered dual-inhibit state (low inhibited and high inhibited).")); }
     lastN2ControllerOk = n2ControllerOk;
 
+    refreshSystemSnapshot();
     displaySelectedValue();  // read rotary switch and display corresponding value in disp4
+    
   } else {
     shutdown();    // TODO can this run once per tight loop?
     delay(10000);  // check less often when system is disabled
