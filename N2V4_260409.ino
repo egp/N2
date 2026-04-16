@@ -658,15 +658,6 @@ void loop() {
 
   bool lastN2ControllerOk = true;
   readBlackSwitch();
-  systemProfileRefreshInputs(
-    systemContext,
-    timerClock,
-    systemEnabled,
-    supplyPsi_x10,
-    scaledLeftPSI,
-    scaledRightPSI,
-    lowN2Psi_x100,
-    highN2Psi_x10);
 
 #if defined(ARDUINO_UNOWIFIR4)
   systemEnabled = inputSnapshot.blackSwitchEnabled;
@@ -689,6 +680,14 @@ void loop() {
       scaledRightPSI,
       lowN2Psi_x100,
       highN2Psi_x10);
+
+#if defined(ARDUINO_UNOWIFIR4)
+    supplyPsi_x10 = inputSnapshot.supplyPsi_x10;
+    scaledLeftPSI = inputSnapshot.leftTowerPsi_x10;
+    scaledRightPSI = inputSnapshot.rightTowerPsi_x10;
+    lowN2Psi_x100 = inputSnapshot.lowN2Psi_x100;
+    highN2Psi_x10 = inputSnapshot.highN2Psi_x10;
+#endif
 
     o2Controller.step(inputSnapshot);
 

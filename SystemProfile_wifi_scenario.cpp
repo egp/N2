@@ -1,4 +1,4 @@
-// SystemProfile_wifi_scenario.cpp v1
+// SystemProfile_wifi_scenario.cpp v3
 #include "SystemProfile_wifi_scenario.h"
 
 #if defined(ARDUINO_UNOWIFIR4)
@@ -17,19 +17,19 @@ struct ScenarioStep {
   float o2Percent;
 };
 
-constexpr uint32_t kScenarioTickMs = 1000U;
+constexpr uint32_t kScenarioTickMs = 100U;
 
 const ScenarioStep kScenario[] = {
     // Start disabled with healthy supply and low N2 demand.
-    {0U, false, 1200U, 350U, 360U, 500U, 900U, true, 20.9f},
+    {   0U, false, 1200U, 350U, 360U,  500U,  900U, true, 20.9f },
     // Enable system.
-    {200U, true, 1200U, 355U, 365U, 500U, 900U, true, 20.9f},
+    { 200U, true,  1200U, 355U, 365U,  500U,  900U, true, 20.9f },
     // Low-side N2 rises enough to permit compressor-off state.
-    {500U, true, 1200U, 360U, 370U, 2500U, 900U, true, 21.1f},
+    { 500U, true,  1200U, 360U, 370U, 2500U,  900U, true, 21.1f },
     // High-side N2 crosses inhibit threshold.
-    {800U, true, 1200U, 365U, 375U, 2500U, 1300U, true, 21.1f},
+    { 800U, true,  1200U, 365U, 375U, 2500U, 1300U, true, 21.1f },
     // High-side N2 recovers.
-    {1100U, true, 1200U, 370U, 380U, 2500U, 900U, true, 21.2f},
+    {1100U, true,  1200U, 370U, 380U, 2500U,  900U, true, 21.2f },
 };
 
 constexpr uint8_t kScenarioCount =
@@ -37,6 +37,7 @@ constexpr uint8_t kScenarioCount =
 
 float gCurrentO2Percent = 20.9f;
 bool gCurrentO2Valid = true;
+bool gScenarioDone = false;
 
 const ScenarioStep& activeStepFor(uint32_t nowMs) {
   uint8_t index = 0U;
@@ -121,6 +122,7 @@ void systemProfileSetup(ProfileClock& clock, ProfileO2Sensor& o2Sensor) {
   clock.setNowMs(0U);
   gCurrentO2Percent = kScenario[0].o2Percent;
   gCurrentO2Valid = kScenario[0].o2Valid;
+  gScenarioDone = false;
 }
 
 void systemProfileRefreshInputs(
@@ -139,7 +141,9 @@ void systemProfileRefreshInputs(
   (void)lowN2Psi_x100;
   (void)highN2Psi_x10;
 
-  clock.advanceMs(kScenarioTickMs);
+  if (!gScenarioDone) {
+    clock.advanceMs(kScenarioTickMs);
+  }
 
   const ScenarioStep& step = activeStepFor(clock.nowMs());
 
@@ -153,7 +157,13 @@ void systemProfileRefreshInputs(
   ctx.input.rightTowerPsi_x10 = step.rightTowerPsi_x10;
   ctx.input.lowN2Psi_x100 = step.lowN2Psi_x100;
   ctx.input.highN2Psi_x10 = step.highN2Psi_x10;
+
+  if (clock.nowMs() >= kScenario[kScenarioCount - 1U].atMs) {
+    gScenarioDone = true;
+    ctx.input.blackSwitchEnabled = false;
+  }
 }
 
 #endif  // defined(ARDUINO_UNOWIFIR4)
-// SystemProfile_wifi_scenario.cpp v1
+
+// SystemProfile_wifi_scenario.cpp v3
