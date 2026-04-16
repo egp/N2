@@ -8,12 +8,13 @@
 #include "InputSnapshot.h"
 #include "SystemConfig.h"
 #include "TimedStateMachine.h"
+#include "SystemConfig.h"
 
 class N2Controller {
 
 public:
 
- using Config = SystemConfig::N2Config;
+using Config = SystemConfig::N2Config;
 
  enum State : uint8_t {
   STATE_LOW_INHIBIT_HIGH_PERMIT = 0,

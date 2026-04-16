@@ -6,6 +6,7 @@
 #include "BinaryOutput.h"
 #include "SystemConfig.h"
 #include "TimedStateMachine.h"
+#include "SystemConfig.h"
 
 class IO2Sensor {
 public:
@@ -17,6 +18,7 @@ public:
 
 class O2Controller {
 public:
+
   using Config = SystemConfig::O2Config;
 
   enum State : uint8_t {

@@ -28,32 +28,34 @@ O2Controller::Config O2Controller::defaultConfig() {
   return config;
 }
 O2Controller::O2Controller(IClock& clock, IO2Sensor& sensor, IBinaryOutput& flushValve)
-    : O2Controller(clock, sensor, flushValve, defaultConfig()) {}
+ : O2Controller(clock, sensor, flushValve, defaultConfig()) {
+}
 
 O2Controller::O2Controller(
     IClock& clock,
     IO2Sensor& sensor,
     IBinaryOutput& flushValve,
     const SystemConfig& systemConfig)
-    : O2Controller(clock, sensor, flushValve, systemConfig.o2) {}
+ : O2Controller(clock, sensor, flushValve, systemConfig.o2) {
+}
 
 O2Controller::O2Controller(
     IClock& clock,
     IO2Sensor& sensor,
     IBinaryOutput& flushValve,
     const Config& config)
-    : clock_(clock),
-      sensor_(sensor),
-      flushValve_(flushValve),
-      timedStateMachine_(clock, STATE_UNINITIALIZED, "O2", o2StateName),
-      config_(config),
-      hasValue_(false),
-      earlyMeasurementRequested_(false),
-      lastCompletedMeasurementAtMs_(0U),
-      cachedAveragePercent_(0.0f),
-      runningSumPercent_(0.0f),
-      samplesCollected_(0U),
-      lastError_("no error") {
+ : clock_(clock),
+   sensor_(sensor),
+   flushValve_(flushValve),
+   timedStateMachine_(clock, STATE_UNINITIALIZED, "O2", o2StateName),
+   config_(config),
+   hasValue_(false),
+   earlyMeasurementRequested_(false),
+   lastCompletedMeasurementAtMs_(0U),
+   cachedAveragePercent_(0.0f),
+   runningSumPercent_(0.0f),
+   samplesCollected_(0U),
+   lastError_("no error") {
   flushValve_.setOn(false);
 }
 

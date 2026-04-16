@@ -36,7 +36,7 @@ TowerController::TowerController(
    rightValve_(rightValve),
    config_(config),
    enabled_(false) {
- applyOutputsForState(STATE_INACTIVE);
+  applyOutputsForState(STATE_INACTIVE);
 }
 
 void TowerController::setEnabled(bool enabled) {

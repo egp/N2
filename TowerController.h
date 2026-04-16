@@ -8,6 +8,7 @@
 #include "InputSnapshot.h"
 #include "SystemConfig.h"
 #include "TimedStateMachine.h"
+#include "SystemConfig.h"
 
 class TowerController {
 
@@ -32,8 +33,8 @@ public:
  static Config defaultConfig();
 
  TowerController(IClock& clock, IBinaryOutput& leftValve, IBinaryOutput& rightValve);
- TowerController(IClock& clock, IBinaryOutput& leftValve, IBinaryOutput& rightValve, const SystemConfig& systemConfig);
  TowerController(IClock& clock, IBinaryOutput& leftValve, IBinaryOutput& rightValve, const Config& config);
+ TowerController(IClock& clock, IBinaryOutput& leftValve, IBinaryOutput& rightValve, const SystemConfig& systemConfig);
 
  void setEnabled(bool enabled);
 

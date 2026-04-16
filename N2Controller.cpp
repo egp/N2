@@ -85,7 +85,7 @@ N2Controller::N2Controller(
  : timedStateMachine_(clock, STATE_LOW_INHIBIT_HIGH_PERMIT, "N2", n2StateName),
    compressorOutput_(compressorOutput),
    config_(config) {
- applyOutputForState(STATE_LOW_INHIBIT_HIGH_PERMIT);
+  applyOutputForState(STATE_LOW_INHIBIT_HIGH_PERMIT);
 }
 
 bool N2Controller::update(const InputSnapshot& inputs) {
