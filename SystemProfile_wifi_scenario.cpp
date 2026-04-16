@@ -1,7 +1,9 @@
-// SystemProfile_wifi_scenario.cpp v3
+// SystemProfile_wifi_scenario.cpp v4
 #include "SystemProfile_wifi_scenario.h"
 
 #if defined(ARDUINO_UNOWIFIR4)
+
+#include <Arduino.h>
 
 namespace {
 
@@ -17,18 +19,11 @@ struct ScenarioStep {
   float o2Percent;
 };
 
-constexpr uint32_t kScenarioTickMs = 100U;
-
 const ScenarioStep kScenario[] = {
-    // Start disabled with healthy supply and low N2 demand.
     {   0U, false, 1200U, 350U, 360U,  500U,  900U, true, 20.9f },
-    // Enable system.
     { 200U, true,  1200U, 355U, 365U,  500U,  900U, true, 20.9f },
-    // Low-side N2 rises enough to permit compressor-off state.
     { 500U, true,  1200U, 360U, 370U, 2500U,  900U, true, 21.1f },
-    // High-side N2 crosses inhibit threshold.
     { 800U, true,  1200U, 365U, 375U, 2500U, 1300U, true, 21.1f },
-    // High-side N2 recovers.
     {1100U, true,  1200U, 370U, 380U, 2500U,  900U, true, 21.2f },
 };
 
@@ -37,14 +32,82 @@ constexpr uint8_t kScenarioCount =
 
 float gCurrentO2Percent = 20.9f;
 bool gCurrentO2Valid = true;
-bool gScenarioDone = false;
 
-const ScenarioStep& activeStepFor(uint32_t nowMs) {
-  uint8_t index = 0U;
-  while ((index + 1U) < kScenarioCount && kScenario[index + 1U].atMs <= nowMs) {
-    ++index;
+uint8_t gScenarioIndex = 0U;
+bool gScenarioDone = false;
+bool gSkipNextLF = false;
+
+const ScenarioStep& currentStep() {
+  return kScenario[gScenarioIndex];
+}
+
+void applyCurrentStep(SystemContext& ctx, ProfileClock& clock) {
+  const ScenarioStep& step = currentStep();
+
+  clock.setNowMs(step.atMs);
+  gCurrentO2Percent = step.o2Percent;
+  gCurrentO2Valid = step.o2Valid;
+
+  ctx.input.sampledAtMs = clock.nowMs();
+  ctx.input.blackSwitchEnabled = step.blackSwitchEnabled;
+  ctx.input.supplyPsi_x10 = step.supplyPsi_x10;
+  ctx.input.leftTowerPsi_x10 = step.leftTowerPsi_x10;
+  ctx.input.rightTowerPsi_x10 = step.rightTowerPsi_x10;
+  ctx.input.lowN2Psi_x100 = step.lowN2Psi_x100;
+  ctx.input.highN2Psi_x10 = step.highN2Psi_x10;
+}
+
+void printScenarioLine(const SystemContext& ctx) {
+  Serial.print(F("SCEN step "));
+  Serial.print(gScenarioIndex);
+  Serial.print(F("/"));
+  Serial.print(static_cast<int>(kScenarioCount - 1U));
+  Serial.print(F(" t="));
+  Serial.print(ctx.input.sampledAtMs);
+  Serial.print(F(" en="));
+  Serial.print(ctx.input.blackSwitchEnabled ? 1 : 0);
+  Serial.print(F(" sup="));
+  Serial.print(ctx.input.supplyPsi_x10);
+  Serial.print(F(" L="));
+  Serial.print(ctx.input.leftTowerPsi_x10);
+  Serial.print(F(" R="));
+  Serial.print(ctx.input.rightTowerPsi_x10);
+  Serial.print(F(" low="));
+  Serial.print(ctx.input.lowN2Psi_x100);
+  Serial.print(F(" high="));
+  Serial.print(ctx.input.highN2Psi_x10);
+  Serial.print(F(" O2="));
+  Serial.print(gCurrentO2Valid ? gCurrentO2Percent : -1.0f, 2);
+  if (gScenarioDone) {
+    Serial.print(F(" DONE"));
   }
-  return kScenario[index];
+  Serial.println();
+}
+
+void resetScenario(ProfileClock& clock, SystemContext& ctx) {
+  gScenarioIndex = 0U;
+  gScenarioDone = false;
+  applyCurrentStep(ctx, clock);
+}
+
+void advanceScenario(ProfileClock& clock, SystemContext& ctx) {
+  if (gScenarioDone) {
+    Serial.println(F("Scenario already complete. Type r + Enter to reset."));
+    return;
+  }
+
+  if (gScenarioIndex + 1U < kScenarioCount) {
+    ++gScenarioIndex;
+    applyCurrentStep(ctx, clock);
+    printScenarioLine(ctx);
+    return;
+  }
+
+  gScenarioDone = true;
+  applyCurrentStep(ctx, clock);
+  ctx.input.blackSwitchEnabled = false;
+  Serial.println(F("Scenario complete."));
+  printScenarioLine(ctx);
 }
 
 }  // namespace
@@ -99,7 +162,6 @@ SystemConfig makeSystemConfig() {
   config.n2.highOnPsi_x10 = 1000U;
   config.n2.highOffPsi_x10 = 1200U;
 
-  // Short timings for scenario smoke test.
   config.o2.warmupDurationMs = 100U;
   config.o2.measurementIntervalMs = 500U;
   config.o2.flushDurationMs = 50U;
@@ -119,10 +181,13 @@ SystemConfig makeSystemConfig() {
 
 void systemProfileSetup(ProfileClock& clock, ProfileO2Sensor& o2Sensor) {
   (void)o2Sensor;
-  clock.setNowMs(0U);
-  gCurrentO2Percent = kScenario[0].o2Percent;
-  gCurrentO2Valid = kScenario[0].o2Valid;
-  gScenarioDone = false;
+  SystemContext dummy{};
+  resetScenario(clock, dummy);
+
+  Serial.println(F("WiFi scenario mode"));
+  Serial.println(F("<Enter> = next step"));
+  Serial.println(F("r + <Enter> = reset"));
+  Serial.println(F("? + <Enter> = help/status"));
 }
 
 void systemProfileRefreshInputs(
@@ -141,29 +206,75 @@ void systemProfileRefreshInputs(
   (void)lowN2Psi_x100;
   (void)highN2Psi_x10;
 
-  if (!gScenarioDone) {
-    clock.advanceMs(kScenarioTickMs);
-  }
-
-  const ScenarioStep& step = activeStepFor(clock.nowMs());
-
-  gCurrentO2Percent = step.o2Percent;
-  gCurrentO2Valid = step.o2Valid;
-
-  ctx.input.sampledAtMs = clock.nowMs();
-  ctx.input.blackSwitchEnabled = step.blackSwitchEnabled;
-  ctx.input.supplyPsi_x10 = step.supplyPsi_x10;
-  ctx.input.leftTowerPsi_x10 = step.leftTowerPsi_x10;
-  ctx.input.rightTowerPsi_x10 = step.rightTowerPsi_x10;
-  ctx.input.lowN2Psi_x100 = step.lowN2Psi_x100;
-  ctx.input.highN2Psi_x10 = step.highN2Psi_x10;
-
-  if (clock.nowMs() >= kScenario[kScenarioCount - 1U].atMs) {
-    gScenarioDone = true;
+  applyCurrentStep(ctx, clock);
+  if (gScenarioDone) {
     ctx.input.blackSwitchEnabled = false;
   }
 }
 
-#endif  // defined(ARDUINO_UNOWIFIR4)
+void systemProfilePrintHelp() {
+  Serial.println(F("WiFi scenario mode"));
+  Serial.println(F("<Enter> = next step"));
+  Serial.println(F("r + <Enter> = reset"));
+  Serial.println(F("? + <Enter> = help/status"));
+}
 
-// SystemProfile_wifi_scenario.cpp v3
+void systemProfilePrintStatus(const SystemContext& ctx) {
+  printScenarioLine(ctx);
+}
+
+bool systemProfileConsumeSerialCommand(ProfileClock& clock, SystemContext& ctx) {
+  bool changed = false;
+  char command = '\0';
+
+  while (Serial.available() > 0) {
+    const char ch = static_cast<char>(Serial.read());
+
+    if (gSkipNextLF && ch == '\n') {
+      gSkipNextLF = false;
+      continue;
+    }
+    gSkipNextLF = false;
+
+    if (ch == '\r' || ch == '\n') {
+      if (ch == '\r') {
+        gSkipNextLF = true;
+      }
+
+      if (command == '\0') {
+        advanceScenario(clock, ctx);
+        changed = true;
+      } else if (command == 'r' || command == 'R') {
+        resetScenario(clock, ctx);
+        Serial.println(F("Scenario reset."));
+        printScenarioLine(ctx);
+        changed = true;
+      } else if (command == '?') {
+        systemProfilePrintHelp();
+        printScenarioLine(ctx);
+      } else {
+        Serial.print(F("Unknown command: "));
+        Serial.println(command);
+        systemProfilePrintHelp();
+      }
+
+      command = '\0';
+      continue;
+    }
+
+    if (ch == ' ' || ch == '\t') {
+      continue;
+    }
+
+    command = ch;
+  }
+
+  return changed;
+}
+
+bool systemProfileIsDone() {
+  return gScenarioDone;
+}
+
+#endif  // defined(ARDUINO_UNOWIFIR4)
+// SystemProfile_wifi_scenario.cpp v4

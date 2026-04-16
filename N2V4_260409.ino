@@ -670,7 +670,10 @@ void loop() {
     enableDisplay20x4();
     handleDisplayPowerTransition();
 
-    // refreshInputSnapshot();
+#if defined(ARDUINO_UNOWIFIR4)
+    systemProfileConsumeSerialCommand(timerClock, systemContext);
+#endif
+
     systemProfileRefreshInputs(
       systemContext,
       timerClock,

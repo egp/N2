@@ -1,4 +1,4 @@
-// SystemProfile_wifi_scenario.h v3
+// SystemProfile_wifi_scenario.h v4
 #ifndef SYSTEM_PROFILE_WIFI_SCENARIO_H
 #define SYSTEM_PROFILE_WIFI_SCENARIO_H
 
@@ -35,7 +35,9 @@ private:
 };
 
 SystemConfig makeSystemConfig();
+
 void systemProfileSetup(ProfileClock& clock, ProfileO2Sensor& o2Sensor);
+
 void systemProfileRefreshInputs(
     SystemContext& ctx,
     ProfileClock& clock,
@@ -46,8 +48,12 @@ void systemProfileRefreshInputs(
     uint16_t lowN2Psi_x100,
     uint16_t highN2Psi_x10);
 
+void systemProfilePrintHelp();
+void systemProfilePrintStatus(const SystemContext& ctx);
+bool systemProfileConsumeSerialCommand(ProfileClock& clock, SystemContext& ctx);
+bool systemProfileIsDone();
+
 #endif  // defined(ARDUINO_UNOWIFIR4)
 
 #endif
-
-// SystemProfile_wifi_scenario.h v3
+// SystemProfile_wifi_scenario.h v4
