@@ -1,4 +1,4 @@
-// N2Controller.cpp v3
+// N2Controller.cpp v4
 #include "N2Controller.h"
 
 namespace {
@@ -81,21 +81,21 @@ N2Controller::N2Controller(IClock& clock, IBinaryOutput& compressorOutput, const
  applyOutputForState(STATE_LOW_INHIBIT_HIGH_PERMIT);
 }
 
-bool N2Controller::update(uint16_t lowPsi_x100, uint16_t highPsi_x10) {
+bool N2Controller::update(const InputSnapshot& inputs) {
  const State currentState = state();
 
  bool lowPermit = lowPermitFromState(currentState);
  bool highPermit = highPermitFromState(currentState);
 
- if (lowPsi_x100 < config_.lowOffPsi_x100) {
+ if (inputs.lowN2Psi_x100 < config_.lowOffPsi_x100) {
   lowPermit = false;
- } else if (lowPsi_x100 > config_.lowOnPsi_x100) {
+ } else if (inputs.lowN2Psi_x100 > config_.lowOnPsi_x100) {
   lowPermit = true;
  }
 
- if (highPsi_x10 > config_.highOffPsi_x10) {
+ if (inputs.highN2Psi_x10 > config_.highOffPsi_x10) {
   highPermit = false;
- } else if (highPsi_x10 < config_.highOnPsi_x10) {
+ } else if (inputs.highN2Psi_x10 < config_.highOnPsi_x10) {
   highPermit = true;
  }
 
@@ -143,4 +143,4 @@ void N2Controller::applyOutputForState(State state) {
  }
 }
 
-// N2Controller.cpp v3
+// N2Controller.cpp v4

@@ -1,10 +1,11 @@
-// N2Controller.h v3
+// N2Controller.h v4
 #ifndef N2_CONTROLLER_H
 #define N2_CONTROLLER_H
 
 #include <stdint.h>
 
 #include "BinaryOutput.h"
+#include "InputSnapshot.h"
 #include "TimedStateMachine.h"
 
 class N2Controller {
@@ -30,7 +31,7 @@ public:
  N2Controller(IClock& clock, IBinaryOutput& compressorOutput);
  N2Controller(IClock& clock, IBinaryOutput& compressorOutput, const Config& config);
 
- bool update(uint16_t lowPsi_x100, uint16_t highPsi_x10);
+ bool update(const InputSnapshot& inputs);
 
  State state() const;
 
@@ -58,4 +59,4 @@ private:
 
 #endif
 
-// N2Controller.h v3
+// N2Controller.h v4

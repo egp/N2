@@ -8,6 +8,7 @@
 #include <TCP3231.h>  // https://github.com/egp/TCP3231
 
 #include "TimedStateMachine.h"
+#include "InputSnapshot.h"
 #include "O2Controller.h"
 #include "TowerController.h"
 #include "N2Controller.h"
@@ -70,6 +71,7 @@ uint8_t rotarySwitchStatus;  // holds current status of rotary switch
 uint8_t previousButtonValue = 0;
 bool systemWasEnabled = false;
 bool systemEnabled = false;
+InputSnapshot inputSnapshot{};
 
 /* -- output buffers -- */
 char sprintfBuffer[80];  // holds debugging information before printing
@@ -112,7 +114,7 @@ char commandBuffer[kCommandBufferSize];
 }
 
 /* ---------- Forward declarations --- */
-
+void refreshInputSnapshot();
 void readPressureSensors();
 
 void displaySelectedValue();
@@ -157,6 +159,15 @@ public:
 };
 
 ArduinoClock timerClock;
+
+
+void refreshInputSnapshot() {
+  inputSnapshot.sampledAtMs = timerClock.nowMs();
+  inputSnapshot.blackSwitchEnabled = systemEnabled;
+  inputSnapshot.supplyPsi_x10 = supplyPsi_x10;
+  inputSnapshot.lowN2Psi_x100 = lowN2Psi_x100;
+  inputSnapshot.highN2Psi_x10 = highN2Psi_x10;
+}
 
 /*
 *********************************************************
@@ -636,13 +647,14 @@ void loop() {
   readBlackSwitch();
   if (systemEnabled) {
     readPressureSensors();
-
-    towerController.setEnabled(systemEnabled);
-    towerController.tick(supplyPsi_x10);  // advance tower controller if necessary
+    refreshInputSnapshot();
 
     o2Controller.tick();  // advance o2 if necessary
 
-    bool n2ControllerOk = n2Controller.update(lowN2Psi_x100, highN2Psi_x10);
+    towerController.setEnabled(inputSnapshot.blackSwitchEnabled);
+    towerController.tick(inputSnapshot);
+
+    bool n2ControllerOk = n2Controller.update(inputSnapshot);
     if (!n2ControllerOk && lastN2ControllerOk) { Serial.println(F("N2Controller: entered dual-inhibit state (low inhibited and high inhibited).")); }
     lastN2ControllerOk = n2ControllerOk;
 

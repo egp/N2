@@ -1,4 +1,4 @@
-// TowerController.cpp v4
+// TowerController.cpp v5
 #include "TowerController.h"
 
 #ifdef ARDUINO
@@ -50,12 +50,12 @@ bool TowerController::isEnabled() const {
  return enabled_;
 }
 
-void TowerController::tick(uint16_t supplyPsi_x10) {
+void TowerController::tick(const InputSnapshot& inputs) {
  if (!enabled_) {
   return;
  }
 
- if (!isSupplySufficient(supplyPsi_x10)) {
+ if (!isSupplySufficient(inputs.supplyPsi_x10)) {
   if (state() != STATE_LOW_SUPPLY) {
    transitionTo(STATE_LOW_SUPPLY, 0U, false);
   }
@@ -183,4 +183,4 @@ void TowerController::applyOutputsForState(State state) {
  }
 }
 
-// TowerController.cpp v4
+// TowerController.cpp v5

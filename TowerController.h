@@ -1,10 +1,11 @@
-// TowerController.h v4
+// TowerController.h v5
 #ifndef TOWER_CONTROLLER_H
 #define TOWER_CONTROLLER_H
 
 #include <stdint.h>
 
 #include "BinaryOutput.h"
+#include "InputSnapshot.h"
 #include "TimedStateMachine.h"
 
 class TowerController {
@@ -36,7 +37,7 @@ public:
 
  bool isEnabled() const;
 
- void tick(uint16_t supplyPsi_x10);
+ void tick(const InputSnapshot& inputs);
 
  State state() const;
 
@@ -69,4 +70,4 @@ private:
 
 #endif
 
-// TowerController.h v4
+// TowerController.h v5
