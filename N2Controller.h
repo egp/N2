@@ -1,4 +1,4 @@
-// N2Controller.h v5
+// N2Controller.h v6
 #ifndef N2_CONTROLLER_H
 #define N2_CONTROLLER_H
 
@@ -6,18 +6,14 @@
 
 #include "BinaryOutput.h"
 #include "InputSnapshot.h"
+#include "SystemConfig.h"
 #include "TimedStateMachine.h"
 
 class N2Controller {
 
 public:
 
- struct Config {
-  uint16_t lowOffPsi_x100;
-  uint16_t lowOnPsi_x100;
-  uint16_t highOnPsi_x10;
-  uint16_t highOffPsi_x10;
- };
+ using Config = SystemConfig::N2Config;
 
  enum State : uint8_t {
   STATE_LOW_INHIBIT_HIGH_PERMIT = 0,
@@ -34,6 +30,7 @@ public:
  static Config defaultConfig();
 
  N2Controller(IClock& clock, IBinaryOutput& compressorOutput);
+ N2Controller(IClock& clock, IBinaryOutput& compressorOutput, const SystemConfig& systemConfig);
  N2Controller(IClock& clock, IBinaryOutput& compressorOutput, const Config& config);
 
  bool update(const InputSnapshot& inputs);
@@ -66,4 +63,4 @@ private:
 
 #endif
 
-// N2Controller.h v5
+// N2Controller.h v6

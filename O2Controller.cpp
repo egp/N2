@@ -27,22 +27,21 @@ O2Controller::Config O2Controller::defaultConfig() {
   config.errorBackoffMs = 1000UL;
   return config;
 }
-
 O2Controller::O2Controller(IClock& clock, IO2Sensor& sensor, IBinaryOutput& flushValve)
-    : clock_(clock),
-      sensor_(sensor),
-      flushValve_(flushValve),
-      timedStateMachine_(clock, STATE_UNINITIALIZED, "O2", o2StateName),
-      config_(defaultConfig()),
-      hasValue_(false),
-      earlyMeasurementRequested_(false),
-      lastCompletedMeasurementAtMs_(0U),
-      cachedAveragePercent_(0.0f),
-      runningSumPercent_(0.0f),
-      samplesCollected_(0U),
-      lastError_("not initialized") {}
+    : O2Controller(clock, sensor, flushValve, defaultConfig()) {}
 
-O2Controller::O2Controller(IClock& clock, IO2Sensor& sensor, IBinaryOutput& flushValve, const Config& config)
+O2Controller::O2Controller(
+    IClock& clock,
+    IO2Sensor& sensor,
+    IBinaryOutput& flushValve,
+    const SystemConfig& systemConfig)
+    : O2Controller(clock, sensor, flushValve, systemConfig.o2) {}
+
+O2Controller::O2Controller(
+    IClock& clock,
+    IO2Sensor& sensor,
+    IBinaryOutput& flushValve,
+    const Config& config)
     : clock_(clock),
       sensor_(sensor),
       flushValve_(flushValve),
@@ -54,7 +53,9 @@ O2Controller::O2Controller(IClock& clock, IO2Sensor& sensor, IBinaryOutput& flus
       cachedAveragePercent_(0.0f),
       runningSumPercent_(0.0f),
       samplesCollected_(0U),
-      lastError_("not initialized") {}
+      lastError_("no error") {
+  flushValve_.setOn(false);
+}
 
 bool O2Controller::begin() {
   flushValve_.setOn(false);

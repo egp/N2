@@ -1,4 +1,4 @@
-// TowerController.h v6
+// TowerController.h v7
 #ifndef TOWER_CONTROLLER_H
 #define TOWER_CONTROLLER_H
 
@@ -6,18 +6,14 @@
 
 #include "BinaryOutput.h"
 #include "InputSnapshot.h"
+#include "SystemConfig.h"
 #include "TimedStateMachine.h"
 
 class TowerController {
 
 public:
 
- struct Config {
-  uint32_t leftOpenMs;
-  uint32_t overlapMs;
-  uint32_t rightOpenMs;
-  uint16_t lowSupplyPsi_x10;
- };
+ using Config = SystemConfig::TowerConfig;
 
  enum State : uint8_t {
   STATE_INACTIVE = 0,
@@ -36,6 +32,7 @@ public:
  static Config defaultConfig();
 
  TowerController(IClock& clock, IBinaryOutput& leftValve, IBinaryOutput& rightValve);
+ TowerController(IClock& clock, IBinaryOutput& leftValve, IBinaryOutput& rightValve, const SystemConfig& systemConfig);
  TowerController(IClock& clock, IBinaryOutput& leftValve, IBinaryOutput& rightValve, const Config& config);
 
  void setEnabled(bool enabled);
@@ -77,4 +74,4 @@ private:
 
 #endif
 
-// TowerController.h v6
+// TowerController.h v7

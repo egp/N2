@@ -1,9 +1,10 @@
-// O2Controller.h v3
+// O2Controller.h v4
 #ifndef O2_CONTROLLER_H
 #define O2_CONTROLLER_H
 
 #include <stdint.h>
 #include "BinaryOutput.h"
+#include "SystemConfig.h"
 #include "TimedStateMachine.h"
 
 class IO2Sensor {
@@ -16,16 +17,7 @@ public:
 
 class O2Controller {
 public:
-  struct Config {
-    uint32_t warmupDurationMs;
-    uint32_t measurementIntervalMs;
-    uint32_t flushDurationMs;
-    uint32_t settleDurationMs;
-    uint16_t sampleIntervalMs;
-    uint8_t sampleCount;
-    uint32_t freshnessThresholdMs;
-    uint32_t errorBackoffMs;
-  };
+  using Config = SystemConfig::O2Config;
 
   enum State : uint8_t {
     STATE_UNINITIALIZED = 0,
@@ -51,6 +43,7 @@ public:
   static Config defaultConfig();
 
   O2Controller(IClock& clock, IO2Sensor& sensor, IBinaryOutput& flushValve);
+  O2Controller(IClock& clock, IO2Sensor& sensor, IBinaryOutput& flushValve, const SystemConfig& systemConfig);
   O2Controller(IClock& clock, IO2Sensor& sensor, IBinaryOutput& flushValve, const Config& config);
 
   bool begin();
@@ -68,7 +61,7 @@ public:
   const Config& config() const;
   void setConfig(const Config& config);
 
-friend struct O2ControllerTestProbe;
+  friend struct O2ControllerTestProbe;
 
 private:
   bool shouldStartScheduledCycle(uint32_t nowMs) const;
@@ -93,4 +86,4 @@ private:
 };
 
 #endif
-// O2Controller.h v3
+// O2Controller.h v4

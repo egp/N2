@@ -229,42 +229,15 @@ public:
 
 ArduinoClock timerClock;
 
-N2Controller::Config n2Config = {
-  systemConfig.n2.lowOffPsi_x100,
-  systemConfig.n2.lowOnPsi_x100,
-  systemConfig.n2.highOnPsi_x10,
-  systemConfig.n2.highOffPsi_x10,
-};
-
-O2Controller::Config o2Config = {
-  systemConfig.o2.warmupDurationMs,
-  systemConfig.o2.measurementIntervalMs,
-  systemConfig.o2.flushDurationMs,
-  systemConfig.o2.settleDurationMs,
-  systemConfig.o2.sampleIntervalMs,
-  systemConfig.o2.sampleCount,
-  systemConfig.o2.freshnessThresholdMs,
-  systemConfig.o2.errorBackoffMs,
-};
-
-TowerController::Config towerConfig = {
-  systemConfig.tower.leftOpenMs,
-  systemConfig.tower.overlapMs,
-  systemConfig.tower.rightOpenMs,
-  systemConfig.tower.lowSupplyPsi_x10,
-};
-
 ArduinoDigitalOutput leftTowerValve(LEFT_TOWER_VALVE_PIN);
 ArduinoDigitalOutput rightTowerValve(RIGHT_TOWER_VALVE_PIN);
-TowerController towerController(timerClock, leftTowerValve, rightTowerValve, towerConfig);
-
-TCP0465SensorAdapter o2Sensor{ i2c_o2, TCP0465::DEFAULT_ADDRESS };
 ArduinoDigitalOutput o2FlushValve(O2_FLUSH_VALVE_PIN);
-O2Controller o2Controller(timerClock, o2Sensor, o2FlushValve, o2Config);
-
 ArduinoDigitalOutput compressorSsr(SSR_Pin);
-N2Controller n2Controller(timerClock, compressorSsr, n2Config);
+TCP0465SensorAdapter o2Sensor{ i2c_o2, TCP0465::DEFAULT_ADDRESS };
 
+TowerController towerController(timerClock, leftTowerValve, rightTowerValve, systemConfig);
+O2Controller o2Controller(timerClock, o2Sensor, o2FlushValve, systemConfig);
+N2Controller n2Controller(timerClock, compressorSsr, systemConfig);
 
 void refreshInputSnapshot() {
   inputSnapshot.sampledAtMs = timerClock.nowMs();
@@ -615,7 +588,7 @@ void setup() {
 
   setupI2C();  // setup all the I2C buses
 
-  setPinMode();   // setup all pin modes.
+  setPinMode();  // setup all pin modes.
 
   leftTowerValve.begin(false);
   rightTowerValve.begin(false);

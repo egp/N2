@@ -15,15 +15,22 @@ TowerController::Config TowerController::defaultConfig() {
 }
 
 TowerController::TowerController(IClock& clock, IBinaryOutput& leftValve, IBinaryOutput& rightValve)
- : timedStateMachine_(clock, STATE_INACTIVE),
-   leftValve_(leftValve),
-   rightValve_(rightValve),
-   config_(defaultConfig()),
-   enabled_(false) {
- applyOutputsForState(STATE_INACTIVE);
+ : TowerController(clock, leftValve, rightValve, defaultConfig()) {
 }
 
-TowerController::TowerController(IClock& clock, IBinaryOutput& leftValve, IBinaryOutput& rightValve, const Config& config)
+TowerController::TowerController(
+    IClock& clock,
+    IBinaryOutput& leftValve,
+    IBinaryOutput& rightValve,
+    const SystemConfig& systemConfig)
+ : TowerController(clock, leftValve, rightValve, systemConfig.tower) {
+}
+
+TowerController::TowerController(
+    IClock& clock,
+    IBinaryOutput& leftValve,
+    IBinaryOutput& rightValve,
+    const Config& config)
  : timedStateMachine_(clock, STATE_INACTIVE),
    leftValve_(leftValve),
    rightValve_(rightValve),

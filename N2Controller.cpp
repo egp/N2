@@ -1,4 +1,4 @@
-// N2Controller.cpp v4
+// N2Controller.cpp v6
 #include "N2Controller.h"
 
 namespace {
@@ -68,13 +68,20 @@ N2Controller::Config N2Controller::defaultConfig() {
 }
 
 N2Controller::N2Controller(IClock& clock, IBinaryOutput& compressorOutput)
- : timedStateMachine_(clock, STATE_LOW_INHIBIT_HIGH_PERMIT, "N2", n2StateName),
-   compressorOutput_(compressorOutput),
-   config_(defaultConfig()) {
- applyOutputForState(STATE_LOW_INHIBIT_HIGH_PERMIT);
+ : N2Controller(clock, compressorOutput, defaultConfig()) {
 }
 
-N2Controller::N2Controller(IClock& clock, IBinaryOutput& compressorOutput, const Config& config)
+N2Controller::N2Controller(
+    IClock& clock,
+    IBinaryOutput& compressorOutput,
+    const SystemConfig& systemConfig)
+ : N2Controller(clock, compressorOutput, systemConfig.n2) {
+}
+
+N2Controller::N2Controller(
+    IClock& clock,
+    IBinaryOutput& compressorOutput,
+    const Config& config)
  : timedStateMachine_(clock, STATE_LOW_INHIBIT_HIGH_PERMIT, "N2", n2StateName),
    compressorOutput_(compressorOutput),
    config_(config) {
@@ -150,4 +157,4 @@ void N2Controller::applyOutputForState(State state) {
  }
 }
 
-// N2Controller.cpp v4
+// N2Controller.cpp v6
