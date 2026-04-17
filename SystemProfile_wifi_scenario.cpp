@@ -1,4 +1,4 @@
-// SystemProfile_wifi_scenario.cpp v5
+// SystemProfile_wifi_scenario.cpp v6
 #include "SystemProfile_wifi_scenario.h"
 
 #if defined(ARDUINO_UNOWIFIR4)
@@ -201,22 +201,7 @@ void systemProfileSetup(ProfileClock& clock, ProfileO2Sensor& o2Sensor) {
   Serial.println(F("? + <Enter> = help/status"));
 }
 
-void systemProfileRefreshInputs(
-    SystemContext& ctx,
-    ProfileClock& clock,
-    bool blackSwitchEnabled,
-    uint16_t supplyPsi_x10,
-    uint16_t leftTowerPsi_x10,
-    uint16_t rightTowerPsi_x10,
-    uint16_t lowN2Psi_x100,
-    uint16_t highN2Psi_x10) {
-  (void)blackSwitchEnabled;
-  (void)supplyPsi_x10;
-  (void)leftTowerPsi_x10;
-  (void)rightTowerPsi_x10;
-  (void)lowN2Psi_x100;
-  (void)highN2Psi_x10;
-
+void systemProfileRefreshInputs(SystemContext& ctx, ProfileClock& clock) {
   applyCurrentStep(ctx, clock);
   if (gScenarioDone) {
     ctx.input.blackSwitchEnabled = false;
@@ -288,4 +273,5 @@ bool systemProfileIsDone() {
 }
 
 #endif  // defined(ARDUINO_UNOWIFIR4)
-// SystemProfile_wifi_scenario.cpp v5
+
+// SystemProfile_wifi_scenario.cpp v6

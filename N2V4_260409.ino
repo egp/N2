@@ -23,12 +23,14 @@
 #error "No system profile selected"
 #endif
 
-const char* PROGRAM_VERSION = "4.3";  // update this major.minor. TODO add change log
+const char* PROGRAM_VERSION = "4.4";  // update this major.minor. TODO add change log
 
 /* -- Unique device addresses on the I2C bus -- */
-const uint8_t I2C_LED = 0x2F;      // 0x2F I2C address for TM1650 4-digit 7-segment LED display
-const uint8_t I2C_LCD20x4 = 0x27;  // 0x27 I2C address for display 20x4
-const uint8_t I2C_O2 = 0x74;       // 0x73 I2C address
+const uint8_t I2C_ADDR_LED = 0x2F;       // 0x2F I2C address for TM1650 4-digit 7-segment LED display
+const uint8_t I2C_ADDR_LCD20x4 = 0x27;   // 0x27 I2C address for display 20x4
+const uint8_t I2C_ADDR_RTC = 0x68;  // 0x68I2C address for Real Time Clock
+// 0x74: A0=0, A1=0, 0x75: A0=1, A1=0, 0x76: A0=0, A1=1, 0x77: A0=1, A1=1 (Default)
+const uint8_t I2C_ADDR_O2 = 0x77;        // 0x77 I2C address  TODO FIXME
 
 /* -- display parameters -- */
 const uint8_t DISP4_BRIGHTNESS = 6;  // 0-7
@@ -94,7 +96,7 @@ TCP1650 disp4(i2c_disp4);
  setup for LCD20x4 library
 */
 namespace {
-constexpr uint8_t kConfiguredAddress = I2C_LCD20x4;
+constexpr uint8_t kConfiguredAddress = I2C_ADDR_LCD20x4;
 constexpr bool kConfiguredBacklightActiveHigh = true;
 constexpr size_t kCommandBufferSize = 64;
 
@@ -182,7 +184,7 @@ ArduinoDigitalOutput rightTowerValve(RIGHT_TOWER_VALVE_PIN);
 ArduinoDigitalOutput o2FlushValve(O2_FLUSH_VALVE_PIN);
 ArduinoDigitalOutput compressorSsr(SSR_Pin);
 
-ProfileO2Sensor o2Sensor{ i2c_o2, I2C_O2 };
+ProfileO2Sensor o2Sensor{ i2c_o2, I2C_ADDR_O2 };
 
 TowerController towerController(timerClock, leftTowerValve, rightTowerValve, systemContext.config);
 O2Controller o2Controller(timerClock, o2Sensor, o2FlushValve, systemContext.config);
@@ -653,15 +655,7 @@ void setup() {
 void loop() {
 #if defined(ARDUINO_UNOWIFIR4)
   systemProfileConsumeSerialCommand(timerClock, systemContext);
-  systemProfileRefreshInputs(
-    systemContext,
-    timerClock,
-    systemContext.input.blackSwitchEnabled,
-    systemContext.runtime.sensors.scaled.supplyPsi_x10,
-    systemContext.runtime.sensors.scaled.leftTowerPsi_x10,
-    systemContext.runtime.sensors.scaled.rightTowerPsi_x10,
-    systemContext.runtime.sensors.scaled.lowN2Psi_x100,
-    systemContext.runtime.sensors.scaled.highN2Psi_x10);
+  systemProfileRefreshInputs(systemContext, timerClock);
 #else
   readBlackSwitch();
 
