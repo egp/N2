@@ -1,4 +1,4 @@
-// SystemConfig.h v1
+// SystemConfig.h v2
 #ifndef SYSTEM_CONFIG_H
 #define SYSTEM_CONFIG_H
 
@@ -8,6 +8,17 @@ struct SystemConfig {
   struct GlobalConfig {
     // Intentionally empty for now.
     // Add stable, non-controller configuration here as needed.
+  };
+
+  struct PressureConfig {
+    uint8_t adcBits;
+    int analogScaleMax;
+    int minPressureReading;
+    int maxPressureReading;
+    uint16_t supplyFullScalePsi_x10;
+    uint16_t towerFullScalePsi_x10;
+    uint16_t lowN2FullScalePsi_x100;
+    uint16_t highN2FullScalePsi_x10;
   };
 
   struct TowerConfig {
@@ -36,6 +47,7 @@ struct SystemConfig {
   };
 
   GlobalConfig global;
+  PressureConfig pressure;
   TowerConfig tower;
   O2Config o2;
   N2Config n2;
@@ -43,4 +55,4 @@ struct SystemConfig {
 
 #endif
 
-// SystemConfig.h v1
+// SystemConfig.h v2

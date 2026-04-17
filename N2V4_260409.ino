@@ -30,13 +30,6 @@ const uint8_t I2C_LED = 0x2F;      // 0x2F I2C address for TM1650 4-digit 7-segm
 const uint8_t I2C_LCD20x4 = 0x27;  // 0x27 I2C address for display 20x4
 const uint8_t I2C_O2 = 0x74;       // 0x73 I2C address
 
-// ADC minPressure will be .5 VDC, maxPressure will be 4.5 VDC, so scale is from 10% to 90%
-// Applies to supply pressure, left and right tower pressures, and low and high N2 pressures
-const uint8_t bitsOfADC = 10;                                        // precision of ADC for analogRead()
-const int analogScaleMax = (1 << (bitsOfADC)) - 1;                   // maximum full scale reading
-const int minPressureReading = analogScaleMax / 10;                  // smallest expected pressure sensor reading
-const int maxPressureReading = analogScaleMax - minPressureReading;  // largest expected pressure sensor reading
-
 /* -- display parameters -- */
 const uint8_t DISP4_BRIGHTNESS = 6;  // 0-7
 
@@ -261,47 +254,49 @@ void readPressureSensors() {
   readHighPressureN2();
 }
 
-/*
-int scalePressure(int pressure, int fullScale)
-*/
 int scalePressure(int pressure, int fullScale) {
-  // ensure (minPressureReading <= pressure <= maxPressureReading) (1020-9210) (0.5 VDC to 4.5 VDC)
+  const int minPressureReading = systemConfig.pressure.minPressureReading;
+  const int maxPressureReading = systemConfig.pressure.maxPressureReading;
+
   int constrainedValue = constrain(pressure, minPressureReading, maxPressureReading);
 
   // map (x, inMin, inMax, outMin, outMax) uses formula:
   // (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
-  // which yields pressure 0 to 150 (or 0-30) PSI full scale
-  return (map(constrainedValue, minPressureReading, maxPressureReading, 0, fullScale));
+  return map(constrainedValue, minPressureReading, maxPressureReading, 0, fullScale);
 }
 
 /* -- read air supply pressure and scale it -- */
-
 void readSupplyPressure() {
   supplyPressure = analogRead(supplyPressurePin);
-  supplyPsi_x10 = scalePressure(supplyPressure, 1500);
+  supplyPsi_x10 =
+    static_cast<uint16_t>(scalePressure(supplyPressure, systemConfig.pressure.supplyFullScalePsi_x10));
 }
 
 /* -- read left tower pressure and scale it -- */
 void readLeftTowerPressure() {
   leftTowerPressure = analogRead(leftTowerPressurePin);
-  scaledLeftPSI = scalePressure(leftTowerPressure, 1500);  // tenths
+  scaledLeftPSI =
+    static_cast<uint16_t>(scalePressure(leftTowerPressure, systemConfig.pressure.towerFullScalePsi_x10));
 }
 
 /* -- read right tower pressure and scale it -- */
 void readRightTowerPressure() {
   rightTowerPressure = analogRead(rightTowerPressurePin);
-  scaledRightPSI = scalePressure(rightTowerPressure, 1500);  // tenths
+  scaledRightPSI =
+    static_cast<uint16_t>(scalePressure(rightTowerPressure, systemConfig.pressure.towerFullScalePsi_x10));
 }
 
 /* -- read low and high pressure N2 and scale -- */
 void readLowPressureN2() {
   lowPressureN2 = analogRead(lowPressureN2Pin);
-  lowN2Psi_x100 = scalePressure(lowPressureN2, 3000);  // hudnredths of PSI
+  lowN2Psi_x100 =
+    static_cast<uint16_t>(scalePressure(lowPressureN2, systemConfig.pressure.lowN2FullScalePsi_x100));
 }
 
 void readHighPressureN2() {
   highPressureN2 = analogRead(highPressureN2Pin);
-  highN2Psi_x10 = scalePressure(highPressureN2, 1500);  // tenths
+  highN2Psi_x10 =
+    static_cast<uint16_t>(scalePressure(highPressureN2, systemConfig.pressure.highN2FullScalePsi_x10));
 }
 
 /*
@@ -654,7 +649,7 @@ void setup() {
   rightTowerValve.begin(false);
   rtcPresent = rtc.begin();  // init the clock if present.
 
-  analogReadResolution(bitsOfADC);  // defaults to 10 bits
+  analogReadResolution(systemConfig.pressure.adcBits);
 
   compressorSsr.begin(false);
   o2FlushValve.begin(false);

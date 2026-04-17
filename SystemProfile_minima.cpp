@@ -1,3 +1,4 @@
+// SystemProfile_minima.cpp v2
 #include "SystemProfile_minima.h"
 
 #if defined(ARDUINO_MINIMA)
@@ -55,6 +56,17 @@ const char* ProfileO2Sensor::errorString() const {
 SystemConfig makeSystemConfig() {
   SystemConfig config{};
 
+  config.pressure.adcBits = 10U;
+  config.pressure.analogScaleMax =
+      static_cast<int>((1UL << config.pressure.adcBits) - 1UL);
+  config.pressure.minPressureReading = config.pressure.analogScaleMax / 10;
+  config.pressure.maxPressureReading =
+      config.pressure.analogScaleMax - config.pressure.minPressureReading;
+  config.pressure.supplyFullScalePsi_x10 = 1500U;
+  config.pressure.towerFullScalePsi_x10 = 1500U;
+  config.pressure.lowN2FullScalePsi_x100 = 3000U;
+  config.pressure.highN2FullScalePsi_x10 = 1500U;
+
   config.n2.lowOffPsi_x100 = 1000U;
   config.n2.lowOnPsi_x100 = 2000U;
   config.n2.highOnPsi_x10 = 1000U;
@@ -102,4 +114,4 @@ void systemProfileRefreshInputs(
 
 #endif  // defined(ARDUINO_MINIMA)
 
-// SystemProfile_minima.cpp v1
+// SystemProfile_minima.cpp v2
