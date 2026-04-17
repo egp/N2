@@ -40,7 +40,6 @@ TCP3231 rtc(i2c_rtc);
 
 // Forward declarations
 SystemContext makeSystemContext();
-void refreshInputSnapshot();
 void refreshSystemSnapshot();
 void readPressureSensors();
 void displaySelectedValue();
@@ -92,12 +91,11 @@ constexpr size_t kCommandBufferSize = 64;
 TCP20x4Pcf8574Config makeLcdConfig() {
 
   TCP20x4Pcf8574Config config =
-      TCP20x4Pcf8574Config::CommonYwRobot(systemContext.config.hardware.i2cAddrLcd20x4);
+    TCP20x4Pcf8574Config::CommonYwRobot(systemContext.config.hardware.i2cAddrLcd20x4);
 
   config.pinMap.backlightActiveHigh = systemContext.config.hardware.lcdBacklightActiveHigh;
 
   return config;
-
 }
 
 const TCP20x4Pcf8574Config kLcdConfig = makeLcdConfig();
@@ -135,14 +133,6 @@ TowerController towerController(timerClock, leftTowerValve, rightTowerValve, sys
 O2Controller o2Controller(timerClock, o2Sensor, o2FlushValve, systemContext.config);
 N2Controller n2Controller(timerClock, compressorSsr, systemContext.config);
 
-void refreshInputSnapshot() {
-  systemContext.input.sampledAtMs = timerClock.nowMs();
-  systemContext.input.supplyPsi_x10 = systemContext.runtime.sensors.scaled.supplyPsi_x10;
-  systemContext.input.leftTowerPsi_x10 = systemContext.runtime.sensors.scaled.leftTowerPsi_x10;
-  systemContext.input.rightTowerPsi_x10 = systemContext.runtime.sensors.scaled.rightTowerPsi_x10;
-  systemContext.input.lowN2Psi_x100 = systemContext.runtime.sensors.scaled.lowN2Psi_x100;
-  systemContext.input.highN2Psi_x10 = systemContext.runtime.sensors.scaled.highN2Psi_x10;
-}
 
 void refreshSystemSnapshot() {
   systemContext.snapshot.input = systemContext.input;
@@ -219,35 +209,29 @@ void displaySelectedValue() {
 
 #if defined(ARDUINO_UNOWIFIR4)
   systemContext.runtime.display.rotarySwitchStatus =
-      systemContext.config.display.rotaryN2Percent;
+    systemContext.config.display.rotaryN2Percent;
 #else
   systemContext.runtime.display.rotarySwitchStatus = readRotarySwitch();
 #endif
 
-  if (systemContext.runtime.display.rotarySwitchStatus ==
-             systemContext.config.display.rotaryOff) {
+  if (systemContext.runtime.display.rotarySwitchStatus == systemContext.config.display.rotaryOff) {
     disableDisplay4();
     disableDisplay20x4();
-  } else if (systemContext.runtime.display.rotarySwitchStatus ==
-             systemContext.config.display.rotarySupply) {
+  } else if (systemContext.runtime.display.rotarySwitchStatus == systemContext.config.display.rotarySupply) {
     disp4.setNumber(systemContext.snapshot.input.supplyPsi_x10, true);
     setDotTenths();
-  } else if (systemContext.runtime.display.rotarySwitchStatus ==
-             systemContext.config.display.rotaryLeft) {
+  } else if (systemContext.runtime.display.rotarySwitchStatus == systemContext.config.display.rotaryLeft) {
     disp4.setNumber(systemContext.snapshot.input.leftTowerPsi_x10, true);
     setDotTenths();
-  } else if (systemContext.runtime.display.rotarySwitchStatus ==
-             systemContext.config.display.rotaryRight) {
+  } else if (systemContext.runtime.display.rotarySwitchStatus == systemContext.config.display.rotaryRight) {
     disp4.setNumber(systemContext.snapshot.input.rightTowerPsi_x10, true);
     setDotTenths();
-  } else if (systemContext.runtime.display.rotarySwitchStatus ==
-             systemContext.config.display.rotaryN2Low) {
+  } else if (systemContext.runtime.display.rotarySwitchStatus == systemContext.config.display.rotaryN2Low) {
     disp4.setNumber(systemContext.snapshot.input.lowN2Psi_x100, true);
     setDotHundredths();
-  } else if (systemContext.runtime.display.rotarySwitchStatus ==
-             systemContext.config.display.rotaryN2Percent) {
+  } else if (systemContext.runtime.display.rotarySwitchStatus == systemContext.config.display.rotaryN2Percent) {
     displayO2();
-  } 
+  }
 
   displayToLCD20x4();
 }
@@ -292,16 +276,15 @@ uint8_t readRotarySwitch() {
   if (buttonValue != systemContext.runtime.display.previousButtonValue) {
 
     sprintf(
-        sprintfBuffer,
-        "rotary switch changed from %02X to %02X",
-        systemContext.runtime.display.previousButtonValue,
-        buttonValue);
+      sprintfBuffer,
+      "rotary switch changed from %02X to %02X",
+      systemContext.runtime.display.previousButtonValue,
+      buttonValue);
     Serial.println(sprintfBuffer);
   };
 
   systemContext.runtime.display.previousButtonValue = buttonValue;
   return buttonValue;
-
 }
 
 void formatFixed1(char* out, size_t outSize, uint16_t value_x10) {
@@ -395,7 +378,6 @@ void enableDisplay4() {
 
   disp4.displayOn();
   disp4.setBrightness(systemContext.config.display.disp4Brightness);
-
 }
 
 void disableDisplay4() {
@@ -581,12 +563,15 @@ void loop() {
   systemProfileConsumeSerialCommand(timerClock, systemContext);
   systemProfileRefreshInputs(systemContext, timerClock);
 #else
+
   readBlackSwitch();
 
   if (systemContext.input.blackSwitchEnabled) {
     readPressureSensors();
-    refreshInputSnapshot();
   }
+
+  systemProfileRefreshInputs(systemContext, timerClock);
+
 #endif
 
   const bool wasEnabled = systemContext.runtime.power.systemWasEnabled;
