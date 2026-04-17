@@ -25,10 +25,6 @@
 
 const char* PROGRAM_VERSION = "4.3";  // update this major.minor. TODO add change log
 
-
-/* -- Oxygen sensor parameters -- */
-bool o2SensorReady;
-
 /* -- Unique device addresses on the I2C bus -- */
 const uint8_t I2C_LED = 0x2F;      // 0x2F I2C address for TM1650 4-digit 7-segment LED display
 const uint8_t I2C_LCD20x4 = 0x27;  // 0x27 I2C address for display 20x4
@@ -57,26 +53,10 @@ TCP3231::DateTime rtc_dt{};
 bool rtcPresent = false;
 TCP3231 rtc(i2c_rtc);
 
-/*
-variables to hold sensor readings
-*/
-int supplyPressure, leftTowerPressure, rightTowerPressure, lowPressureN2, highPressureN2;
-uint16_t supplyPsi_x10, scaledLeftPSI, scaledRightPSI, lowN2Psi_x100, highN2Psi_x10;
-
-float O2portion, N2portion;
-uint16_t n2int;  // will hold integer percent x100
-
-uint8_t rotarySwitchStatus;  // holds current status of rotary switch
-
-/* -- previous values to reduce chatter -- */
-uint8_t previousButtonValue = 0;
-
 // Forward declarations
 SystemContext makeSystemContext();
 void refreshInputSnapshot();
 void refreshSystemSnapshot();
-
-/* ---------- Forward declarations --- */
 void refreshInputSnapshot();
 void refreshSystemSnapshot();
 void readPressureSensors();
@@ -104,23 +84,33 @@ uint8_t readRotarySwitch();
 /*
 ***************************************************************************************
 */
-
 SystemContext systemContext = makeSystemContext();
 
 SystemConfig& systemConfig = systemContext.config;
+
 SystemRuntime& systemRuntime = systemContext.runtime;
+
 InputSnapshot& inputSnapshot = systemContext.input;
+
 SystemSnapshot& systemSnapshot = systemContext.snapshot;
 
-bool& systemWasEnabled = systemRuntime.systemWasEnabled;
-bool& systemEnabled = systemRuntime.systemEnabled;
-bool& lastN2ControllerOk = systemRuntime.lastN2ControllerOk;
+bool& systemWasEnabled = systemRuntime.power.systemWasEnabled;
+bool& systemEnabled = systemRuntime.power.systemEnabled;
 
-constexpr uint16_t TOWER_LOW_SUPPLY_PSI_x10 = 90;
-constexpr uint32_t LEFT_OPEN_MS = 60000UL;   // 60 seconds
-constexpr uint32_t RIGHT_OPEN_MS = 60000UL;  // 60 seconds
-constexpr uint32_t OVERLAP_MS = 750UL;       // 750 ms
+int& supplyPressure = systemRuntime.sensors.raw.supply;
+int& leftTowerPressure = systemRuntime.sensors.raw.leftTower;
+int& rightTowerPressure = systemRuntime.sensors.raw.rightTower;
+int& lowPressureN2 = systemRuntime.sensors.raw.lowN2;
+int& highPressureN2 = systemRuntime.sensors.raw.highN2;
 
+uint16_t& supplyPsi_x10 = systemRuntime.sensors.scaled.supplyPsi_x10;
+uint16_t& scaledLeftPSI = systemRuntime.sensors.scaled.leftTowerPsi_x10;
+uint16_t& scaledRightPSI = systemRuntime.sensors.scaled.rightTowerPsi_x10;
+uint16_t& lowN2Psi_x100 = systemRuntime.sensors.scaled.lowN2Psi_x100;
+uint16_t& highN2Psi_x10 = systemRuntime.sensors.scaled.highN2Psi_x10;
+
+uint8_t& rotarySwitchStatus = systemRuntime.display.rotarySwitchStatus;
+uint8_t& previousButtonValue = systemRuntime.display.previousButtonValue;
 
 /* -- output buffers -- */
 char sprintfBuffer[80];  // holds debugging information before printing
@@ -396,17 +386,19 @@ void setDotHundredths() {
   disp4.setDot(1, true);
 }
 
+// N2portion should be in the range of (0.0-99.9),
+// n2int should be in the range of 0-7500
 void displayO2() {
-  // N2portion should be in the range of (0.0-99.9),
-  // n2int should be in the range of 0-7500
-  if (o2Controller.hasValue()) {
-    O2portion = o2Controller.averagedPercent();
+  uint16_t n2_x100 = 0;
+
+  if (systemSnapshot.o2.hasValue) {
+    n2_x100 = static_cast<uint16_t>(systemSnapshot.o2.n2Percent * 100.0f + 0.5f);
   }
-  N2portion = 100.0 - O2portion;
-  n2int = (int)(N2portion * 100.0);  // show hundredths of a percent
-  disp4.setNumber(n2int, true);
+
+  disp4.setNumber(n2_x100, true);
   setDotHundredths();
 }
+
 
 /*
 readRotarySwitch
@@ -438,6 +430,15 @@ void formatFixed2(char* out, size_t outSize, uint16_t value_x100) {
   snprintf(out, outSize, "%u.%02u", whole, frac);
 }
 
+/*
+======================
+|AIRSUPPLY  120.0 PSI|
+| 35.5  TOWERS   36.5|
+| 5.00 LO N2 HI  90.0|
+|  NITROGEN 100.00 % |
+======================
+*/
+
 void displayToLCD20x4() {
   char supplyBuf[8];
   char leftBuf[8];
@@ -445,6 +446,11 @@ void displayToLCD20x4() {
   char lowN2Buf[8];
   char highN2Buf[8];
   char n2Buf[8];
+
+  uint16_t n2_x100 = 0;
+  if (systemSnapshot.o2.hasValue) {
+    n2_x100 = static_cast<uint16_t>(systemSnapshot.o2.n2Percent * 100.0f + 0.5f);
+  }
 
   display20x4.backlightOn();
   display20x4.displayOn();
@@ -454,27 +460,19 @@ void displayToLCD20x4() {
   formatFixed1(rightBuf, sizeof(rightBuf), scaledRightPSI);
   formatFixed2(lowN2Buf, sizeof(lowN2Buf), lowN2Psi_x100);
   formatFixed1(highN2Buf, sizeof(highN2Buf), highN2Psi_x10);
-  formatFixed2(n2Buf, sizeof(n2Buf), static_cast<int16_t>(N2portion * 100.0f + 0.5f));
-
-  /*
-======================
-|AIRSUPPLY  120.0 PSI|
-| 35.5  TOWERS   36.5|
-| 5.00 LO N2 HI  90.0|
-|  NITROGEN 100.00 % |
-======================
-  */
+  formatFixed2(n2Buf, sizeof(n2Buf), n2_x100);
 
   snprintf(LCDline0, sizeof(LCDline0), "AIRSUPPLY %6s PSI", supplyBuf);
-  snprintf(LCDline1, sizeof(LCDline1), " %4s  TOWERS %6s", leftBuf, rightBuf);
+  snprintf(LCDline1, sizeof(LCDline1), " %4s TOWERS %6s", leftBuf, rightBuf);
   snprintf(LCDline2, sizeof(LCDline2), "%5s LO N2 HI %5s", lowN2Buf, highN2Buf);
-  snprintf(LCDline3, sizeof(LCDline3), "  NITROGEN %6s %%", n2Buf);
+  snprintf(LCDline3, sizeof(LCDline3), " NITROGEN %6s %%", n2Buf);
 
   display20x4.writeLine(0, LCDline0);
   display20x4.writeLine(1, LCDline1);
   display20x4.writeLine(2, LCDline2);
   display20x4.writeLine(3, LCDline3);
 }
+
 /*
 readBlackSwitch()
 reads the black on/off switch (frequently)
@@ -803,7 +801,6 @@ void loop() {
   towerController.step(inputSnapshot);
 
   n2Controller.step(inputSnapshot);
-  systemRuntime.lastN2ControllerOk = n2Controller.isOk();
 
   refreshSystemSnapshot();
   displaySelectedValue();
@@ -811,7 +808,6 @@ void loop() {
 #if defined(ARDUINO_UNOWIFIR4)
   printScenarioBanner();
 #endif
-
 }
 
 /*
