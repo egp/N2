@@ -23,7 +23,7 @@
 #error "No system profile selected"
 #endif
 
-const char* PROGRAM_VERSION = "4.4";  // update this major.minor. TODO add change log
+const char* PROGRAM_VERSION = "4.4";
 
 /*
 I2C bus declarations, they are initialized during setup()
@@ -108,57 +108,6 @@ char commandBuffer[kCommandBufferSize];
 
 }
 
-/* O2 sensor adapter class */
-class TCP0465SensorAdapter : public IO2Sensor {
-public:
-  TCP0465SensorAdapter()
-    : sensor_(),
-      i2c_(nullptr),
-      address_(TCP0465::DEFAULT_ADDRESS),
-      lastError_("I2C bus not configured") {}
-
-  TCP0465SensorAdapter(BBI2C& i2c, uint8_t address)
-    : sensor_(),
-      i2c_(&i2c),
-      address_(address),
-      lastError_("not initialized") {}
-
-  bool begin() override {
-    if (i2c_ == nullptr) {
-      lastError_ = "I2C bus not configured";
-      return false;
-    }
-
-    if (!sensor_.begin(*i2c_, address_)) {
-      lastError_ = sensor_.errorString();
-      return false;
-    }
-
-    lastError_ = "no error";
-    return true;
-  }
-
-  bool readOxygenPercent(float& percentVol) override {
-    if (!sensor_.readOxygenPercent(percentVol)) {
-      lastError_ = sensor_.errorString();
-      return false;
-    }
-
-    lastError_ = "no error";
-    return true;
-  }
-
-  const char* errorString() const override {
-    return lastError_;
-  }
-
-private:
-  TCP0465 sensor_;
-  BBI2C* i2c_;
-  uint8_t address_;
-  const char* lastError_;
-};
-
 /*
 *********************************************************
 Setup for timing control
@@ -179,6 +128,7 @@ ArduinoDigitalOutput rightTowerValve(RIGHT_TOWER_VALVE_PIN);
 ArduinoDigitalOutput o2FlushValve(O2_FLUSH_VALVE_PIN);
 ArduinoDigitalOutput compressorSsr(SSR_Pin);
 
+/* Profile-provided O2 sensor implementation */
 ProfileO2Sensor o2Sensor{ i2c_o2, systemContext.config.hardware.i2cAddrO2 };
 
 TowerController towerController(timerClock, leftTowerValve, rightTowerValve, systemContext.config);
