@@ -50,8 +50,6 @@ TCP3231 rtc(i2c_rtc);
 SystemContext makeSystemContext();
 void refreshInputSnapshot();
 void refreshSystemSnapshot();
-void refreshInputSnapshot();
-void refreshSystemSnapshot();
 void readPressureSensors();
 void displaySelectedValue();
 void displayO2();
@@ -74,35 +72,7 @@ void printTwoDigits(uint8_t value);
 static void printFourDigits(uint16_t value);
 uint8_t readRotarySwitch();
 
-/*
-***************************************************************************************
-*/
 SystemContext systemContext = makeSystemContext();
-
-SystemConfig& systemConfig = systemContext.config;
-
-SystemRuntime& systemRuntime = systemContext.runtime;
-
-InputSnapshot& inputSnapshot = systemContext.input;
-
-SystemSnapshot& systemSnapshot = systemContext.snapshot;
-
-bool& systemWasEnabled = systemRuntime.power.systemWasEnabled;
-
-int& supplyPressure = systemRuntime.sensors.raw.supply;
-int& leftTowerPressure = systemRuntime.sensors.raw.leftTower;
-int& rightTowerPressure = systemRuntime.sensors.raw.rightTower;
-int& lowPressureN2 = systemRuntime.sensors.raw.lowN2;
-int& highPressureN2 = systemRuntime.sensors.raw.highN2;
-
-uint16_t& supplyPsi_x10 = systemRuntime.sensors.scaled.supplyPsi_x10;
-uint16_t& scaledLeftPSI = systemRuntime.sensors.scaled.leftTowerPsi_x10;
-uint16_t& scaledRightPSI = systemRuntime.sensors.scaled.rightTowerPsi_x10;
-uint16_t& lowN2Psi_x100 = systemRuntime.sensors.scaled.lowN2Psi_x100;
-uint16_t& highN2Psi_x10 = systemRuntime.sensors.scaled.highN2Psi_x10;
-
-uint8_t& rotarySwitchStatus = systemRuntime.display.rotarySwitchStatus;
-uint8_t& previousButtonValue = systemRuntime.display.previousButtonValue;
 
 /* -- output buffers -- */
 char sprintfBuffer[80];  // holds debugging information before printing
@@ -211,26 +181,27 @@ ArduinoDigitalOutput leftTowerValve(LEFT_TOWER_VALVE_PIN);
 ArduinoDigitalOutput rightTowerValve(RIGHT_TOWER_VALVE_PIN);
 ArduinoDigitalOutput o2FlushValve(O2_FLUSH_VALVE_PIN);
 ArduinoDigitalOutput compressorSsr(SSR_Pin);
+
 ProfileO2Sensor o2Sensor{ i2c_o2, I2C_O2 };
 
-TowerController towerController(timerClock, leftTowerValve, rightTowerValve, systemConfig);
-O2Controller o2Controller(timerClock, o2Sensor, o2FlushValve, systemConfig);
-N2Controller n2Controller(timerClock, compressorSsr, systemConfig);
+TowerController towerController(timerClock, leftTowerValve, rightTowerValve, systemContext.config);
+O2Controller o2Controller(timerClock, o2Sensor, o2FlushValve, systemContext.config);
+N2Controller n2Controller(timerClock, compressorSsr, systemContext.config);
 
 void refreshInputSnapshot() {
-  inputSnapshot.sampledAtMs = timerClock.nowMs();
-  inputSnapshot.supplyPsi_x10 = supplyPsi_x10;
-  inputSnapshot.leftTowerPsi_x10 = scaledLeftPSI;
-  inputSnapshot.rightTowerPsi_x10 = scaledRightPSI;
-  inputSnapshot.lowN2Psi_x100 = lowN2Psi_x100;
-  inputSnapshot.highN2Psi_x10 = highN2Psi_x10;
+  systemContext.input.sampledAtMs = timerClock.nowMs();
+  systemContext.input.supplyPsi_x10 = systemContext.runtime.sensors.scaled.supplyPsi_x10;
+  systemContext.input.leftTowerPsi_x10 = systemContext.runtime.sensors.scaled.leftTowerPsi_x10;
+  systemContext.input.rightTowerPsi_x10 = systemContext.runtime.sensors.scaled.rightTowerPsi_x10;
+  systemContext.input.lowN2Psi_x100 = systemContext.runtime.sensors.scaled.lowN2Psi_x100;
+  systemContext.input.highN2Psi_x10 = systemContext.runtime.sensors.scaled.highN2Psi_x10;
 }
 
 void refreshSystemSnapshot() {
-  systemSnapshot.input = inputSnapshot;
-  systemSnapshot.tower = towerController.snapshot();
-  systemSnapshot.o2 = o2Controller.snapshot();
-  systemSnapshot.n2 = n2Controller.snapshot();
+  systemContext.snapshot.input = systemContext.input;
+  systemContext.snapshot.tower = towerController.snapshot();
+  systemContext.snapshot.o2 = o2Controller.snapshot();
+  systemContext.snapshot.n2 = n2Controller.snapshot();
 }
 
 SystemContext makeSystemContext() {
@@ -252,49 +223,54 @@ void readPressureSensors() {
   readHighPressureN2();
 }
 
+// map (x, inMin, inMax, outMin, outMax) uses formula:
+// (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 int scalePressure(int pressure, int fullScale) {
-  const int minPressureReading = systemConfig.pressure.minPressureReading;
-  const int maxPressureReading = systemConfig.pressure.maxPressureReading;
-
+  const int minPressureReading = systemContext.config.pressure.minPressureReading;
+  const int maxPressureReading = systemContext.config.pressure.maxPressureReading;
   int constrainedValue = constrain(pressure, minPressureReading, maxPressureReading);
-
-  // map (x, inMin, inMax, outMin, outMax) uses formula:
-  // (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
   return map(constrainedValue, minPressureReading, maxPressureReading, 0, fullScale);
 }
 
-/* -- read air supply pressure and scale it -- */
+/* -- read pressure sensors and scale them -- */
 void readSupplyPressure() {
-  supplyPressure = analogRead(supplyPressurePin);
-  supplyPsi_x10 =
-    static_cast<uint16_t>(scalePressure(supplyPressure, systemConfig.pressure.supplyFullScalePsi_x10));
+  systemContext.runtime.sensors.raw.supply = analogRead(supplyPressurePin);
+  systemContext.runtime.sensors.scaled.supplyPsi_x10 =
+    static_cast<uint16_t>(scalePressure(
+      systemContext.runtime.sensors.raw.supply,
+      systemContext.config.pressure.supplyFullScalePsi_x10));
 }
 
-/* -- read left tower pressure and scale it -- */
 void readLeftTowerPressure() {
-  leftTowerPressure = analogRead(leftTowerPressurePin);
-  scaledLeftPSI =
-    static_cast<uint16_t>(scalePressure(leftTowerPressure, systemConfig.pressure.towerFullScalePsi_x10));
+  systemContext.runtime.sensors.raw.leftTower = analogRead(leftTowerPressurePin);
+  systemContext.runtime.sensors.scaled.leftTowerPsi_x10 =
+    static_cast<uint16_t>(scalePressure(
+      systemContext.runtime.sensors.raw.leftTower,
+      systemContext.config.pressure.towerFullScalePsi_x10));
 }
 
-/* -- read right tower pressure and scale it -- */
 void readRightTowerPressure() {
-  rightTowerPressure = analogRead(rightTowerPressurePin);
-  scaledRightPSI =
-    static_cast<uint16_t>(scalePressure(rightTowerPressure, systemConfig.pressure.towerFullScalePsi_x10));
+  systemContext.runtime.sensors.raw.rightTower = analogRead(rightTowerPressurePin);
+  systemContext.runtime.sensors.scaled.rightTowerPsi_x10 =
+    static_cast<uint16_t>(scalePressure(
+      systemContext.runtime.sensors.raw.rightTower,
+      systemContext.config.pressure.towerFullScalePsi_x10));
 }
 
-/* -- read low and high pressure N2 and scale -- */
 void readLowPressureN2() {
-  lowPressureN2 = analogRead(lowPressureN2Pin);
-  lowN2Psi_x100 =
-    static_cast<uint16_t>(scalePressure(lowPressureN2, systemConfig.pressure.lowN2FullScalePsi_x100));
+  systemContext.runtime.sensors.raw.lowN2 = analogRead(lowPressureN2Pin);
+  systemContext.runtime.sensors.scaled.lowN2Psi_x100 =
+    static_cast<uint16_t>(scalePressure(
+      systemContext.runtime.sensors.raw.lowN2,
+      systemContext.config.pressure.lowN2FullScalePsi_x100));
 }
 
 void readHighPressureN2() {
-  highPressureN2 = analogRead(highPressureN2Pin);
-  highN2Psi_x10 =
-    static_cast<uint16_t>(scalePressure(highPressureN2, systemConfig.pressure.highN2FullScalePsi_x10));
+  systemContext.runtime.sensors.raw.highN2 = analogRead(highPressureN2Pin);
+  systemContext.runtime.sensors.scaled.highN2Psi_x10 =
+    static_cast<uint16_t>(scalePressure(
+      systemContext.runtime.sensors.raw.highN2,
+      systemContext.config.pressure.highN2FullScalePsi_x10));
 }
 
 /*
@@ -315,38 +291,38 @@ const uint8_t rotaryN2Percent = 0x6C;  // 0x6C N2 percent
 void displaySelectedValue() {
 
 #if defined(ARDUINO_UNOWIFIR4)
-  rotarySwitchStatus = rotaryN2Percent;  // or rotarySupply for early smoke tests
+  systemContext.runtime.display.rotarySwitchStatus = rotaryN2Percent;
 #else
-  rotarySwitchStatus = readRotarySwitch();
+  systemContext.runtime.display.rotarySwitchStatus = readRotarySwitch();
 #endif
 
-  switch (rotarySwitchStatus) {
-    case rotaryOff:  // 0
+  switch (systemContext.runtime.display.rotarySwitchStatus) {
+    case rotaryOff:
       disableDisplay4();
       disableDisplay20x4();
       break;
 
-    case rotarySupply:  // 1 -- air supply
-      disp4.setNumber(systemSnapshot.input.supplyPsi_x10, true);
+    case rotarySupply:
+      disp4.setNumber(systemContext.snapshot.input.supplyPsi_x10, true);
       setDotTenths();
       break;
 
-    case rotaryLeft:  // 2 -- Left
-      disp4.setNumber(systemSnapshot.input.leftTowerPsi_x10, true);
+    case rotaryLeft:
+      disp4.setNumber(systemContext.snapshot.input.leftTowerPsi_x10, true);
       setDotTenths();
       break;
 
-    case rotaryRight:  // 3 -- right
-      disp4.setNumber(systemSnapshot.input.rightTowerPsi_x10, true);
+    case rotaryRight:
+      disp4.setNumber(systemContext.snapshot.input.rightTowerPsi_x10, true);
       setDotTenths();
       break;
 
-    case rotaryN2Low:  // low n2
-      disp4.setNumber(systemSnapshot.input.lowN2Psi_x100, true);
+    case rotaryN2Low:
+      disp4.setNumber(systemContext.snapshot.input.lowN2Psi_x100, true);
       setDotHundredths();
       break;
 
-    case rotaryN2Percent:  // N2 percent
+    case rotaryN2Percent:
       displayO2();
       break;
 
@@ -378,31 +354,30 @@ void setDotHundredths() {
 void displayO2() {
   uint16_t n2_x100 = 0;
 
-  if (systemSnapshot.o2.hasValue) {
-    n2_x100 = static_cast<uint16_t>(systemSnapshot.o2.n2Percent * 100.0f + 0.5f);
+  if (systemContext.snapshot.o2.hasValue) {
+    n2_x100 = static_cast<uint16_t>(systemContext.snapshot.o2.n2Percent * 100.0f + 0.5f);
   }
 
   disp4.setNumber(n2_x100, true);
   setDotHundredths();
 }
 
-
-/*
-readRotarySwitch
-*/
 uint8_t readRotarySwitch() {
   uint8_t buttonValue;
-
   Wire.requestFrom(0x24, 1, true);
-  buttonValue = 0x3F & Wire.read();  // read from TM1650_DCTRL_BASE == 0x24
+  buttonValue = 0x3F & Wire.read();
 
-  if (buttonValue != previousButtonValue) {
-    sprintf(sprintfBuffer, "rotary switch changed from %02X to %02X", previousButtonValue, buttonValue);
+  if (buttonValue != systemContext.runtime.display.previousButtonValue) {
+    sprintf(
+      sprintfBuffer,
+      "rotary switch changed from %02X to %02X",
+      systemContext.runtime.display.previousButtonValue,
+      buttonValue);
     Serial.println(sprintfBuffer);
   };
 
-  previousButtonValue = buttonValue;
-  return (buttonValue);
+  systemContext.runtime.display.previousButtonValue = buttonValue;
+  return buttonValue;
 }
 
 void formatFixed1(char* out, size_t outSize, uint16_t value_x10) {
@@ -425,7 +400,6 @@ void formatFixed2(char* out, size_t outSize, uint16_t value_x100) {
 |  NITROGEN 100.00 % |
 ======================
 */
-
 void displayToLCD20x4() {
   char supplyBuf[8];
   char leftBuf[8];
@@ -435,18 +409,18 @@ void displayToLCD20x4() {
   char n2Buf[8];
 
   uint16_t n2_x100 = 0;
-  if (systemSnapshot.o2.hasValue) {
-    n2_x100 = static_cast<uint16_t>(systemSnapshot.o2.n2Percent * 100.0f + 0.5f);
+  if (systemContext.snapshot.o2.hasValue) {
+    n2_x100 = static_cast<uint16_t>(systemContext.snapshot.o2.n2Percent * 100.0f + 0.5f);
   }
 
   display20x4.backlightOn();
   display20x4.displayOn();
 
-  formatFixed1(supplyBuf, sizeof(supplyBuf), systemSnapshot.input.supplyPsi_x10);
-  formatFixed1(leftBuf, sizeof(leftBuf), systemSnapshot.input.leftTowerPsi_x10);
-  formatFixed1(rightBuf, sizeof(rightBuf), systemSnapshot.input.rightTowerPsi_x10);
-  formatFixed2(lowN2Buf, sizeof(lowN2Buf), systemSnapshot.input.lowN2Psi_x100);
-  formatFixed1(highN2Buf, sizeof(highN2Buf), systemSnapshot.input.highN2Psi_x10);
+  formatFixed1(supplyBuf, sizeof(supplyBuf), systemContext.snapshot.input.supplyPsi_x10);
+  formatFixed1(leftBuf, sizeof(leftBuf), systemContext.snapshot.input.leftTowerPsi_x10);
+  formatFixed1(rightBuf, sizeof(rightBuf), systemContext.snapshot.input.rightTowerPsi_x10);
+  formatFixed2(lowN2Buf, sizeof(lowN2Buf), systemContext.snapshot.input.lowN2Psi_x100);
+  formatFixed1(highN2Buf, sizeof(highN2Buf), systemContext.snapshot.input.highN2Psi_x10);
   formatFixed2(n2Buf, sizeof(n2Buf), n2_x100);
 
   snprintf(LCDline0, sizeof(LCDline0), "AIRSUPPLY %6s PSI", supplyBuf);
@@ -461,25 +435,26 @@ void displayToLCD20x4() {
 }
 
 void readBlackSwitch() {
-  inputSnapshot.blackSwitchEnabled = !digitalRead(blackSwitchPin);
+  systemContext.input.blackSwitchEnabled = !digitalRead(blackSwitchPin);
 }
 
 void checkTBS() {
-  if (inputSnapshot.blackSwitchEnabled != systemWasEnabled) {
+  if (systemContext.input.blackSwitchEnabled != systemContext.runtime.power.systemWasEnabled) {
     Serial.print(F("cTBS en="));
-    Serial.print(inputSnapshot.blackSwitchEnabled ? 1 : 0);
+    Serial.print(systemContext.input.blackSwitchEnabled ? 1 : 0);
     Serial.print(F(" was="));
-    Serial.println(systemWasEnabled ? 1 : 0);
+    Serial.println(systemContext.runtime.power.systemWasEnabled ? 1 : 0);
   }
 
-  if (inputSnapshot.blackSwitchEnabled && !systemWasEnabled) {
+  if (systemContext.input.blackSwitchEnabled && !systemContext.runtime.power.systemWasEnabled) {
     enableDisplay4();
     enableDisplay20x4();
-  } else if (!inputSnapshot.blackSwitchEnabled && systemWasEnabled) {
+  } else if (!systemContext.input.blackSwitchEnabled && systemContext.runtime.power.systemWasEnabled) {
     disableDisplay4();
     disableDisplay20x4();
   }
-  systemWasEnabled = inputSnapshot.blackSwitchEnabled;
+
+  systemContext.runtime.power.systemWasEnabled = systemContext.input.blackSwitchEnabled;
 }
 
 void enableDisplay20x4() {
@@ -562,33 +537,33 @@ static void printFourDigits(uint16_t value) {
 void printScenarioBanner() {
 #if defined(ARDUINO_UNOWIFIR4)
   static uint32_t lastPrintedMs = 0xFFFFFFFFu;
-  if (inputSnapshot.sampledAtMs == lastPrintedMs) {
+  if (systemContext.input.sampledAtMs == lastPrintedMs) {
     return;
   }
-  lastPrintedMs = inputSnapshot.sampledAtMs;
+  lastPrintedMs = systemContext.input.sampledAtMs;
 
   Serial.print(F("SCEN t="));
-  Serial.print(inputSnapshot.sampledAtMs);
+  Serial.print(systemContext.input.sampledAtMs);
   Serial.print(F(" en="));
-  Serial.print(inputSnapshot.blackSwitchEnabled ? 1 : 0);
+  Serial.print(systemContext.input.blackSwitchEnabled ? 1 : 0);
   Serial.print(F(" sup="));
-  Serial.print(inputSnapshot.supplyPsi_x10);
+  Serial.print(systemContext.input.supplyPsi_x10);
   Serial.print(F(" L="));
-  Serial.print(inputSnapshot.leftTowerPsi_x10);
+  Serial.print(systemContext.input.leftTowerPsi_x10);
   Serial.print(F(" R="));
-  Serial.print(inputSnapshot.rightTowerPsi_x10);
+  Serial.print(systemContext.input.rightTowerPsi_x10);
   Serial.print(F(" lo="));
-  Serial.print(inputSnapshot.lowN2Psi_x100);
+  Serial.print(systemContext.input.lowN2Psi_x100);
   Serial.print(F(" hi="));
-  Serial.print(inputSnapshot.highN2Psi_x10);
+  Serial.print(systemContext.input.highN2Psi_x10);
   Serial.print(F(" O2="));
-  Serial.print(systemSnapshot.o2.o2Percent, 2);
+  Serial.print(systemContext.snapshot.o2.o2Percent, 2);
   Serial.print(F(" Ts="));
-  Serial.print(static_cast<uint8_t>(systemSnapshot.tower.state));
+  Serial.print(static_cast<int>(systemContext.snapshot.tower.state));
   Serial.print(F(" Os="));
-  Serial.print(static_cast<uint8_t>(systemSnapshot.o2.state));
+  Serial.print(static_cast<int>(systemContext.snapshot.o2.state));
   Serial.print(F(" Ns="));
-  Serial.println(static_cast<uint8_t>(systemSnapshot.n2.state));
+  Serial.println(static_cast<int>(systemContext.snapshot.n2.state));
 #endif
 }
 
@@ -637,7 +612,7 @@ void setup() {
   rightTowerValve.begin(false);
   rtcPresent = rtc.begin();  // init the clock if present.
 
-  analogReadResolution(systemConfig.pressure.adcBits);
+  analogReadResolution(systemContext.config.pressure.adcBits);
 
   compressorSsr.begin(false);
   o2FlushValve.begin(false);
@@ -676,46 +651,45 @@ void setup() {
 }  // end of setup()
 
 void loop() {
-
 #if defined(ARDUINO_UNOWIFIR4)
   systemProfileConsumeSerialCommand(timerClock, systemContext);
   systemProfileRefreshInputs(
     systemContext,
     timerClock,
-    inputSnapshot.blackSwitchEnabled,
-    supplyPsi_x10,
-    scaledLeftPSI,
-    scaledRightPSI,
-    lowN2Psi_x100,
-    highN2Psi_x10);
+    systemContext.input.blackSwitchEnabled,
+    systemContext.runtime.sensors.scaled.supplyPsi_x10,
+    systemContext.runtime.sensors.scaled.leftTowerPsi_x10,
+    systemContext.runtime.sensors.scaled.rightTowerPsi_x10,
+    systemContext.runtime.sensors.scaled.lowN2Psi_x100,
+    systemContext.runtime.sensors.scaled.highN2Psi_x10);
 #else
   readBlackSwitch();
 
-  if (inputSnapshot.blackSwitchEnabled) {
+  if (systemContext.input.blackSwitchEnabled) {
     readPressureSensors();
     refreshInputSnapshot();
   }
 #endif
 
-  const bool wasEnabled = systemWasEnabled;
-  checkTBS();  // prints when it changes
+  const bool wasEnabled = systemContext.runtime.power.systemWasEnabled;
+  checkTBS();
 
-  if (!inputSnapshot.blackSwitchEnabled) {
+  if (!systemContext.input.blackSwitchEnabled) {
     if (wasEnabled) {
-      shutdown();  // only shutdown when ON to OFF transition
+      shutdown();
     }
 #if !defined(ARDUINO_UNOWIFIR4)
-    delay(10000);  // Pause for this many milliseconds before checking the TBS again,
+    delay(10000);
 #endif
     return;
   }
 
-  o2Controller.step(inputSnapshot);
+  o2Controller.step(systemContext.input);
 
-  towerController.setEnabled(inputSnapshot.blackSwitchEnabled);
-  towerController.step(inputSnapshot);
+  towerController.setEnabled(systemContext.input.blackSwitchEnabled);
+  towerController.step(systemContext.input);
 
-  n2Controller.step(inputSnapshot);
+  n2Controller.step(systemContext.input);
 
   refreshSystemSnapshot();
   displaySelectedValue();
@@ -729,15 +703,15 @@ void loop() {
 ********************************************************************
 */
 void shutdown() {
-  if (systemWasEnabled) { Serial.println(F("Black switch off; Shutting down.")); }
-  systemWasEnabled = false;
+  if (systemContext.runtime.power.systemWasEnabled) {
+    Serial.println(F("Black switch off; Shutting down."));
+  }
 
-  towerController.setEnabled(false);  // Stop tower, closes both valves
-  o2FlushValve.setOn(false);          // close O2 flush valve
-
-  compressorSsr.setOn(false);  // stop compressor
-
-  disableDisplay4();  // turn off displays
+  systemContext.runtime.power.systemWasEnabled = false;
+  towerController.setEnabled(false);
+  o2FlushValve.setOn(false);
+  compressorSsr.setOn(false);
+  disableDisplay4();
   disableDisplay20x4();
 }
 
