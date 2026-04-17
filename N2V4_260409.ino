@@ -88,7 +88,6 @@ InputSnapshot& inputSnapshot = systemContext.input;
 SystemSnapshot& systemSnapshot = systemContext.snapshot;
 
 bool& systemWasEnabled = systemRuntime.power.systemWasEnabled;
-bool& systemEnabled = systemRuntime.power.systemEnabled;
 
 int& supplyPressure = systemRuntime.sensors.raw.supply;
 int& leftTowerPressure = systemRuntime.sensors.raw.leftTower;
@@ -220,7 +219,6 @@ N2Controller n2Controller(timerClock, compressorSsr, systemConfig);
 
 void refreshInputSnapshot() {
   inputSnapshot.sampledAtMs = timerClock.nowMs();
-  inputSnapshot.blackSwitchEnabled = systemEnabled;
   inputSnapshot.supplyPsi_x10 = supplyPsi_x10;
   inputSnapshot.leftTowerPsi_x10 = scaledLeftPSI;
   inputSnapshot.rightTowerPsi_x10 = scaledRightPSI;
@@ -468,12 +466,26 @@ void displayToLCD20x4() {
   display20x4.writeLine(3, LCDline3);
 }
 
-/*
-readBlackSwitch()
-reads the black on/off switch (frequently)
-*/
 void readBlackSwitch() {
-  systemEnabled = !digitalRead(blackSwitchPin);
+  inputSnapshot.blackSwitchEnabled = !digitalRead(blackSwitchPin);
+}
+
+void checkTBS() {
+  if (inputSnapshot.blackSwitchEnabled != systemWasEnabled) {
+    Serial.print(F("cTBS en="));
+    Serial.print(inputSnapshot.blackSwitchEnabled ? 1 : 0);
+    Serial.print(F(" was="));
+    Serial.println(systemWasEnabled ? 1 : 0);
+  }
+
+  if (inputSnapshot.blackSwitchEnabled && !systemWasEnabled) {
+    enableDisplay4();
+    enableDisplay20x4();
+  } else if (!inputSnapshot.blackSwitchEnabled && systemWasEnabled) {
+    disableDisplay4();
+    disableDisplay20x4();
+  }
+  systemWasEnabled = inputSnapshot.blackSwitchEnabled;
 }
 
 void enableDisplay20x4() {
@@ -586,24 +598,6 @@ void printScenarioBanner() {
 #endif
 }
 
-void checkTBS() {
-  if (systemEnabled != systemWasEnabled) {
-    Serial.print(F("cTBS en="));
-    Serial.print(systemEnabled ? 1 : 0);
-    Serial.print(F(" was="));
-    Serial.println(systemWasEnabled ? 1 : 0);
-  }
-
-  if (systemEnabled && !systemWasEnabled) {
-    enableDisplay4();
-    enableDisplay20x4();
-  } else if (!systemEnabled && systemWasEnabled) {
-    disableDisplay4();
-    disableDisplay20x4();
-  }
-  systemWasEnabled = systemEnabled;
-}
-
 void displaySelfTest() {
   enableDisplay4();
   disp4.setNumber(1234, true);
@@ -687,81 +681,20 @@ void setup() {
 
 }  // end of setup()
 
-/* ---------- Arduino main loop ---------- */
-
-/*
-This is a tight loop, which runs continuously
-If the black switch is off, it checks less often.
-*/
-// void loop() {
-// #if defined(ARDUINO_UNOWIFIR4)
-//   systemProfileConsumeSerialCommand(timerClock, systemContext);
-//   systemProfileRefreshInputs(
-//     systemContext,
-//     timerClock,
-//     systemEnabled,
-//     supplyPsi_x10,
-//     scaledLeftPSI,
-//     scaledRightPSI,
-//     lowN2Psi_x100,
-//     highN2Psi_x10);
-
-//   systemEnabled = inputSnapshot.blackSwitchEnabled;
-
-//   supplyPsi_x10 = inputSnapshot.supplyPsi_x10;
-//   scaledLeftPSI = inputSnapshot.leftTowerPsi_x10;
-//   scaledRightPSI = inputSnapshot.rightTowerPsi_x10;
-//   lowN2Psi_x100 = inputSnapshot.lowN2Psi_x100;
-//   highN2Psi_x10 = inputSnapshot.highN2Psi_x10;
-// #else
-//   readBlackSwitch();
-//   systemEnabled = !digitalRead(blackSwitchPin);
-
-//   if (systemEnabled) {
-//     readPressureSensors();
-//     refreshInputSnapshot();
-//   }
-// #endif
-
-//   checkTBS();
-
-//   if (systemEnabled) {
-//     o2Controller.step(inputSnapshot);
-//     towerController.setEnabled(inputSnapshot.blackSwitchEnabled);
-//     towerController.step(inputSnapshot);
-//     n2Controller.step(inputSnapshot);
-
-//     bool& lastN2ControllerOk = systemRuntime.lastN2ControllerOk;
-
-//     refreshSystemSnapshot();
-// #if defined(ARDUINO_UNOWIFIR4)
-//     printScenarioBanner();
-// #endif
-//     displaySelectedValue();
-//   } else {
-//     shutdown();
-// #if !defined(ARDUINO_UNOWIFIR4)
-//     delay(10000);
-// #endif
-//   }
-// }
-
 void loop() {
 #if defined(ARDUINO_UNOWIFIR4)
   systemProfileConsumeSerialCommand(timerClock, systemContext);
   systemProfileRefreshInputs(
     systemContext,
     timerClock,
-    systemEnabled,
+    inputSnapshot.blackSwitchEnabled,
     supplyPsi_x10,
     scaledLeftPSI,
     scaledRightPSI,
     lowN2Psi_x100,
     highN2Psi_x10);
 
-  systemEnabled = inputSnapshot.blackSwitchEnabled;
-
-  // Bridge scenario-fed inputs into the legacy display globals.
+  // Bridge scenario-fed inputs into the runtime-backed display values.
   supplyPsi_x10 = inputSnapshot.supplyPsi_x10;
   scaledLeftPSI = inputSnapshot.leftTowerPsi_x10;
   scaledRightPSI = inputSnapshot.rightTowerPsi_x10;
@@ -769,9 +702,8 @@ void loop() {
   highN2Psi_x10 = inputSnapshot.highN2Psi_x10;
 #else
   readBlackSwitch();
-  systemEnabled = !digitalRead(blackSwitchPin);  //
 
-  if (systemEnabled) {
+  if (inputSnapshot.blackSwitchEnabled) {
     readPressureSensors();
     refreshInputSnapshot();
   }
@@ -780,7 +712,7 @@ void loop() {
   const bool wasEnabled = systemWasEnabled;
   checkTBS();  // prints when it changes
 
-  if (!systemEnabled) {
+  if (!inputSnapshot.blackSwitchEnabled) {
     if (wasEnabled) {
       shutdown();  // only shutdown when ON to OFF transition
     }
