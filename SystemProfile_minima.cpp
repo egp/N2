@@ -1,4 +1,4 @@
-// SystemProfile_minima.cpp v3
+// SystemProfile_minima.cpp v4
 #include "SystemProfile_minima.h"
 
 #if defined(ARDUINO_MINIMA)
@@ -83,53 +83,49 @@ const char* ProfileO2Sensor::errorString() const {
 SystemConfig makeSystemConfig() {
 
   SystemConfig config{};
+
+  config.hardware.i2cAddrLed = 0x2FU;
+  config.hardware.i2cAddrLcd20x4 = 0x27U;
+  config.hardware.i2cAddrRtc = 0x68U;
+  config.hardware.i2cAddrO2 = 0x77U;
+  config.hardware.i2cAddrRotary = 0x24U;
+  config.hardware.lcdBacklightActiveHigh = true;
+
+  config.display.disp4Brightness = 6U;
+  config.display.rotaryOff = 0x44U;
+  config.display.rotarySupply = 0x4CU;
+  config.display.rotaryLeft = 0x54U;
+  config.display.rotaryRight = 0x5CU;
+  config.display.rotaryN2Low = 0x64U;
+  config.display.rotaryN2Percent = 0x6CU;
+
   config.pressure.adcBits = 10U;
-
   config.pressure.analogScaleMax =
-
-  static_cast<int>((1UL << config.pressure.adcBits) - 1UL);
-
+      static_cast<int>((1UL << config.pressure.adcBits) - 1UL);
   config.pressure.minPressureReading = config.pressure.analogScaleMax / 10;
-
   config.pressure.maxPressureReading =
-
-  config.pressure.analogScaleMax - config.pressure.minPressureReading;
-
+      config.pressure.analogScaleMax - config.pressure.minPressureReading;
   config.pressure.supplyFullScalePsi_x10 = 1500U;
-
   config.pressure.towerFullScalePsi_x10 = 1500U;
-
   config.pressure.lowN2FullScalePsi_x100 = 3000U;
   config.pressure.highN2FullScalePsi_x10 = 1500U;
 
   config.n2.lowOffPsi_x100 = 1000U;
-
   config.n2.lowOnPsi_x100 = 2000U;
-
   config.n2.highOnPsi_x10 = 1000U;
-
   config.n2.highOffPsi_x10 = 1200U;
 
   config.o2.warmupDurationMs = 300000UL;
-
   config.o2.measurementIntervalMs = 60000UL;
-
   config.o2.flushDurationMs = 3000UL;
-
   config.o2.settleDurationMs = 2000UL;
-
   config.o2.sampleIntervalMs = 250U;
-
   config.o2.sampleCount = 10U;
-
   config.o2.freshnessThresholdMs = 15000UL;
-
   config.o2.errorBackoffMs = 1000UL;
 
   config.tower.leftOpenMs = 60000UL;
-
   config.tower.overlapMs = 750UL;
-
   config.tower.rightOpenMs = 60000UL;
   config.tower.lowSupplyPsi_x10 = 90U;
 
@@ -157,4 +153,4 @@ void systemProfileRefreshInputs(SystemContext& ctx, ProfileClock& clock) {
 
 #endif // defined(ARDUINO_MINIMA)
 
-// SystemProfile_minima.cpp v3
+// SystemProfile_minima.cpp v4

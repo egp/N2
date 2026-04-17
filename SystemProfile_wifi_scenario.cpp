@@ -1,4 +1,4 @@
-// SystemProfile_wifi_scenario.cpp v6
+// SystemProfile_wifi_scenario.cpp v7
 #include "SystemProfile_wifi_scenario.h"
 
 #if defined(ARDUINO_UNOWIFIR4)
@@ -157,6 +157,21 @@ const char* ProfileO2Sensor::errorString() const {
 SystemConfig makeSystemConfig() {
   SystemConfig config{};
 
+  config.hardware.i2cAddrLed = 0x2FU;
+  config.hardware.i2cAddrLcd20x4 = 0x27U;
+  config.hardware.i2cAddrRtc = 0x68U;
+  config.hardware.i2cAddrO2 = 0x77U;
+  config.hardware.i2cAddrRotary = 0x24U;
+  config.hardware.lcdBacklightActiveHigh = true;
+
+  config.display.disp4Brightness = 6U;
+  config.display.rotaryOff = 0x44U;
+  config.display.rotarySupply = 0x4CU;
+  config.display.rotaryLeft = 0x54U;
+  config.display.rotaryRight = 0x5CU;
+  config.display.rotaryN2Low = 0x64U;
+  config.display.rotaryN2Percent = 0x6CU;
+
   config.pressure.adcBits = 10U;
   config.pressure.analogScaleMax =
       static_cast<int>((1UL << config.pressure.adcBits) - 1UL);
@@ -274,4 +289,4 @@ bool systemProfileIsDone() {
 
 #endif  // defined(ARDUINO_UNOWIFIR4)
 
-// SystemProfile_wifi_scenario.cpp v6
+// SystemProfile_wifi_scenario.cpp v7

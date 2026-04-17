@@ -25,16 +25,6 @@
 
 const char* PROGRAM_VERSION = "4.4";  // update this major.minor. TODO add change log
 
-/* -- Unique device addresses on the I2C bus -- */
-const uint8_t I2C_ADDR_LED = 0x2F;       // 0x2F I2C address for TM1650 4-digit 7-segment LED display
-const uint8_t I2C_ADDR_LCD20x4 = 0x27;   // 0x27 I2C address for display 20x4
-const uint8_t I2C_ADDR_RTC = 0x68;  // 0x68I2C address for Real Time Clock
-// 0x74: A0=0, A1=0, 0x75: A0=1, A1=0, 0x76: A0=0, A1=1, 0x77: A0=1, A1=1 (Default)
-const uint8_t I2C_ADDR_O2 = 0x77;        // 0x77 I2C address  TODO FIXME
-
-/* -- display parameters -- */
-const uint8_t DISP4_BRIGHTNESS = 6;  // 0-7
-
 /*
 I2C bus declarations, they are initialized during setup()
 */
@@ -96,22 +86,27 @@ TCP1650 disp4(i2c_disp4);
  setup for LCD20x4 library
 */
 namespace {
-constexpr uint8_t kConfiguredAddress = I2C_ADDR_LCD20x4;
-constexpr bool kConfiguredBacklightActiveHigh = true;
+
 constexpr size_t kCommandBufferSize = 64;
 
 TCP20x4Pcf8574Config makeLcdConfig() {
-  TCP20x4Pcf8574Config config = TCP20x4Pcf8574Config::CommonYwRobot(kConfiguredAddress);
-  config.pinMap.backlightActiveHigh = kConfiguredBacklightActiveHigh;
+
+  TCP20x4Pcf8574Config config =
+      TCP20x4Pcf8574Config::CommonYwRobot(systemContext.config.hardware.i2cAddrLcd20x4);
+
+  config.pinMap.backlightActiveHigh = systemContext.config.hardware.lcdBacklightActiveHigh;
+
   return config;
+
 }
 
 const TCP20x4Pcf8574Config kLcdConfig = makeLcdConfig();
+
 TCP20x4 display20x4(i2c_20x4, kLcdConfig);
+
 char commandBuffer[kCommandBufferSize];
+
 }
-
-
 
 /* O2 sensor adapter class */
 class TCP0465SensorAdapter : public IO2Sensor {
@@ -184,7 +179,7 @@ ArduinoDigitalOutput rightTowerValve(RIGHT_TOWER_VALVE_PIN);
 ArduinoDigitalOutput o2FlushValve(O2_FLUSH_VALVE_PIN);
 ArduinoDigitalOutput compressorSsr(SSR_Pin);
 
-ProfileO2Sensor o2Sensor{ i2c_o2, I2C_ADDR_O2 };
+ProfileO2Sensor o2Sensor{ i2c_o2, systemContext.config.hardware.i2cAddrO2 };
 
 TowerController towerController(timerClock, leftTowerValve, rightTowerValve, systemContext.config);
 O2Controller o2Controller(timerClock, o2Sensor, o2FlushValve, systemContext.config);
@@ -212,10 +207,6 @@ SystemContext makeSystemContext() {
   return ctx;
 }
 
-
-/*
-Each pressure sensor callback set corresponding variable on schedule
-*/
 void readPressureSensors() {
   // all five sensors are read sequentially.
   readSupplyPressure();
@@ -274,63 +265,39 @@ void readHighPressureN2() {
       systemContext.runtime.sensors.raw.highN2,
       systemContext.config.pressure.highN2FullScalePsi_x10));
 }
-
-/*
-*********************************************************
-Display and rotary-switch support
-*********************************************************
-*/
-
-// TODO: Verify correct hex values
-const uint8_t rotaryOff = 0x44;        // 0x44 OFF
-const uint8_t rotarySupply = 0x4C;     // 0x4C Air Supply
-const uint8_t rotaryLeft = 0x54;       // 0x54 Left Tower
-const uint8_t rotaryRight = 0x5C;      // 0x5C Right Tower
-const uint8_t rotaryN2Low = 0x64;      // 0x64 Low Pressure N2
-const uint8_t rotaryN2Percent = 0x6C;  // 0x6C N2 percent
-
-
 void displaySelectedValue() {
 
 #if defined(ARDUINO_UNOWIFIR4)
-  systemContext.runtime.display.rotarySwitchStatus = rotaryN2Percent;
+  systemContext.runtime.display.rotarySwitchStatus =
+      systemContext.config.display.rotaryN2Percent;
 #else
   systemContext.runtime.display.rotarySwitchStatus = readRotarySwitch();
 #endif
 
-  switch (systemContext.runtime.display.rotarySwitchStatus) {
-    case rotaryOff:
-      disableDisplay4();
-      disableDisplay20x4();
-      break;
-
-    case rotarySupply:
-      disp4.setNumber(systemContext.snapshot.input.supplyPsi_x10, true);
-      setDotTenths();
-      break;
-
-    case rotaryLeft:
-      disp4.setNumber(systemContext.snapshot.input.leftTowerPsi_x10, true);
-      setDotTenths();
-      break;
-
-    case rotaryRight:
-      disp4.setNumber(systemContext.snapshot.input.rightTowerPsi_x10, true);
-      setDotTenths();
-      break;
-
-    case rotaryN2Low:
-      disp4.setNumber(systemContext.snapshot.input.lowN2Psi_x100, true);
-      setDotHundredths();
-      break;
-
-    case rotaryN2Percent:
-      displayO2();
-      break;
-
-    default:
-      break;
-  }
+  if (systemContext.runtime.display.rotarySwitchStatus ==
+             systemContext.config.display.rotaryOff) {
+    disableDisplay4();
+    disableDisplay20x4();
+  } else if (systemContext.runtime.display.rotarySwitchStatus ==
+             systemContext.config.display.rotarySupply) {
+    disp4.setNumber(systemContext.snapshot.input.supplyPsi_x10, true);
+    setDotTenths();
+  } else if (systemContext.runtime.display.rotarySwitchStatus ==
+             systemContext.config.display.rotaryLeft) {
+    disp4.setNumber(systemContext.snapshot.input.leftTowerPsi_x10, true);
+    setDotTenths();
+  } else if (systemContext.runtime.display.rotarySwitchStatus ==
+             systemContext.config.display.rotaryRight) {
+    disp4.setNumber(systemContext.snapshot.input.rightTowerPsi_x10, true);
+    setDotTenths();
+  } else if (systemContext.runtime.display.rotarySwitchStatus ==
+             systemContext.config.display.rotaryN2Low) {
+    disp4.setNumber(systemContext.snapshot.input.lowN2Psi_x100, true);
+    setDotHundredths();
+  } else if (systemContext.runtime.display.rotarySwitchStatus ==
+             systemContext.config.display.rotaryN2Percent) {
+    displayO2();
+  } 
 
   displayToLCD20x4();
 }
@@ -365,21 +332,26 @@ void displayO2() {
 }
 
 uint8_t readRotarySwitch() {
+
   uint8_t buttonValue;
-  Wire.requestFrom(0x24, 1, true);
+
+  Wire.requestFrom(systemContext.config.hardware.i2cAddrRotary, 1, true);
+
   buttonValue = 0x3F & Wire.read();
 
   if (buttonValue != systemContext.runtime.display.previousButtonValue) {
+
     sprintf(
-      sprintfBuffer,
-      "rotary switch changed from %02X to %02X",
-      systemContext.runtime.display.previousButtonValue,
-      buttonValue);
+        sprintfBuffer,
+        "rotary switch changed from %02X to %02X",
+        systemContext.runtime.display.previousButtonValue,
+        buttonValue);
     Serial.println(sprintfBuffer);
   };
 
   systemContext.runtime.display.previousButtonValue = buttonValue;
   return buttonValue;
+
 }
 
 void formatFixed1(char* out, size_t outSize, uint16_t value_x10) {
@@ -470,8 +442,10 @@ void disableDisplay20x4() {
 }
 
 void enableDisplay4() {
+
   disp4.displayOn();
-  disp4.setBrightness(DISP4_BRIGHTNESS);
+  disp4.setBrightness(systemContext.config.display.disp4Brightness);
+
 }
 
 void disableDisplay4() {

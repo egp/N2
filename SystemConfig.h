@@ -1,4 +1,4 @@
-// SystemConfig.h v2
+// SystemConfig.h v3
 #ifndef SYSTEM_CONFIG_H
 #define SYSTEM_CONFIG_H
 
@@ -8,6 +8,25 @@ struct SystemConfig {
   struct GlobalConfig {
     // Intentionally empty for now.
     // Add stable, non-controller configuration here as needed.
+  };
+
+  struct HardwareConfig {
+    uint8_t i2cAddrLed;
+    uint8_t i2cAddrLcd20x4;
+    uint8_t i2cAddrRtc;
+    uint8_t i2cAddrO2;
+    uint8_t i2cAddrRotary;
+    bool lcdBacklightActiveHigh;
+  };
+
+  struct DisplayConfig {
+    uint8_t disp4Brightness;
+    uint8_t rotaryOff;
+    uint8_t rotarySupply;
+    uint8_t rotaryLeft;
+    uint8_t rotaryRight;
+    uint8_t rotaryN2Low;
+    uint8_t rotaryN2Percent;
   };
 
   struct PressureConfig {
@@ -47,6 +66,8 @@ struct SystemConfig {
   };
 
   GlobalConfig global;
+  HardwareConfig hardware;
+  DisplayConfig display;
   PressureConfig pressure;
   TowerConfig tower;
   O2Config o2;
@@ -55,4 +76,4 @@ struct SystemConfig {
 
 #endif
 
-// SystemConfig.h v2
+// SystemConfig.h v3
