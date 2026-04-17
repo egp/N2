@@ -25,14 +25,6 @@
 
 const char* PROGRAM_VERSION = "4.3";  // update this major.minor. TODO add change log
 
-/* -- N2 pressure sensor thresholds -- */
-
-constexpr uint16_t N2_LOW_OFF_PSI_x100 = 1000U;  // 10.00 PSI
-constexpr uint16_t N2_LOW_ON_PSI_x100 = 2000U;   // 20.00 PSI
-constexpr uint16_t N2_HIGH_ON_PSI_x10 = 1000U;   // 100.0 PSI
-constexpr uint16_t N2_HIGH_OFF_PSI_x10 = 1200U;  // 120.0 PSI
-
-constexpr uint16_t N2_HIGH_OFF_PSI = 2000U;
 
 /* -- Oxygen sensor parameters -- */
 bool o2SensorReady;
@@ -55,14 +47,15 @@ const uint8_t DISP4_BRIGHTNESS = 6;  // 0-7
 /*
 I2C bus declarations, they are initialized during setup()
 */
-BBI2C i2c_disp4{};  // disp4
-BBI2C i2c_o2{};     // O2 sensor
-BBI2C i2c_20x4{};   // displ20x4
-BBI2C i2c_rtc{};    // UNUSED (RTC?)
+BBI2C i2c_disp4{};
+BBI2C i2c_o2{};
+BBI2C i2c_20x4{};
+BBI2C i2c_rtc{};
 
-/* RTC setup */
+/* Real Time Clock setup */
 TCP3231::DateTime rtc_dt{};
 bool rtcPresent = false;
+TCP3231 rtc(i2c_rtc);
 
 /*
 variables to hold sensor readings
@@ -134,15 +127,10 @@ char sprintfBuffer[80];  // holds debugging information before printing
 char dtostrfBuf1[9];     // temp buffers for dtostrf(), longer than needed
 char dtostrfBuf2[9];
 char display4buffer[] = "1234 ";  // holds data before sending to display4
-char LCDline0[25];                // 20 chars needed, but extra to avoid overiting something else
-char LCDline1[25];
-char LCDline2[25];
-char LCDline3[25];
-
-const char* template0 = " AIRSUPPLY %5s PSI ";
-const char* template1 = " %5s TOWERS %5s";
-const char* template2 = "%4s LOW N2 HIGH %4s";
-const char* template3 = " NITROGEN %4s %% ";
+char LCDline0[21];                // 20 chars needed, but extra to avoid overiting something else
+char LCDline1[21];
+char LCDline2[21];
+char LCDline3[21];
 
 /*
 Instances of the library classes
@@ -270,13 +258,6 @@ SystemContext makeSystemContext() {
   return ctx;
 }
 
-
-/*
-*********************************************************
-RTC
-*********************************************************
-*/
-TCP3231 rtc(i2c_rtc);
 
 /*
 Each pressure sensor callback set corresponding variable on schedule
@@ -445,29 +426,55 @@ uint8_t readRotarySwitch() {
   return (buttonValue);
 }
 
-/*
-displayToLCD20x4 -- Uses most recent sensor values without re-reading
-*/
-void displayToLCD20x4() {
-  dtostrf(supplyPsi_x10, 5, 1, dtostrfBuf1);
-  sprintf(LCDline0, template0, dtostrfBuf1);
-  display20x4.writeLine(0, LCDline0);
-
-  dtostrf(scaledLeftPSI, 5, 1, dtostrfBuf1);
-  dtostrf(scaledRightPSI, 5, 1, dtostrfBuf2);
-  sprintf(LCDline1, template1, dtostrfBuf1, dtostrfBuf2);
-  display20x4.writeLine(1, LCDline1);
-
-  dtostrf(lowN2Psi_x100, 5, 2, dtostrfBuf1);
-  dtostrf(highN2Psi_x10, 5, 1, dtostrfBuf2);
-  sprintf(LCDline2, template2, dtostrfBuf1, dtostrfBuf2);
-  display20x4.writeLine(2, LCDline2);
-
-  dtostrf(N2portion, 5, 2, dtostrfBuf1);
-  sprintf(LCDline3, template3, dtostrfBuf1);
-  display20x4.writeLine(3, LCDline3);
+void formatFixed1(char* out, size_t outSize, uint16_t value_x10) {
+  const uint16_t whole = value_x10 / 10U;
+  const uint16_t frac = value_x10 % 10U;
+  snprintf(out, outSize, "%u.%u", whole, frac);
 }
 
+void formatFixed2(char* out, size_t outSize, uint16_t value_x100) {
+  const uint16_t whole = value_x100 / 100U;
+  const uint16_t frac = value_x100 % 100U;
+  snprintf(out, outSize, "%u.%02u", whole, frac);
+}
+
+void displayToLCD20x4() {
+  char supplyBuf[8];
+  char leftBuf[8];
+  char rightBuf[8];
+  char lowN2Buf[8];
+  char highN2Buf[8];
+  char n2Buf[8];
+
+  display20x4.backlightOn();
+  display20x4.displayOn();
+
+  formatFixed1(supplyBuf, sizeof(supplyBuf), supplyPsi_x10);
+  formatFixed1(leftBuf, sizeof(leftBuf), scaledLeftPSI);
+  formatFixed1(rightBuf, sizeof(rightBuf), scaledRightPSI);
+  formatFixed2(lowN2Buf, sizeof(lowN2Buf), lowN2Psi_x100);
+  formatFixed1(highN2Buf, sizeof(highN2Buf), highN2Psi_x10);
+  formatFixed2(n2Buf, sizeof(n2Buf), static_cast<int16_t>(N2portion * 100.0f + 0.5f));
+
+  /*
+======================
+|AIRSUPPLY  120.0 PSI|
+| 35.5  TOWERS   36.5|
+| 5.00 LO N2 HI  90.0|
+|  NITROGEN 100.00 % |
+======================
+  */
+
+  snprintf(LCDline0, sizeof(LCDline0), "AIRSUPPLY %6s PSI", supplyBuf);
+  snprintf(LCDline1, sizeof(LCDline1), " %4s  TOWERS %6s", leftBuf, rightBuf);
+  snprintf(LCDline2, sizeof(LCDline2), "%5s LO N2 HI %5s", lowN2Buf, highN2Buf);
+  snprintf(LCDline3, sizeof(LCDline3), "  NITROGEN %6s %%", n2Buf);
+
+  display20x4.writeLine(0, LCDline0);
+  display20x4.writeLine(1, LCDline1);
+  display20x4.writeLine(2, LCDline2);
+  display20x4.writeLine(3, LCDline3);
+}
 /*
 readBlackSwitch()
 reads the black on/off switch (frequently)
@@ -535,7 +542,7 @@ void printDateTime(const TCP3231::DateTime& dt) {
   printTwoDigits(dt.hour);
   Serial.print(':');
   printTwoDigits(dt.minute);
-  Serial.println(".");
+  Serial.println(" ");
 }
 
 void printTwoDigits(uint8_t value) {
@@ -571,9 +578,9 @@ void printScenarioBanner() {
   Serial.print(inputSnapshot.leftTowerPsi_x10);
   Serial.print(F(" R="));
   Serial.print(inputSnapshot.rightTowerPsi_x10);
-  Serial.print(F(" low="));
+  Serial.print(F(" lo="));
   Serial.print(inputSnapshot.lowN2Psi_x100);
-  Serial.print(F(" high="));
+  Serial.print(F(" hi="));
   Serial.print(inputSnapshot.highN2Psi_x10);
   Serial.print(F(" O2="));
   Serial.print(systemSnapshot.o2.o2Percent, 2);
@@ -586,7 +593,14 @@ void printScenarioBanner() {
 #endif
 }
 
-void handleDisplayPowerTransition() {
+void checkTBS() {
+  if (systemEnabled != systemWasEnabled) {
+    Serial.print(F("cTBS en="));
+    Serial.print(systemEnabled ? 1 : 0);
+    Serial.print(F(" was="));
+    Serial.println(systemWasEnabled ? 1 : 0);
+  }
+
   if (systemEnabled && !systemWasEnabled) {
     enableDisplay4();
     enableDisplay20x4();
@@ -599,17 +613,34 @@ void handleDisplayPowerTransition() {
 
 void displaySelfTest() {
   enableDisplay4();
-  enableDisplay20x4();
-
   disp4.setNumber(1234, true);
   disp4.setDot(1, true);
+}
 
-  display20x4.writeLine(0, "DISPLAY SELF TEST   ");
-  display20x4.writeLine(1, "1234 should show    ");
-  display20x4.writeLine(2, "If blank: I2C/wiring");
-  display20x4.writeLine(3, "not scenario logic  ");
+const char* lcd20x4StatusName(TCP20x4Status status) {
+  switch (status) {
+    case TCP20x4Status::Ok: return "Ok";
+    case TCP20x4Status::InvalidLine: return "InvalidLine";
+    case TCP20x4Status::LineTooLong: return "LineTooLong";
+    case TCP20x4Status::InvalidArgument: return "InvalidArgument";
+    case TCP20x4Status::NotInitialized: return "NotInitialized";
+    case TCP20x4Status::TransportError: return "TransportError";
+    case TCP20x4Status::NotImplemented: return "NotImplemented";
+    default: return "Unknown";
+  }
+}
 
-  Serial.println(F("Display self-test written."));
+void displaySelfTest20x4() {
+  Serial.println(F("20x4 self-test starting"));
+
+  display20x4.begin();
+  display20x4.backlightOn();
+  display20x4.displayOn();
+
+  display20x4.writeLine(0, "20x4 SELF TEST      ");
+  display20x4.writeLine(1, "Pins 9,10 expected  ");
+  display20x4.writeLine(2, "If dark: bus/usage  ");
+  display20x4.writeLine(3, "Check Serial status ");
 }
 
 /* ---------- Arduino setup ---------- */
@@ -645,10 +676,8 @@ void setup() {
 
   display20x4.begin();
   enableDisplay20x4();
-
   displaySelfTest();
-  delay(3000);
-
+  displaySelfTest20x4();
 
 #if defined(ARDUINO_MINIMA)
   sprintf(sprintfBuffer, "N2 v %s, compiled %s at %s with IDE %d for UNO R4 Minima", PROGRAM_VERSION, __DATE__, __TIME__, ARDUINO);
@@ -663,7 +692,6 @@ void setup() {
     printDateTime(rtc_dt);
   }
 
-  shutdown();  // start off in a known state.
 }  // end of setup()
 
 /* ---------- Arduino main loop ---------- */
@@ -672,6 +700,59 @@ void setup() {
 This is a tight loop, which runs continuously
 If the black switch is off, it checks less often.
 */
+// void loop() {
+// #if defined(ARDUINO_UNOWIFIR4)
+//   systemProfileConsumeSerialCommand(timerClock, systemContext);
+//   systemProfileRefreshInputs(
+//     systemContext,
+//     timerClock,
+//     systemEnabled,
+//     supplyPsi_x10,
+//     scaledLeftPSI,
+//     scaledRightPSI,
+//     lowN2Psi_x100,
+//     highN2Psi_x10);
+
+//   systemEnabled = inputSnapshot.blackSwitchEnabled;
+
+//   supplyPsi_x10 = inputSnapshot.supplyPsi_x10;
+//   scaledLeftPSI = inputSnapshot.leftTowerPsi_x10;
+//   scaledRightPSI = inputSnapshot.rightTowerPsi_x10;
+//   lowN2Psi_x100 = inputSnapshot.lowN2Psi_x100;
+//   highN2Psi_x10 = inputSnapshot.highN2Psi_x10;
+// #else
+//   readBlackSwitch();
+//   systemEnabled = !digitalRead(blackSwitchPin);
+
+//   if (systemEnabled) {
+//     readPressureSensors();
+//     refreshInputSnapshot();
+//   }
+// #endif
+
+//   checkTBS();
+
+//   if (systemEnabled) {
+//     o2Controller.step(inputSnapshot);
+//     towerController.setEnabled(inputSnapshot.blackSwitchEnabled);
+//     towerController.step(inputSnapshot);
+//     n2Controller.step(inputSnapshot);
+
+//     bool& lastN2ControllerOk = systemRuntime.lastN2ControllerOk;
+
+//     refreshSystemSnapshot();
+// #if defined(ARDUINO_UNOWIFIR4)
+//     printScenarioBanner();
+// #endif
+//     displaySelectedValue();
+//   } else {
+//     shutdown();
+// #if !defined(ARDUINO_UNOWIFIR4)
+//     delay(10000);
+// #endif
+//   }
+// }
+
 void loop() {
 #if defined(ARDUINO_UNOWIFIR4)
   systemProfileConsumeSerialCommand(timerClock, systemContext);
@@ -687,6 +768,7 @@ void loop() {
 
   systemEnabled = inputSnapshot.blackSwitchEnabled;
 
+  // Bridge scenario-fed inputs into the legacy display globals.
   supplyPsi_x10 = inputSnapshot.supplyPsi_x10;
   scaledLeftPSI = inputSnapshot.leftTowerPsi_x10;
   scaledRightPSI = inputSnapshot.rightTowerPsi_x10;
@@ -694,7 +776,7 @@ void loop() {
   highN2Psi_x10 = inputSnapshot.highN2Psi_x10;
 #else
   readBlackSwitch();
-  systemEnabled = !digitalRead(blackSwitchPin);
+  systemEnabled = !digitalRead(blackSwitchPin);  //
 
   if (systemEnabled) {
     readPressureSensors();
@@ -702,33 +784,41 @@ void loop() {
   }
 #endif
 
-  handleDisplayPowerTransition();
+  const bool wasEnabled = systemWasEnabled;
+  checkTBS();  // prints when it changes
 
-  if (systemEnabled) {
-    o2Controller.step(inputSnapshot);
-    towerController.setEnabled(inputSnapshot.blackSwitchEnabled);
-    towerController.step(inputSnapshot);
-    n2Controller.step(inputSnapshot);
-
-    bool& lastN2ControllerOk = systemRuntime.lastN2ControllerOk;
-
-    refreshSystemSnapshot();
-#if defined(ARDUINO_UNOWIFIR4)
-    printScenarioBanner();
-#endif
-    displaySelectedValue();
-  } else {
-    shutdown();
+  if (!systemEnabled) {
+    if (wasEnabled) {
+      shutdown();  // only shutdown when ON to OFF transition
+    }
 #if !defined(ARDUINO_UNOWIFIR4)
-    delay(10000);
+    delay(10000);  // Pause for this many milliseconds before checking the TBS again,
 #endif
+    return;
   }
+
+  o2Controller.step(inputSnapshot);
+
+  towerController.setEnabled(inputSnapshot.blackSwitchEnabled);
+  towerController.step(inputSnapshot);
+
+  n2Controller.step(inputSnapshot);
+  systemRuntime.lastN2ControllerOk = n2Controller.isOk();
+
+  refreshSystemSnapshot();
+  displaySelectedValue();
+
+#if defined(ARDUINO_UNOWIFIR4)
+  printScenarioBanner();
+#endif
+
 }
+
 /*
 ********************************************************************
 */
 void shutdown() {
-  if (systemWasEnabled) { Serial.println(F("Black switch off; Scheduler disabled; Shutting down.")); }
+  if (systemWasEnabled) { Serial.println(F("Black switch off; Shutting down.")); }
   systemWasEnabled = false;
 
   towerController.setEnabled(false);  // Stop tower, closes both valves
