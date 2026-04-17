@@ -311,9 +311,7 @@ const uint8_t rotaryRight = 0x5C;      // 0x5C Right Tower
 const uint8_t rotaryN2Low = 0x64;      // 0x64 Low Pressure N2
 const uint8_t rotaryN2Percent = 0x6C;  // 0x6C N2 percent
 
-/*
-displaySelectedValue()
-*/
+
 void displaySelectedValue() {
 
 #if defined(ARDUINO_UNOWIFIR4)
@@ -329,26 +327,22 @@ void displaySelectedValue() {
       break;
 
     case rotarySupply:  // 1 -- air supply
-      readSupplyPressure();
-      disp4.setNumber(supplyPsi_x10, true);
+      disp4.setNumber(systemSnapshot.input.supplyPsi_x10, true);
       setDotTenths();
       break;
 
     case rotaryLeft:  // 2 -- Left
-      readLeftTowerPressure();
-      disp4.setNumber(scaledLeftPSI, true);
+      disp4.setNumber(systemSnapshot.input.leftTowerPsi_x10, true);
       setDotTenths();
       break;
 
     case rotaryRight:  // 3 -- right
-      readRightTowerPressure();
-      disp4.setNumber(scaledRightPSI, true);
+      disp4.setNumber(systemSnapshot.input.rightTowerPsi_x10, true);
       setDotTenths();
       break;
 
     case rotaryN2Low:  // low n2
-      readLowPressureN2();
-      disp4.setNumber(lowN2Psi_x100, true);
+      disp4.setNumber(systemSnapshot.input.lowN2Psi_x100, true);
       setDotHundredths();
       break;
 
@@ -448,11 +442,11 @@ void displayToLCD20x4() {
   display20x4.backlightOn();
   display20x4.displayOn();
 
-  formatFixed1(supplyBuf, sizeof(supplyBuf), supplyPsi_x10);
-  formatFixed1(leftBuf, sizeof(leftBuf), scaledLeftPSI);
-  formatFixed1(rightBuf, sizeof(rightBuf), scaledRightPSI);
-  formatFixed2(lowN2Buf, sizeof(lowN2Buf), lowN2Psi_x100);
-  formatFixed1(highN2Buf, sizeof(highN2Buf), highN2Psi_x10);
+  formatFixed1(supplyBuf, sizeof(supplyBuf), systemSnapshot.input.supplyPsi_x10);
+  formatFixed1(leftBuf, sizeof(leftBuf), systemSnapshot.input.leftTowerPsi_x10);
+  formatFixed1(rightBuf, sizeof(rightBuf), systemSnapshot.input.rightTowerPsi_x10);
+  formatFixed2(lowN2Buf, sizeof(lowN2Buf), systemSnapshot.input.lowN2Psi_x100);
+  formatFixed1(highN2Buf, sizeof(highN2Buf), systemSnapshot.input.highN2Psi_x10);
   formatFixed2(n2Buf, sizeof(n2Buf), n2_x100);
 
   snprintf(LCDline0, sizeof(LCDline0), "AIRSUPPLY %6s PSI", supplyBuf);
@@ -682,6 +676,7 @@ void setup() {
 }  // end of setup()
 
 void loop() {
+
 #if defined(ARDUINO_UNOWIFIR4)
   systemProfileConsumeSerialCommand(timerClock, systemContext);
   systemProfileRefreshInputs(
@@ -693,13 +688,6 @@ void loop() {
     scaledRightPSI,
     lowN2Psi_x100,
     highN2Psi_x10);
-
-  // Bridge scenario-fed inputs into the runtime-backed display values.
-  supplyPsi_x10 = inputSnapshot.supplyPsi_x10;
-  scaledLeftPSI = inputSnapshot.leftTowerPsi_x10;
-  scaledRightPSI = inputSnapshot.rightTowerPsi_x10;
-  lowN2Psi_x100 = inputSnapshot.lowN2Psi_x100;
-  highN2Psi_x10 = inputSnapshot.highN2Psi_x10;
 #else
   readBlackSwitch();
 
