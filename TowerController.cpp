@@ -117,30 +117,18 @@ void TowerController::step(const InputSnapshot& inputs) {
 
  switch (state()) {
  case STATE_LEFT_ONLY:
-#ifdef ARDUINO
-  Serial.println(F("Tower Transitioning from LEFT_ONLY to BOTH_AFTER_LEFT"));
-#endif
   transitionTo(STATE_BOTH_AFTER_LEFT, config_.overlapMs, true);
   return;
 
  case STATE_BOTH_AFTER_LEFT:
-#ifdef ARDUINO
-  Serial.println(F("Tower Transitioning from BOTH_AFTER_LEFT to RIGHT_ONLY"));
-#endif
   transitionTo(STATE_RIGHT_ONLY, config_.rightOpenMs, true);
   return;
 
  case STATE_RIGHT_ONLY:
-#ifdef ARDUINO
-  Serial.println(F("Tower Transitioning from RIGHT_ONLY to BOTH_AFTER_RIGHT"));
-#endif
   transitionTo(STATE_BOTH_AFTER_RIGHT, config_.overlapMs, true);
   return;
 
  case STATE_BOTH_AFTER_RIGHT:
-#ifdef ARDUINO
-  Serial.println(F("Tower Transitioning from BOTH_AFTER_RIGHT to LEFT_ONLY"));
-#endif
   transitionTo(STATE_LEFT_ONLY, config_.leftOpenMs, true);
   return;
 

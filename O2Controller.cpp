@@ -49,7 +49,7 @@ O2Controller::Config O2Controller::defaultConfig() {
   config.warmupDurationMs = 300000UL;
   config.measurementIntervalMs = 60000UL;
   config.flushDurationMs = 3000UL;
-  config.settleDurationMs = 1000UL;
+  config.settleDurationMs = 2000UL;
   config.sampleIntervalMs = 250U;
   config.sampleCount = 10U;
   config.freshnessThresholdMs = 15000UL;

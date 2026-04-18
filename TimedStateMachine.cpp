@@ -50,9 +50,9 @@ void TimedStateMachine::transitionTo(uint8_t newState) {
   if (newState != oldState && controllerName_ != nullptr
     && stateNameFn_ != nullptr) {
 #if defined(ARDUINO)
-    Serial.print(controllerName_);
-    Serial.print(F(" transition @"));
     Serial.print(nowMs);
+    Serial.print(F(" "));
+    Serial.print(controllerName_);
     Serial.print(F(" from "));
     Serial.print(stateNameFn_(oldState));
     Serial.print(F(" to "));

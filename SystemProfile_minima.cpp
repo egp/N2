@@ -85,10 +85,10 @@ SystemConfig makeSystemConfig() {
   SystemConfig config{};
 
   config.hardware.i2cAddrLed = 0x2FU;
-  config.hardware.i2cAddrLcd20x4 = 0x27U;
+  config.hardware.i2cAddrLcd20x4 = 0x27U; // TODO Check this
   config.hardware.i2cAddrRtc = 0x68U;
   config.hardware.i2cAddrO2 = 0x74U;  // confirmed by Tom
-  config.hardware.i2cAddrRotary = 0x24U;
+  config.hardware.i2cAddrRotary = 0x24U;  // TODO Check this
   config.hardware.lcdBacklightActiveHigh = true;
 
   config.display.disp4Brightness = 6U;
