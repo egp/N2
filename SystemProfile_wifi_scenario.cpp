@@ -20,43 +20,43 @@ struct ScenarioStep {
 };
 
 const ScenarioStep kScenario0[] = {
-    {   0U, false, 1200U, 350U, 360U,  500U,  900U, true, 20.9f },
-    { 200U, true,  1200U, 355U, 365U,  500U,  900U, true, 20.9f },
-    { 500U, true,  1200U, 360U, 370U, 2500U,  900U, true, 21.1f },
-    { 800U, true,  1200U, 365U, 375U, 2500U, 1300U, true, 21.1f },
-    {1100U, true,  1200U, 370U, 380U, 2500U,  900U, true, 21.2f },
+  { 0U, false, 1200U, 350U, 360U, 500U, 900U, true, 20.9f },
+  { 200U, true, 1200U, 355U, 365U, 500U, 900U, true, 20.9f },
+  { 500U, true, 1200U, 360U, 370U, 2500U, 900U, true, 21.1f },
+  { 800U, true, 1200U, 365U, 375U, 2500U, 1300U, true, 21.1f },
+  { 1100U, true, 1200U, 370U, 380U, 2500U, 900U, true, 21.2f },
 };
 
 const ScenarioStep kScenario1[] = {
-// initial state
-{0U, 	false,	0U, 	0U, 	0U,  	0U,  	0U, 	false, 	20.9f },
+  // initial state
+  { 0U, false, 0U, 0U, 0U, 0U, 0U, false, 20.9f },
 
-// TBS on, O2 starts warmup
-{10,		true,	0U, 	0U, 	0U,  	0U,  	0U, 	false, 	20.9f },
+  // TBS on, O2 starts warmup
+  { 10, true, 0U, 0U, 0U, 0U, 0U, false, 20.9f },
 
-// supply < threshold
-{20,		true,	800,	0,		0,		0,		0,		false,	20.9f },
+  // supply < threshold
+  { 20, true, 800, 0, 0, 0, 0, false, 20.9f },
 
-// supply > threshold, left valve on
-{30,		true,	1100,	0,		0,		0,		0,		false,	20.9f },
+  // supply > threshold, left valve on
+  { 30, true, 1100, 0, 0, 0, 0, false, 20.9f },
 
-// left to both, lo n2 rising
-{90,		true,	1200,	0,		0,		1000,	100,	false,	20.9f },
- 
-// N2 low > threshold, ssr on
-{320,	true,	1250,	0,		0,		2000,	300,	true,	18.8f },
+  // left to both, lo n2 rising
+  { 90, true, 1200, 0, 0, 1000, 100, false, 20.9f },
 
-// N2 hi > threshold, ssr off
-{400,	true,	1250,	0,		0,		2500,	1250,	true,	5.5f },
+  // N2 low > threshold, ssr on
+  { 320, true, 1250, 0, 0, 2000, 300, true, 18.8f },
 
-// n2 hi < threshold, ssr on
-{430,	true,	1250,	0,		0,		2600,	990,	true,	2.2f },
- 
+  // N2 hi > threshold, ssr off
+  { 400, true, 1250, 0, 0, 2500, 1250, true, 5.5f },
+
+  // n2 hi < threshold, ssr on
+  { 430, true, 1250, 0, 0, 2600, 990, true, 2.2f },
+
 };
 
 
 constexpr uint8_t kScenarioCount =
-    static_cast<uint8_t>(sizeof(kScenario1) / sizeof(kScenario1[0]));
+  static_cast<uint8_t>(sizeof(kScenario1) / sizeof(kScenario1[0]));
 
 float gCurrentO2Percent = 20.9f;
 bool gCurrentO2Valid = true;
@@ -92,22 +92,22 @@ void printScenarioLine(const SystemContext& ctx) {
   Serial.print(static_cast<int>(kScenarioCount - 1U));
   Serial.print(F(" t="));
   Serial.print(ctx.input.sampledAtMs);
-  Serial.print(F(" en="));
+  Serial.print(F(" TBS="));
   Serial.print(ctx.input.blackSwitchEnabled ? 1 : 0);
-  Serial.print(F(" sup="));
+  Serial.print(F(" air="));
   Serial.print(ctx.input.supplyPsi_x10);
-  Serial.print(F(" L="));
+  Serial.print(F(" LT="));
   Serial.print(ctx.input.leftTowerPsi_x10);
-  Serial.print(F(" R="));
+  Serial.print(F(" RT="));
   Serial.print(ctx.input.rightTowerPsi_x10);
-  Serial.print(F(" low="));
+  Serial.print(F(" lo="));
   Serial.print(ctx.input.lowN2Psi_x100);
-  Serial.print(F(" high="));
+  Serial.print(F(" hi="));
   Serial.print(ctx.input.highN2Psi_x10);
   Serial.print(F(" O2="));
   Serial.print(gCurrentO2Valid ? gCurrentO2Percent : -1.0f, 2);
   if (gScenarioDone) {
-    Serial.print(F(" DONE"));
+    Serial.print(F(" Secnario DONE"));
   }
   Serial.println();
 }
@@ -120,7 +120,7 @@ void resetScenario(ProfileClock& clock, SystemContext& ctx) {
 
 void advanceScenario(ProfileClock& clock, SystemContext& ctx) {
   if (gScenarioDone) {
-    Serial.println(F("Scenario already complete. Type r + Enter to reset."));
+    Serial.println(F("Scenario already DONE. Type r + Enter to reset."));
     return;
   }
 
@@ -134,14 +134,14 @@ void advanceScenario(ProfileClock& clock, SystemContext& ctx) {
   gScenarioDone = true;
   applyCurrentStep(ctx, clock);
   ctx.input.blackSwitchEnabled = false;
-  Serial.println(F("Scenario complete."));
+  Serial.println(F("Scenario DONE."));
   printScenarioLine(ctx);
 }
 
 }  // namespace
 
 ProfileClock::ProfileClock()
-    : nowMs_(0U) {
+  : nowMs_(0U) {
 }
 
 uint32_t ProfileClock::nowMs() const {
@@ -157,7 +157,7 @@ void ProfileClock::advanceMs(uint32_t deltaMs) {
 }
 
 ProfileO2Sensor::ProfileO2Sensor(BBI2C& i2c, uint8_t address)
-    : lastError_("no error") {
+  : lastError_("no error") {
   (void)i2c;
   (void)address;
 }
@@ -185,11 +185,11 @@ const char* ProfileO2Sensor::errorString() const {
 SystemConfig makeSystemConfig() {
   SystemConfig config{};
 
-  config.hardware.i2cAddrLed = 0x2FU;
+  config.hardware.i2cAddrLed = 0x2FU;  // TODO Check
   config.hardware.i2cAddrLcd20x4 = 0x27U;
   config.hardware.i2cAddrRtc = 0x68U;
-  config.hardware.i2cAddrO2 = 0x74U;  // confirmed by Tom
-  config.hardware.i2cAddrRotary = 0x24U;
+  config.hardware.i2cAddrO2 = 0x74U;      // confirmed by Tom
+  config.hardware.i2cAddrRotary = 0x24U;  // TODO Check
   config.hardware.lcdBacklightActiveHigh = true;
 
   config.display.disp4Brightness = 6U;
@@ -202,10 +202,10 @@ SystemConfig makeSystemConfig() {
 
   config.pressure.adcBits = 10U;
   config.pressure.analogScaleMax =
-      static_cast<int>((1UL << config.pressure.adcBits) - 1UL);
+    static_cast<int>((1UL << config.pressure.adcBits) - 1UL);
   config.pressure.minPressureReading = config.pressure.analogScaleMax / 10;
   config.pressure.maxPressureReading =
-      config.pressure.analogScaleMax - config.pressure.minPressureReading;
+    config.pressure.analogScaleMax - config.pressure.minPressureReading;
   config.pressure.supplyFullScalePsi_x10 = 1500U;
   config.pressure.towerFullScalePsi_x10 = 1500U;
   config.pressure.lowN2FullScalePsi_x100 = 3000U;

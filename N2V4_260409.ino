@@ -205,11 +205,12 @@ void readHighPressureN2() {
       systemContext.runtime.sensors.raw.highN2,
       systemContext.config.pressure.highN2FullScalePsi_x10));
 }
+
 void displaySelectedValue() {
 
 #if defined(ARDUINO_UNOWIFIR4)
   systemContext.runtime.display.rotarySwitchStatus =
-    systemContext.config.display.rotaryN2Percent;
+    systemContext.config.display.rotaryN2Percent;  // on WiFi, pretend switch set to N2 percent
 #else
   systemContext.runtime.display.rotarySwitchStatus = readRotarySwitch();
 #endif
@@ -342,12 +343,12 @@ void displayToLCD20x4() {
 }
 
 void readBlackSwitch() {
-  systemContext.input.blackSwitchEnabled = !digitalRead(blackSwitchPin);
+  systemContext.input.blackSwitchEnabled = !digitalRead(blackSwitchPin);  // on pulls low
 }
 
 void checkTBS() {
   if (systemContext.input.blackSwitchEnabled != systemContext.runtime.power.systemWasEnabled) {
-    Serial.print(F("cTBS en="));
+    Serial.print(F("TBS en="));
     Serial.print(systemContext.input.blackSwitchEnabled ? 1 : 0);
     Serial.print(F(" was="));
     Serial.println(systemContext.runtime.power.systemWasEnabled ? 1 : 0);
@@ -375,7 +376,6 @@ void disableDisplay20x4() {
 }
 
 void enableDisplay4() {
-
   disp4.displayOn();
   disp4.setBrightness(systemContext.config.display.disp4Brightness);
 }
@@ -408,10 +408,10 @@ void setupI2C() {
   i2c_rtc.iSDA = I2C_BUSD_SDA;
   i2c_rtc.iSCL = I2C_BUSD_SCL;
 
-  I2CInit(&i2c_disp4, 100000);  // 100K clock
-  I2CInit(&i2c_o2, 100000);     // 100K clock
-  I2CInit(&i2c_20x4, 100000);   // 100K clock
-  I2CInit(&i2c_rtc, 100000);    // 100K clock
+  I2CInit(&i2c_disp4, 100000);  // clock speed Hz
+  I2CInit(&i2c_o2, 100000);
+  I2CInit(&i2c_20x4, 100000);
+  I2CInit(&i2c_rtc, 100000);
 }
 
 void printDateTime(const TCP3231::DateTime& dt) {
@@ -424,7 +424,8 @@ void printDateTime(const TCP3231::DateTime& dt) {
   printTwoDigits(dt.hour);
   Serial.print(':');
   printTwoDigits(dt.minute);
-  Serial.println(" ");
+  Serial.print(" ");
+  Serial.flush();
 }
 
 void printTwoDigits(uint8_t value) {
@@ -452,13 +453,13 @@ void printScenarioBanner() {
 
   Serial.print(F("SCEN t="));
   Serial.print(systemContext.input.sampledAtMs);
-  Serial.print(F(" en="));
+  Serial.print(F(" TBS="));
   Serial.print(systemContext.input.blackSwitchEnabled ? 1 : 0);
-  Serial.print(F(" sup="));
+  Serial.print(F(" air="));
   Serial.print(systemContext.input.supplyPsi_x10);
-  Serial.print(F(" L="));
+  Serial.print(F(" LT="));
   Serial.print(systemContext.input.leftTowerPsi_x10);
-  Serial.print(F(" R="));
+  Serial.print(F(" RT="));
   Serial.print(systemContext.input.rightTowerPsi_x10);
   Serial.print(F(" lo="));
   Serial.print(systemContext.input.lowN2Psi_x100);
@@ -481,18 +482,18 @@ void displaySelfTest() {
   disp4.setDot(1, true);
 }
 
-const char* lcd20x4StatusName(TCP20x4Status status) {
-  switch (status) {
-    case TCP20x4Status::Ok: return "Ok";
-    case TCP20x4Status::InvalidLine: return "InvalidLine";
-    case TCP20x4Status::LineTooLong: return "LineTooLong";
-    case TCP20x4Status::InvalidArgument: return "InvalidArgument";
-    case TCP20x4Status::NotInitialized: return "NotInitialized";
-    case TCP20x4Status::TransportError: return "TransportError";
-    case TCP20x4Status::NotImplemented: return "NotImplemented";
-    default: return "Unknown";
-  }
-}
+// const char* lcd20x4StatusName(TCP20x4Status status) {
+//   switch (status) {
+//     case TCP20x4Status::Ok: return "Ok";
+//     case TCP20x4Status::InvalidLine: return "InvalidLine";
+//     case TCP20x4Status::LineTooLong: return "LineTooLong";
+//     case TCP20x4Status::InvalidArgument: return "InvalidArgument";
+//     case TCP20x4Status::NotInitialized: return "NotInitialized";
+//     case TCP20x4Status::TransportError: return "TransportError";
+//     case TCP20x4Status::NotImplemented: return "NotImplemented";
+//     default: return "Unknown";
+//   }
+// }
 
 void displaySelfTest20x4() {
   Serial.println(F("20x4 self-test starting"));
@@ -512,19 +513,13 @@ void setup() {
   Serial.begin(115200);           // handshake with USB
   while (!Serial) { delay(1); };  // wait until Serial is available
 
-  setupI2C();  // setup all the I2C buses
-
+  setupI2C();    // setup all the I2C buses
   setPinMode();  // setup all pin modes.
 
-  leftTowerValve.begin(false);
-  rightTowerValve.begin(false);
-  rtcPresent = rtc.begin();  // init the clock if present.
-
   analogReadResolution(systemContext.config.pressure.adcBits);
-
+  towerController.setEnabled(false);
   compressorSsr.begin(false);
   o2FlushValve.begin(false);
-
   systemProfileSetup(timerClock, o2Sensor);
 
   if (!o2Controller.init()) {
@@ -540,6 +535,7 @@ void setup() {
 
   display20x4.begin();
   enableDisplay20x4();
+
   displaySelfTest();
   displaySelfTest20x4();
 
@@ -548,30 +544,29 @@ void setup() {
 #elif defined(ARDUINO_UNOWIFIR4)
   sprintf(sprintfBuffer, "N2 v %s, compiled %s at %s with IDE %d for UNO R4 Wifi", PROGRAM_VERSION, __DATE__, __TIME__, ARDUINO);
 #endif
-
   Serial.println(sprintfBuffer);
 
+
+  rtcPresent = rtc.begin();  // init the clock if present.
   if (rtcPresent) {
     rtc.readTime(rtc_dt);
     printDateTime(rtc_dt);
   }
 
+
 }  // end of setup()
 
+
+// This is a tight loop, each controller is stepped as often as possible.
 void loop() {
+  
 #if defined(ARDUINO_UNOWIFIR4)
   systemProfileConsumeSerialCommand(timerClock, systemContext);
   systemProfileRefreshInputs(systemContext, timerClock);
 #else
-
   readBlackSwitch();
-
-  if (systemContext.input.blackSwitchEnabled) {
-    readPressureSensors();
-  }
-
+  readPressureSensors();
   systemProfileRefreshInputs(systemContext, timerClock);
-
 #endif
 
   const bool wasEnabled = systemContext.runtime.power.systemWasEnabled;
