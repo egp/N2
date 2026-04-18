@@ -45,7 +45,7 @@ TowerController::Config TowerController::defaultConfig() {
  config.leftOpenMs = 60000UL;
  config.overlapMs = 750UL;
  config.rightOpenMs = 60000UL;
- config.lowSupplyPsi_x10 = 1000U;
+ config.lowSupplyPsi_x10 = 900U;
  return config;
 }
 

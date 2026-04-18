@@ -127,7 +127,7 @@ SystemConfig makeSystemConfig() {
   config.tower.leftOpenMs = 60000UL;
   config.tower.overlapMs = 750UL;
   config.tower.rightOpenMs = 60000UL;
-  config.tower.lowSupplyPsi_x10 = 90U;
+  config.tower.lowSupplyPsi_x10 = 900U;
 
   return config;
 
