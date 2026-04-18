@@ -23,7 +23,7 @@
 #error "No system profile selected"
 #endif
 
-const char* PROGRAM_VERSION = "4.4";
+const char* PROGRAM_VERSION = "5.0";
 
 /*
 I2C bus declarations, they are initialized during setup()
