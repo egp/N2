@@ -88,8 +88,8 @@ static bool test_WB_defaultConfigIncludesLowSupplyThreshold() {
                "default overlapMs should be 750")) return false;
   if (!require(config.rightOpenMs == 60000U,
                "default rightOpenMs should be 60000")) return false;
-  if (!require(config.lowSupplyPsi_x10 == 1000U,
-               "default lowSupplyPsi_x10 should be 1000")) return false;
+  if (!require(config.lowSupplyPsi_x10 == 900U,
+               "default lowSupplyPsi_x10 should be 900")) return false;
 
   return true;
 }

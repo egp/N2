@@ -559,7 +559,7 @@ void setup() {
 
 // This is a tight loop, each controller is stepped as often as possible.
 void loop() {
-  
+
 #if defined(ARDUINO_UNOWIFIR4)
   systemProfileConsumeSerialCommand(timerClock, systemContext);
   systemProfileRefreshInputs(systemContext, timerClock);
@@ -582,12 +582,10 @@ void loop() {
     return;
   }
 
-  o2Controller.step(systemContext.input);
-
   towerController.setEnabled(systemContext.input.blackSwitchEnabled);
   towerController.step(systemContext.input);
-
   n2Controller.step(systemContext.input);
+  o2Controller.step(systemContext.input);
 
   refreshSystemSnapshot();
   displaySelectedValue();
@@ -606,9 +604,11 @@ void shutdown() {
   }
 
   systemContext.runtime.power.systemWasEnabled = false;
-  towerController.setEnabled(false);
-  o2FlushValve.setOn(false);
-  compressorSsr.setOn(false);
+
+  towerController.shutdown();
+  o2Controller.shutdown();
+  n2Controller.shutdown();
+
   disableDisplay4();
   disableDisplay20x4();
 }
