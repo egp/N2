@@ -141,14 +141,13 @@ void systemProfileSetup(ProfileClock& clock, ProfileO2Sensor& o2Sensor) {
 }
 
 void systemProfileRefreshInputs(SystemContext& ctx, ProfileClock& clock) {
-
   ctx.input.sampledAtMs = clock.nowMs();
+  ctx.input.rotarySwitchStatus = ctx.runtime.display.rotarySwitchStatus;
   ctx.input.supplyPsi_x10 = ctx.runtime.sensors.scaled.supplyPsi_x10;
   ctx.input.leftTowerPsi_x10 = ctx.runtime.sensors.scaled.leftTowerPsi_x10;
   ctx.input.rightTowerPsi_x10 = ctx.runtime.sensors.scaled.rightTowerPsi_x10;
   ctx.input.lowN2Psi_x100 = ctx.runtime.sensors.scaled.lowN2Psi_x100;
   ctx.input.highN2Psi_x10 = ctx.runtime.sensors.scaled.highN2Psi_x10;
-
 }
 
 #endif // defined(ARDUINO_MINIMA)

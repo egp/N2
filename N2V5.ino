@@ -206,30 +206,24 @@ void readHighPressureN2() {
 }
 
 void displaySelectedValue() {
+  const uint8_t rotarySwitchStatus = systemContext.snapshot.input.rotarySwitchStatus;
 
-#if defined(ARDUINO_UNOWIFIR4)
-  systemContext.runtime.display.rotarySwitchStatus =
-    systemContext.config.display.rotaryN2Percent;  // on WiFi, pretend switch set to N2 percent
-#else
-  systemContext.runtime.display.rotarySwitchStatus = readRotarySwitch();
-#endif
-
-  if (systemContext.runtime.display.rotarySwitchStatus == systemContext.config.display.rotaryOff) {
+  if (rotarySwitchStatus == systemContext.config.display.rotaryOff) {
     disableDisplay4();
     disableDisplay20x4();
-  } else if (systemContext.runtime.display.rotarySwitchStatus == systemContext.config.display.rotarySupply) {
+  } else if (rotarySwitchStatus == systemContext.config.display.rotarySupply) {
     disp4.setNumber(systemContext.snapshot.input.supplyPsi_x10, true);
     setDotTenths();
-  } else if (systemContext.runtime.display.rotarySwitchStatus == systemContext.config.display.rotaryLeft) {
+  } else if (rotarySwitchStatus == systemContext.config.display.rotaryLeft) {
     disp4.setNumber(systemContext.snapshot.input.leftTowerPsi_x10, true);
     setDotTenths();
-  } else if (systemContext.runtime.display.rotarySwitchStatus == systemContext.config.display.rotaryRight) {
+  } else if (rotarySwitchStatus == systemContext.config.display.rotaryRight) {
     disp4.setNumber(systemContext.snapshot.input.rightTowerPsi_x10, true);
     setDotTenths();
-  } else if (systemContext.runtime.display.rotarySwitchStatus == systemContext.config.display.rotaryN2Low) {
+  } else if (rotarySwitchStatus == systemContext.config.display.rotaryN2Low) {
     disp4.setNumber(systemContext.snapshot.input.lowN2Psi_x100, true);
     setDotHundredths();
-  } else if (systemContext.runtime.display.rotarySwitchStatus == systemContext.config.display.rotaryN2Percent) {
+  } else if (rotarySwitchStatus == systemContext.config.display.rotaryN2Percent) {
     displayO2();
   }
 
@@ -566,26 +560,29 @@ void setup() {
 
 // This is a tight loop, each controller is stepped as often as possible.
 void loop() {
-
 #if defined(ARDUINO_UNOWIFIR4)
   systemProfileConsumeSerialCommand(timerClock, systemContext);
   systemProfileRefreshInputs(systemContext, timerClock);
 #else
   readBlackSwitch();
+  systemContext.runtime.display.rotarySwitchStatus = readRotarySwitch();
   readPressureSensors();
   systemProfileRefreshInputs(systemContext, timerClock);
 #endif
 
   const bool wasEnabled = systemContext.runtime.power.systemWasEnabled;
+
   checkTBS();
 
   if (!systemContext.input.blackSwitchEnabled) {
     if (wasEnabled) {
       shutdown();
     }
+
 #if !defined(ARDUINO_UNOWIFIR4)
     delay(10000);
 #endif
+
     return;
   }
 
