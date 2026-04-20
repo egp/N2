@@ -4,12 +4,12 @@ SHELL := /bin/bash
 
 CXX ?= c++
 
-HOST_CXXFLAGS ?= -std=c++17 -Wall -Wextra -Werror -pedantic -I.
+HOST_CXXFLAGS ?= -std=c++17 -Wall -Wextra -Werror -pedantic -I. -Isrc
 COVERAGE_FLAGS := -fprofile-instr-generate -fcoverage-mapping
 
 HOST_TEST_FILES := $(wildcard host_tests/*.cpp)
-HOST_COMMON_SOURCES := $(filter-out SystemProfile_%.cpp,$(wildcard *.cpp))
-COVERAGE_REPORT_SOURCES := TimedStateMachine.cpp O2Controller.cpp TowerController.cpp N2Controller.cpp
+HOST_COMMON_SOURCES := $(filter-out src/SystemProfile_%.cpp,$(wildcard src/*.cpp))
+COVERAGE_REPORT_SOURCES := src/TimedStateMachine.cpp src/O2Controller.cpp src/TowerController.cpp src/N2Controller.cpp
 
 .PHONY: host-test coverage clean
 

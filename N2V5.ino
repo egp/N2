@@ -7,18 +7,18 @@
 #include <TCP0465.h>  // https://github.com/egp/TCP0465
 #include <TCP3231.h>  // https://github.com/egp/TCP3231
 
-#include "TimedStateMachine.h"
-#include "SystemContext.h"
-#include "O2Controller.h"
-#include "TowerController.h"
-#include "N2Controller.h"
-#include "ArduinoDigitalOutput.h"
-#include "UnoR4PinAssignments.h"
+#include "src/TimedStateMachine.h"
+#include "src/SystemContext.h"
+#include "src/O2Controller.h"
+#include "src/TowerController.h"
+#include "src/N2Controller.h"
+#include "src/ArduinoDigitalOutput.h"
+#include "src/UnoR4PinAssignments.h"
 
 #if defined(ARDUINO_MINIMA)
-#include "SystemProfile_minima.h"
+#include "src/SystemProfile_minima.h"
 #elif defined(ARDUINO_UNOWIFIR4)
-#include "SystemProfile_wifi_scenario.h"
+#include "src/SystemProfile_wifi_scenario.h"
 #else
 #error "No system profile selected"
 #endif

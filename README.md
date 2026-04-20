@@ -38,15 +38,15 @@ At a high level, the sketch:
 
 ## Repository layout
 
-Top-level files of interest:
+Files of interest:
 
 - `N2V5.ino` - main Arduino sketch
-- `TowerController.*` - tower valve controller
-- `O2Controller.*` - oxygen measurement controller
-- `N2Controller.*` - compressor / nitrogen pressure controller
-- `TimedStateMachine.*` - shared timed-state helper
-- `SystemProfile_minima.*` - live hardware profile for Uno R4 Minima
-- `SystemProfile_wifi_scenario.*` - scripted scenario profile for Uno R4 WiFi
+- `src/TowerController.*` - tower valve controller
+- `src/O2Controller.*` - oxygen measurement controller
+- `src/N2Controller.*` - compressor / nitrogen pressure controller
+- `src/TimedStateMachine.*` - shared timed-state helper
+- `src/SystemProfile_minima.*` - live hardware profile for Uno R4 Minima
+- `src/SystemProfile_wifi_scenario.*` - scripted scenario profile for Uno R4 WiFi
 - `host_tests/` - host-side tests
 - `Makefile` - host test / coverage entry points
 
