@@ -1,137 +1,234 @@
 migration_plan.txt
 
-N2 migration plan: carry rotary switch position through InputSnapshot and WiFi scenarios
+N2 migration plan: remove direct Wire dependency from TM1650 path, verify hardware, then complete rotary-switch snapshot/scenario migration
 
 Goal
-- Make rotary switch position a first-class input in InputSnapshot.
-- Feed it from both live hardware and WiFi scenario profiles.
-- Remove the WiFi-only display-selection hard-code so both builds use the same snapshot-driven path.
+- Make the N2 sketch talk to the TM1650 only through TCP1650 over TCP1819.
+- Eliminate direct Wire use from the sketch’s 4-digit LED / rotary-switch path.
+- First get the real TM1650 display + rotary path working on hardware.
+- Then finish the InputSnapshot / WiFi scenario rotary-switch migration.
 
-Feature branch
-1. Create the branch from updated main:
+Current verified situation
+- The sketch still directly depends on Wire for the TM1650 path.
+- TCP1650 itself is already the correct transport abstraction and already uses TCP1819 only.
+- InputSnapshot has already been locally updated to include rotarySwitchStatus.
+- The current sketch likely has a rotary-code mismatch bug because it masks button reads with 0x3F while the configured rotary values are 0x44, 0x4C, 0x54, 0x5C, 0x64, 0x6C.
 
-   git checkout main
-   git pull --ff-only
-   git checkout -b feature/input-snapshot-rotary-switch
+Branching
+- Because you already changed InputSnapshot locally, branch from your current working tree so that change stays with the work.
 
-Scope of change
-- src/InputSnapshot.h
+Commands:
+  git status
+  git switch -c feature/tcp1650-only-rotary-snapshot
+
+Scope of planned code changes
+- N2V5.ino
 - src/SystemProfile_minima.cpp
 - src/SystemProfile_wifi_scenario.cpp
-- N2V5.ino
 - host_tests/test_BB_system_snapshot.cpp
 
-Detailed plan
+Expected function-level replacements in the implementation pass
+- N2V5.ino
+  - readRotarySwitch()
+  - displaySelectedValue()
+  - setup()
+  - loop()
+- src/SystemProfile_minima.cpp
+  - systemProfileRefreshInputs(SystemContext&, ProfileClock&)
+- src/SystemProfile_wifi_scenario.cpp
+  - struct ScenarioStep
+  - applyCurrentStep(SystemContext&, ProfileClock&)
+  - printScenarioLine(const SystemContext&)
+  - scenario table initializers
+- host_tests/test_BB_system_snapshot.cpp
+  - full small-file replacement is acceptable
 
-1) Add rotarySwitchStatus to InputSnapshot
-- Edit src/InputSnapshot.h.
-- Add a new field:
-    uint8_t rotarySwitchStatus;
-- Place it near blackSwitchEnabled so operator-controlled inputs stay grouped.
+Phase 1: remove direct Wire use from the TM1650 path
+
+1) Stop including Wire in the sketch TM1650 path
+- Edit N2V5.ino.
+- Remove:
+    #include <Wire.h>
+
+Reason
+- The sketch should not use Wire for the TM1650 if TCP1650/TCP1819 is the intended abstraction.
+
+2) Stop initializing Wire in setup()
+- Edit N2V5.ino.
+- Remove:
+    Wire.begin();
+- Also remove the nearby commented Wire clock line rather than leaving stale transport diagnostics behind.
+
+Keep
+- setupI2C()
+- I2CInit(&i2c_disp4, 100000)
+- disp4.begin()
+
+Reason
+- setupI2C() already initializes the BBI2C bus used by TCP1650, so Wire.begin() is not part of the intended TM1650 path.
+
+3) Replace readRotarySwitch() so it uses only TCP1650
+- Replace the whole body of readRotarySwitch().
+- New behavior:
+  - call disp4.getButtons()
+  - do not use Wire.requestFrom()
+  - do not use Wire.read()
+  - do not mask the result with 0x3F
+  - keep the existing change-detection logging against previousButtonValue
+
+Important rule
+- Preserve the raw returned value from TCP1650::getButtons().
+- Do not strip bit 6.
+- Your configured selector values already include bit 6 set for pressed keys.
 
 Expected result
-- InputSnapshot can carry the currently selected rotary-switch/display position for both hardware and simulated modes.
+- Rotary values can match the configured display selector constants again.
 
-2) Plumb live rotary value into InputSnapshot for Minima
-- Keep readRotarySwitch() in N2V5.ino as the hardware-facing acquisition helper.
-- In the live loop path, continue to read the rotary switch and store the result in:
+4) Do not change the TCP1650 library unless your installed local copy differs from the repo
+- First verify your installed TCP1650 copy is the current TCP1819-only version.
+- If your local installed library still references Wire, fix/sync that library first.
+- If your local installed library matches the current repo, then N2 should be fixed only by changing the sketch.
+
+Suggested local verification
+  rg -n "Wire" ~/Documents/Arduino/libraries/TCP1650
+  rg -n "I2CWrite|I2CRead|getButtons" ~/Documents/Arduino/libraries/TCP1650/src
+
+Phase 2: verify hardware path before touching scenarios further
+
+5) Verify the TM1650 display path still works with TCP1650 only
+- Build and run on Minima hardware.
+- Confirm setup() still does:
+  - disp4.begin()
+  - enableDisplay4()
+  - displaySelfTest()
+- Confirm the 4-digit display shows the self-test and normal updates.
+
+6) Verify rotary codes on real hardware
+- Use the serial logging already present in readRotarySwitch().
+- Turn the selector through all positions.
+- Confirm the raw values now line up with the configured constants:
+  - rotaryOff        0x44
+  - rotarySupply     0x4C
+  - rotaryLeft       0x54
+  - rotaryRight      0x5C
+  - rotaryN2Low      0x64
+  - rotaryN2Percent  0x6C
+
+Decision rule
+- If the raw values match those constants, keep the config values unchanged.
+- If they do not match, update the config constants in the profile config, not the transport layer.
+- Do not reintroduce masking.
+
+Phase 3: finish the live-input rotary migration
+
+7) Move rotary acquisition out of displaySelectedValue()
+- displaySelectedValue() should become render-only.
+- It should not poll hardware.
+- The real hardware rotary should be acquired earlier in the loop, before snapshot refresh.
+
+Implementation direction
+- In the Minima/non-WiFi loop path:
+  - readBlackSwitch()
+  - readPressureSensors()
+  - read the rotary switch once and store it in:
+      systemContext.runtime.display.rotarySwitchStatus
+  - then call systemProfileRefreshInputs(systemContext, timerClock)
+
+Expected result
+- Rotary position becomes part of the same sampled input state as the sensor readings.
+
+8) Update src/SystemProfile_minima.cpp to copy the live rotary value into InputSnapshot
+- In systemProfileRefreshInputs(SystemContext&, ProfileClock&):
+  - keep sampledAtMs and all existing pressure copies
+  - add:
+      ctx.input.rotarySwitchStatus = ctx.runtime.display.rotarySwitchStatus;
+
+Expected result
+- InputSnapshot becomes the authoritative source for the current rotary-switch position in live mode.
+
+9) Change displaySelectedValue() to consume InputSnapshot
+- Remove the existing board-specific acquisition logic from displaySelectedValue().
+- Delete the WiFi hard-code that forces rotaryN2Percent.
+- Delete the direct call to readRotarySwitch() from displaySelectedValue().
+- Switch on:
+    systemContext.snapshot.input.rotarySwitchStatus
+  instead of:
     systemContext.runtime.display.rotarySwitchStatus
-- Update src/SystemProfile_minima.cpp so systemProfileRefreshInputs(SystemContext&) copies:
-    ctx.runtime.display.rotarySwitchStatus
-  into:
+
+Expected result
+- The display logic becomes profile-agnostic and snapshot-driven on both Minima and WiFi.
+
+Phase 4: complete WiFi scenario support
+
+10) Extend ScenarioStep with rotarySwitchStatus
+- Edit src/SystemProfile_wifi_scenario.cpp.
+- Add:
+    uint8_t rotarySwitchStatus;
+  to struct ScenarioStep.
+
+11) Update every scenario row
+- Add rotarySwitchStatus to each initializer in kScenario0 and kScenario1.
+- Use a deliberate sequence that exercises the selector:
+  - off
+  - supply
+  - left
+  - right
+  - low N2
+  - N2 percent
+
+12) Plumb scenario rotary values into InputSnapshot
+- In applyCurrentStep(SystemContext&, ProfileClock&):
+  - after blackSwitchEnabled
+  - assign:
+      ctx.input.rotarySwitchStatus = step.rotarySwitchStatus;
+
+13) Print the simulated rotary value in scenario logs
+- Update printScenarioLine(const SystemContext&) to print:
     ctx.input.rotarySwitchStatus
 
 Expected result
-- The live profile publishes the rotary-switch position through the same input snapshot path used by the rest of the system.
+- WiFi scenario mode can simulate the rotary selector, and serial logs will show which mode each scenario step is using.
 
-3) Extend WiFi scenario data model
-- Edit src/SystemProfile_wifi_scenario.cpp.
-- Add rotarySwitchStatus to ScenarioStep.
-- Update every ScenarioStep initializer in kScenario0 and kScenario1 to include a rotary value.
-- Update applyCurrentStep() to assign:
-    ctx.input.rotarySwitchStatus = step.rotarySwitchStatus;
-- Update printScenarioLine() to print the simulated rotary value for traceability.
+Phase 5: regression coverage
 
-Expected result
-- WiFi scenario mode can simulate turning the rotary switch to different display positions.
-
-4) Remove WiFi-only display-selection hard-code
-- Edit N2V5.ino.
-- In displaySelectedValue(), stop hard-coding WiFi builds to config.display.rotaryN2Percent.
-- Delete the board-specific logic that does this:
-    #if defined(ARDUINO_UNOWIFIR4)
-    systemContext.runtime.display.rotarySwitchStatus = systemContext.config.display.rotaryN2Percent;
-    #else
-    systemContext.runtime.display.rotarySwitchStatus = readRotarySwitch();
-    #endif
-- Change displaySelectedValue() to switch on snapshot-driven rotary position, preferably:
-    systemContext.snapshot.input.rotarySwitchStatus
-  or, if necessary:
-    systemContext.input.rotarySwitchStatus
-
-Expected result
-- Both Minima and WiFi builds use the same selection logic.
-- WiFi display mode is driven by scenario input, not by a compile-time hard-code.
-
-5) Keep SystemRuntime display fields for now
-- Do not remove these yet:
-    runtime.display.rotarySwitchStatus
-    runtime.display.previousButtonValue
-- Continue to use them as:
-  - acquisition/cache for live hardware input
-  - change-detection/logging state inside readRotarySwitch()
-
-Expected result
-- Minimal safe refactor.
-- No need to untangle live input acquisition and button change logging in the same step.
-
-6) Update host-side regression coverage
+14) Update the snapshot BB test
 - Edit host_tests/test_BB_system_snapshot.cpp.
-- Extend the test data to set input.rotarySwitchStatus.
-- Add assertions proving the value is preserved in the refreshed snapshot.
+- Add:
+    snapshot.input.rotarySwitchStatus = ...
+- Add an assertion that the value is retained correctly.
 
-Expected result
-- The new field is covered by at least one existing BB-style snapshot aggregation test.
-
-Suggested initial scenario values
-- For better manual verification, make the scenario steps exercise multiple display modes instead of always using the same one.
-- Example progression:
-    step 0: rotaryOff
-    step 1: rotarySupply
-    step 2: rotaryLeft
-    step 3: rotaryRight
-    step 4: rotaryN2Low
-    later steps: rotaryN2Percent
-- Use the existing config/display constants already defined by the project.
-
-Implementation order
-1. Add field to InputSnapshot.
-2. Update BB snapshot test.
-3. Extend ScenarioStep and scenario tables.
-4. Update applyCurrentStep() and scenario logging.
-5. Update SystemProfile_minima.cpp to copy live rotary value into ctx.input.
-6. Remove WiFi hard-code from displaySelectedValue() and make it consume snapshot/input rotary state.
+Suggested style
+- Because this file is small, a full-file replacement is acceptable.
 
 Verification checklist
-1. Host tests pass:
-   - host_tests/test_BB_system_snapshot.cpp updated and green.
-2. Arduino Minima build compiles.
-3. Arduino WiFi build compiles.
-4. On Minima hardware, rotary selection still changes the displayed value.
-5. In WiFi scenario mode, displayed value changes as the scenario rotarySwitchStatus changes.
-6. Serial output in scenario mode shows the rotary value for each step.
 
-Likely breakage points
-- Any aggregate initialization of InputSnapshot must be updated for the new field.
-- Every ScenarioStep initializer row must be updated to include the added field.
-- Any tests that compare full InputSnapshot contents may need adjustment.
+A. Hardware-path cleanup
+- N2 no longer includes <Wire.h>.
+- N2 no longer calls Wire.begin().
+- readRotarySwitch() uses disp4.getButtons() only.
+- No direct Wire call remains in the TM1650/rotary path.
+
+B. Real hardware validation
+- Minima build compiles.
+- 4-digit TM1650 display self-test works.
+- Live rotary-switch serial output changes as knob position changes.
+- Raw values now match configured selector codes, or the config codes are updated to the observed raw values.
+
+C. Snapshot/scenario migration
+- displaySelectedValue() no longer polls hardware and no longer hard-codes WiFi selector state.
+- Minima copies runtime.display.rotarySwitchStatus into input.rotarySwitchStatus.
+- WiFi scenarios populate input.rotarySwitchStatus.
+- Snapshot test is green.
 
 Suggested commit sequence
-1. Add rotarySwitchStatus to InputSnapshot and snapshot test
-2. Plumb rotarySwitchStatus through Minima and WiFi profiles
-3. Make display selection snapshot-driven on all builds
+1. Remove direct Wire dependency from N2 TM1650 path
+2. Verify and fix live rotary-switch code mapping via TCP1650
+3. Move live rotary acquisition into sampled inputs
+4. Add rotarySwitchStatus to WiFi scenario steps and logs
+5. Extend BB snapshot test for rotarySwitchStatus
 
 End state
-- Rotary switch position is treated like other external inputs.
-- WiFi scenario mode can simulate the display-selector knob.
-- Display logic is unified across hardware and simulated profiles.
+- The sketch talks to the TM1650 only through TCP1650 over TCP1819.
+- The rotary selector works on hardware using raw TM1650 key codes.
+- InputSnapshot carries rotarySwitchStatus for both live and scenario builds.
+- Display selection is unified and snapshot-driven.
