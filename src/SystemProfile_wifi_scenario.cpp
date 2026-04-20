@@ -10,6 +10,7 @@ namespace {
 struct ScenarioStep {
   uint32_t atMs;
   bool blackSwitchEnabled;
+  uint8_t rotarySwitchStatus;
   uint16_t supplyPsi_x10;
   uint16_t leftTowerPsi_x10;
   uint16_t rightTowerPsi_x10;
@@ -20,38 +21,37 @@ struct ScenarioStep {
 };
 
 const ScenarioStep kScenario0[] = {
-  { 0U, false, 1200U, 350U, 360U, 500U, 900U, true, 20.9f },
-  { 200U, true, 1200U, 355U, 365U, 500U, 900U, true, 20.9f },
-  { 500U, true, 1200U, 360U, 370U, 2500U, 900U, true, 21.1f },
-  { 800U, true, 1200U, 365U, 375U, 2500U, 1300U, true, 21.1f },
-  { 1100U, true, 1200U, 370U, 380U, 2500U, 900U, true, 21.2f },
+    { 0U,    false, 0x44U, 1200U, 350U, 360U,  500U,  900U, true, 20.9f },
+    { 200U,  true,  0x4CU, 1200U, 355U, 365U,  500U,  900U, true, 20.9f },
+    { 500U,  true,  0x54U, 1200U, 360U, 370U, 2500U,  900U, true, 21.1f },
+    { 800U,  true,  0x64U, 1200U, 365U, 375U, 2500U, 1300U, true, 21.1f },
+    { 1100U, true,  0x6CU, 1200U, 370U, 380U, 2500U,  900U, true, 21.2f },
 };
 
 const ScenarioStep kScenario1[] = {
-  // initial state
-  { 0000U, false, 0U, 0U, 0U, 0U, 0U, false, 20.9f },
+    // initial state
+    {      0U, false, 0x44U,    0U,  0U,  0U,    0U,    0U, false, 20.9f },
 
-  // TBS on, O2 starts warmup
-  { 10000, true, 0U, 0U, 0U, 0U, 0U, false, 20.9f },
+    // TBS on, O2 starts warmup, display supply
+    {  10000U, true,  0x4CU,    0U,  0U,  0U,    0U,    0U, false, 20.9f },
 
-  // supply < threshold
-  { 20000, true, 800, 0, 0, 0, 0, false, 20.9f },
+    // supply < threshold, still showing supply
+    {  20000U, true,  0x4CU,  800U,  0U,  0U,    0U,    0U, false, 20.9f },
 
-  // supply > threshold, left valve on
-  { 30000, true, 1100, 0, 0, 0, 0, false, 20.9f },
+    // supply > threshold, left valve on, show left tower
+    {  30000U, true,  0x54U, 1100U,  0U,  0U,    0U,    0U, false, 20.9f },
 
-  // left to both, lo n2 rising
-  { 90000, true, 1200, 0, 0, 1000, 100, false, 20.9f },
+    // left to both, lo n2 rising, show right tower
+    {  90000U, true,  0x5CU, 1200U,  0U,  0U, 1000U,  100U, false, 20.9f },
 
-  // N2 low > threshold, ssr on
-  { 320000, true, 1250, 0, 0, 2000, 300, true, 18.8f },
+    // N2 low > threshold, ssr on, show low N2
+    { 320000U, true,  0x64U, 1250U,  0U,  0U, 2000U,  300U, true,  18.8f },
 
-  // N2 hi > threshold, ssr off
-  { 400000, true, 1250, 0, 0, 2500, 1250, true, 5.5f },
+    // N2 hi > threshold, ssr off, show N2 percent
+    { 400000U, true,  0x6CU, 1250U,  0U,  0U, 2500U, 1250U, true,   5.5f },
 
-  // n2 hi < threshold, ssr on
-  { 430000, true, 1250, 0, 0, 2600, 990, true, 2.2f },
-
+    // n2 hi < threshold, ssr on, still show N2 percent
+    { 430000U, true,  0x6CU, 1250U,  0U,  0U, 2600U,  990U, true,   2.2f },
 };
 
 
@@ -78,6 +78,7 @@ void applyCurrentStep(SystemContext& ctx, ProfileClock& clock) {
 
   ctx.input.sampledAtMs = clock.nowMs();
   ctx.input.blackSwitchEnabled = step.blackSwitchEnabled;
+  ctx.input.rotarySwitchStatus = step.rotarySwitchStatus;
   ctx.input.supplyPsi_x10 = step.supplyPsi_x10;
   ctx.input.leftTowerPsi_x10 = step.leftTowerPsi_x10;
   ctx.input.rightTowerPsi_x10 = step.rightTowerPsi_x10;
@@ -89,11 +90,16 @@ void printScenarioLine(const SystemContext& ctx) {
   Serial.print(F("SCEN step "));
   Serial.print(gScenarioIndex);
   Serial.print(F("/"));
-  Serial.print(static_cast<int>(kScenarioCount - 1U));
+  Serial.print(static_cast<uint8_t>(kScenarioCount - 1U));
   Serial.print(F(" t="));
   Serial.print(ctx.input.sampledAtMs);
   Serial.print(F(" TBS="));
   Serial.print(ctx.input.blackSwitchEnabled ? 1 : 0);
+  Serial.print(F(" rot=0x"));
+  if (ctx.input.rotarySwitchStatus < 0x10U) {
+    Serial.print(F("0"));
+  }
+  Serial.print(ctx.input.rotarySwitchStatus, HEX);
   Serial.print(F(" air="));
   Serial.print(ctx.input.supplyPsi_x10);
   Serial.print(F(" LT="));
@@ -107,7 +113,7 @@ void printScenarioLine(const SystemContext& ctx) {
   Serial.print(F(" O2="));
   Serial.print(gCurrentO2Valid ? gCurrentO2Percent : -1.0f, 2);
   if (gScenarioDone) {
-    Serial.print(F(" Secnario DONE"));
+    Serial.print(F(" Scenario DONE"));
   }
   Serial.println();
 }
