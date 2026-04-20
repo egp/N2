@@ -8,7 +8,8 @@ struct InputSnapshot {
   uint32_t sampledAtMs;
 
   bool blackSwitchEnabled;
-
+  uint8_t rotarySwitchStatus;
+  
   uint16_t supplyPsi_x10;
   uint16_t leftTowerPsi_x10;
   uint16_t rightTowerPsi_x10;

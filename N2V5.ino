@@ -1,5 +1,4 @@
 #include <Arduino.h>
-#include <Wire.h>
 
 #include <TCP1819.h>  // clone of BitBang lib
 #include <TCP1650.h>  // https://github.com/egp/TCP1650
@@ -267,26 +266,22 @@ void displayO2() {
 }
 
 uint8_t readRotarySwitch() {
-
-  uint8_t buttonValue;
-
-  Wire.requestFrom(systemContext.config.hardware.i2cAddrRotary, 1, true);
-
-  buttonValue = 0x3F & Wire.read();
+  const uint8_t buttonValue = disp4.getButtons();
 
   if (buttonValue != systemContext.runtime.display.previousButtonValue) {
-
-    sprintf(
+    snprintf(
       sprintfBuffer,
+      sizeof(sprintfBuffer),
       "rotary switch changed from %02X to %02X",
       systemContext.runtime.display.previousButtonValue,
       buttonValue);
     Serial.println(sprintfBuffer);
-  };
+  }
 
   systemContext.runtime.display.previousButtonValue = buttonValue;
   return buttonValue;
 }
+
 
 void formatFixed1(char* out, size_t outSize, uint16_t value_x10) {
   const uint16_t whole = value_x10 / 10U;
@@ -510,25 +505,25 @@ void displaySelfTest20x4() {
 
 /* ---------- Arduino setup ---------- */
 void setup() {
-  Serial.begin(115200);           // handshake with USB
-  while (!Serial) { delay(1); };  // wait until Serial is available
+  Serial.begin(115200);  // handshake with USB
+  while (!Serial) {
+    delay(1);
+  }  // wait until Serial is available
 
   setupI2C();    // setup all the I2C buses
   setPinMode();  // setup all pin modes.
 
   analogReadResolution(systemContext.config.pressure.adcBits);
+
   towerController.setEnabled(false);
   compressorSsr.begin(false);
   o2FlushValve.begin(false);
-  systemProfileSetup(timerClock, o2Sensor);
 
+  systemProfileSetup(timerClock, o2Sensor);
   if (!o2Controller.init()) {
     Serial.print("O2Controller init() failed: ");
     Serial.println(o2Controller.errorString());
   }
-
-  // Wire.setClock(50000); // slow down the bus for diagnostics
-  Wire.begin();
 
   disp4.begin();
   enableDisplay4();
@@ -539,21 +534,16 @@ void setup() {
   displaySelfTest();
   displaySelfTest20x4();
 
-#if defined(ARDUINO_MINIMA)
-  sprintf(sprintfBuffer, "N2 v %s, compiled %s at %s with IDE %d for UNO R4 Minima", PROGRAM_VERSION, __DATE__, __TIME__, ARDUINO);
-#elif defined(ARDUINO_UNOWIFIR4)
-  sprintf(sprintfBuffer, "N2 v %s, compiled %s at %s with IDE %d for UNO R4 Wifi", PROGRAM_VERSION, __DATE__, __TIME__, ARDUINO);
-#endif
-  Serial.println(sprintfBuffer);
-
-
-  rtcPresent = rtc.begin();  // init the clock if present.
-  if (rtcPresent) {
-    rtc.readTime(rtc_dt);
-    printDateTime(rtc_dt);
+  if (!rtc.begin()) {
+    Serial.println("RTC begin failed");
+    rtcPresent = false;
+  } else {
+    rtcPresent = true;
+    Serial.println("RTC begin ok");
   }
 
-
+  Serial.println();
+  Serial.println("Setup complete");
 }  // end of setup()
 
 
