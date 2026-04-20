@@ -29,28 +29,28 @@ const ScenarioStep kScenario0[] = {
 
 const ScenarioStep kScenario1[] = {
   // initial state
-  { 0U, false, 0U, 0U, 0U, 0U, 0U, false, 20.9f },
+  { 0000U, false, 0U, 0U, 0U, 0U, 0U, false, 20.9f },
 
   // TBS on, O2 starts warmup
-  { 10, true, 0U, 0U, 0U, 0U, 0U, false, 20.9f },
+  { 10000, true, 0U, 0U, 0U, 0U, 0U, false, 20.9f },
 
   // supply < threshold
-  { 20, true, 800, 0, 0, 0, 0, false, 20.9f },
+  { 20000, true, 800, 0, 0, 0, 0, false, 20.9f },
 
   // supply > threshold, left valve on
-  { 30, true, 1100, 0, 0, 0, 0, false, 20.9f },
+  { 30000, true, 1100, 0, 0, 0, 0, false, 20.9f },
 
   // left to both, lo n2 rising
-  { 90, true, 1200, 0, 0, 1000, 100, false, 20.9f },
+  { 90000, true, 1200, 0, 0, 1000, 100, false, 20.9f },
 
   // N2 low > threshold, ssr on
-  { 320, true, 1250, 0, 0, 2000, 300, true, 18.8f },
+  { 320000, true, 1250, 0, 0, 2000, 300, true, 18.8f },
 
   // N2 hi > threshold, ssr off
-  { 400, true, 1250, 0, 0, 2500, 1250, true, 5.5f },
+  { 400000, true, 1250, 0, 0, 2500, 1250, true, 5.5f },
 
   // n2 hi < threshold, ssr on
-  { 430, true, 1250, 0, 0, 2600, 990, true, 2.2f },
+  { 430000, true, 1250, 0, 0, 2600, 990, true, 2.2f },
 
 };
 

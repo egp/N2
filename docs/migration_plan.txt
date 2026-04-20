@@ -1,0 +1,319 @@
+migration_plan.txt
+
+Goal
+Keep only the Arduino sketch (.ino) in the repo root.
+Move all project .cpp/.h files into a flat src/ directory.
+Do not move Makefile, README.md, LICENSE, docs/, or host_tests/.
+Do not move N2V5.ino.
+Do not create nested subdirectories under src/ for this migration.
+
+Why this shape
+- Arduino supports a root sketch plus recursively compiled src/.
+- The current production files include each other by bare sibling names.
+- Keeping src/ flat preserves those intra-production includes.
+- The only include edits required should be:
+  1) N2V5.ino -> change project includes to "src/..."
+  2) Makefile -> add -Isrc and point source lists at src/
+- Host test source files can keep their current bare #include names if Makefile adds -Isrc.
+
+======================================================================
+1. Create branch
+======================================================================
+
+git checkout -b chore/move-project-code-to-src
+
+======================================================================
+2. Move the project source/header files into src/
+======================================================================
+
+mkdir -p src
+
+git mv ArduinoDigitalOutput.h src/
+git mv BinaryOutput.h src/
+git mv ControllerState.h src/
+git mv IController.h src/
+git mv InputSnapshot.h src/
+git mv N2Controller.cpp src/
+git mv N2Controller.h src/
+git mv O2Controller.cpp src/
+git mv O2Controller.h src/
+git mv SystemConfig.h src/
+git mv SystemContext.h src/
+git mv SystemProfile_minima.cpp src/
+git mv SystemProfile_minima.h src/
+git mv SystemProfile_wifi_scenario.cpp src/
+git mv SystemProfile_wifi_scenario.h src/
+git mv SystemRuntime.h src/
+git mv SystemSnapshot.h src/
+git mv TimedStateMachine.cpp src/
+git mv TimedStateMachine.h src/
+git mv TowerController.cpp src/
+git mv TowerController.h src/
+git mv UnoR4PinAssignments.h src/
+
+After this step, the root should still contain:
+- N2V5.ino
+- Makefile
+- README.md
+- LICENSE
+- docs/
+- host_tests/
+- .gitignore
+- src/
+
+======================================================================
+3. Edit N2V5.ino include block
+======================================================================
+
+In N2V5.ino, leave the library includes alone:
+
+#include <Arduino.h>
+#include <Wire.h>
+#include <TCP1819.h>
+#include <TCP1650.h>
+#include <TCP20x4.h>
+#include <TCP0465.h>
+#include <TCP3231.h>
+
+Change only the project-local includes.
+
+BEFORE:
+
+#include "TimedStateMachine.h"
+#include "SystemContext.h"
+#include "O2Controller.h"
+#include "TowerController.h"
+#include "N2Controller.h"
+#include "ArduinoDigitalOutput.h"
+#include "UnoR4PinAssignments.h"
+
+#if defined(ARDUINO_MINIMA)
+#include "SystemProfile_minima.h"
+#elif defined(ARDUINO_UNOWIFIR4)
+#include "SystemProfile_wifi_scenario.h"
+#else
+#error "No system profile selected"
+#endif
+
+AFTER:
+
+#include "src/TimedStateMachine.h"
+#include "src/SystemContext.h"
+#include "src/O2Controller.h"
+#include "src/TowerController.h"
+#include "src/N2Controller.h"
+#include "src/ArduinoDigitalOutput.h"
+#include "src/UnoR4PinAssignments.h"
+
+#if defined(ARDUINO_MINIMA)
+#include "src/SystemProfile_minima.h"
+#elif defined(ARDUINO_UNOWIFIR4)
+#include "src/SystemProfile_wifi_scenario.h"
+#else
+#error "No system profile selected"
+#endif
+
+Notes:
+- Do not change the angle-bracket library includes.
+- Do not move the .ino into src/.
+- Do not rename N2V5.ino as part of this migration.
+
+======================================================================
+4. Leave all intra-src production includes unchanged
+======================================================================
+
+Do NOT edit the #include statements inside files that now live in src/.
+
+Examples that should remain unchanged:
+- src/N2Controller.h
+  #include "BinaryOutput.h"
+  #include "IController.h"
+  #include "InputSnapshot.h"
+  #include "SystemConfig.h"
+
+- src/O2Controller.h
+  #include "BinaryOutput.h"
+  #include "IController.h"
+  #include "InputSnapshot.h"
+  #include "SystemConfig.h"
+
+- src/TowerController.h
+  #include "BinaryOutput.h"
+  #include "IController.h"
+  #include "InputSnapshot.h"
+  #include "SystemConfig.h"
+
+- src/SystemContext.h
+  #include "SystemConfig.h"
+  #include "SystemRuntime.h"
+  #include "InputSnapshot.h"
+
+Reason:
+All of those files are moving together into the same flat src/ directory, so their existing sibling includes should continue to resolve.
+
+======================================================================
+5. Leave host_tests/*.cpp include lines unchanged
+======================================================================
+
+Do NOT edit include statements in these files:
+
+host_tests/test_BB_n2_controller.cpp
+host_tests/test_BB_o2_controller.cpp
+host_tests/test_BB_system_snapshot.cpp
+host_tests/test_BB_timed_state_machine.cpp
+host_tests/test_BB_tower_controller.cpp
+host_tests/test_WB_n2_controller.cpp
+host_tests/test_WB_o2_controller.cpp
+host_tests/test_WB_timed_state_machine.cpp
+host_tests/test_WB_tower_controller.cpp
+
+Leave their current includes as bare names, for example:
+- #include "BinaryOutput.h"
+- #include "N2Controller.h"
+- #include "O2Controller.h"
+- #include "SystemSnapshot.h"
+- #include "TimedStateMachine.h"
+- #include "TowerController.h"
+
+Reason:
+We will make them continue to work by updating Makefile include paths to add -Isrc.
+
+======================================================================
+6. Update Makefile
+======================================================================
+
+Edit the following three lines.
+
+A) HOST_CXXFLAGS
+
+BEFORE:
+HOST_CXXFLAGS ?= -std=c++17 -Wall -Wextra -Werror -pedantic -I.
+
+AFTER:
+HOST_CXXFLAGS ?= -std=c++17 -Wall -Wextra -Werror -pedantic -I. -Isrc
+
+B) HOST_COMMON_SOURCES
+
+BEFORE:
+HOST_COMMON_SOURCES := $(filter-out SystemProfile_%.cpp,$(wildcard *.cpp))
+
+AFTER:
+HOST_COMMON_SOURCES := $(filter-out src/SystemProfile_%.cpp,$(wildcard src/*.cpp))
+
+C) COVERAGE_REPORT_SOURCES
+
+BEFORE:
+COVERAGE_REPORT_SOURCES := TimedStateMachine.cpp O2Controller.cpp TowerController.cpp N2Controller.cpp
+
+AFTER:
+COVERAGE_REPORT_SOURCES := src/TimedStateMachine.cpp src/O2Controller.cpp src/TowerController.cpp src/N2Controller.cpp
+
+Everything else in Makefile can stay as-is for this migration.
+
+======================================================================
+7. Optional README cleanup
+======================================================================
+
+Update the repository layout section in README.md from top-level controller files to src/ paths.
+
+Suggested replacements:
+- `TowerController.*`        -> `src/TowerController.*`
+- `O2Controller.*`           -> `src/O2Controller.*`
+- `N2Controller.*`           -> `src/N2Controller.*`
+- `TimedStateMachine.*`      -> `src/TimedStateMachine.*`
+- `SystemProfile_minima.*`   -> `src/SystemProfile_minima.*`
+- `SystemProfile_wifi_scenario.*` -> `src/SystemProfile_wifi_scenario.*`
+
+Also update any prose that says the controller files are top-level.
+
+======================================================================
+8. Sanity checks before building
+======================================================================
+
+Check that only N2V5.ino now includes src/ paths:
+
+git grep -n '#include "src/' -- N2V5.ino
+
+Check that host test includes still use bare names:
+
+git grep -n '#include "' -- host_tests
+
+Check that no project .cpp/.h files are still stranded in root:
+
+find . -maxdepth 1 \( -name '*.cpp' -o -name '*.h' \) | sort
+
+Expected result:
+Only N2V5.ino should be root-level code.
+Makefile / README / LICENSE / docs / host_tests are still root-level non-src assets.
+
+======================================================================
+9. Host-test verification
+======================================================================
+
+Run:
+
+make clean
+make host-test
+
+Then optionally:
+
+make coverage
+
+If host tests fail only on missing headers, re-check that:
+- Makefile has -Isrc
+- all moved files are actually under src/
+- no typo exists in a moved filename
+
+======================================================================
+10. Arduino verification
+======================================================================
+
+Use your normal existing Arduino compile flow for both supported profiles after the move.
+
+Targets to verify:
+- Uno R4 Minima path
+- Uno R4 WiFi scenario path
+
+What should compile:
+- N2V5.ino in root
+- all production .cpp/.h under src/
+
+What should NOT be required:
+- no changes to library includes
+- no changes to internal src/ include statements
+- no changes to host_tests include statements
+
+======================================================================
+11. Review staged diff
+======================================================================
+
+git status
+git diff --stat
+git diff -- N2V5.ino Makefile README.md
+git diff -- src/ host_tests/
+
+What I expect in the diff:
+- many renames from root -> src/
+- one include-block edit in N2V5.ino
+- three small Makefile edits
+- optional README path updates
+- no content churn in production files other than path relocation
+
+======================================================================
+12. Commit
+======================================================================
+
+git commit -m "Move project sources under src"
+
+======================================================================
+13. Rollback command if needed
+======================================================================
+
+If the migration goes sideways before commit:
+
+git restore .
+git clean -fd
+
+If already committed and you want to back out the commit:
+
+git reset --hard HEAD~1
