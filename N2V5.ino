@@ -269,12 +269,29 @@ uint8_t readRotarySwitch() {
   const uint8_t buttonValue = disp4.getButtons();
 
   if (buttonValue != systemContext.runtime.display.previousButtonValue) {
+    const char* selectorName = "UNKNOWN";
+
+    if (buttonValue == systemContext.config.display.rotaryOff) {
+      selectorName = "OFF";
+    } else if (buttonValue == systemContext.config.display.rotarySupply) {
+      selectorName = "SUPPLY";
+    } else if (buttonValue == systemContext.config.display.rotaryLeft) {
+      selectorName = "LEFT";
+    } else if (buttonValue == systemContext.config.display.rotaryRight) {
+      selectorName = "RIGHT";
+    } else if (buttonValue == systemContext.config.display.rotaryN2Low) {
+      selectorName = "N2_LOW";
+    } else if (buttonValue == systemContext.config.display.rotaryN2Percent) {
+      selectorName = "N2_PERCENT";
+    }
+
     snprintf(
-      sprintfBuffer,
-      sizeof(sprintfBuffer),
-      "rotary switch changed from %02X to %02X",
-      systemContext.runtime.display.previousButtonValue,
-      buttonValue);
+        sprintfBuffer,
+        sizeof(sprintfBuffer),
+        "rotary switch changed from %02X to %02X (%s)",
+        systemContext.runtime.display.previousButtonValue,
+        buttonValue,
+        selectorName);
     Serial.println(sprintfBuffer);
   }
 
