@@ -1,5 +1,6 @@
-// host_tests/test_BB_system_snapshot.cpp v1
-#include <stdio.h>
+// host_tests/test_BB_system_snapshot.cpp v2
+
+#include <cstdio>
 
 #include "SystemSnapshot.h"
 
@@ -16,6 +17,7 @@ static bool test_BB_systemSnapshotAggregatesInputAndControllerSnapshots() {
 
   snapshot.input.sampledAtMs = 10U;
   snapshot.input.blackSwitchEnabled = true;
+  snapshot.input.rotarySwitchStatus = 0x6CU;
   snapshot.input.supplyPsi_x10 = 1234U;
   snapshot.input.leftTowerPsi_x10 = 111U;
   snapshot.input.rightTowerPsi_x10 = 222U;
@@ -37,21 +39,34 @@ static bool test_BB_systemSnapshotAggregatesInputAndControllerSnapshots() {
   snapshot.n2.state = N2Controller::STATE_LOW_PERMIT_HIGH_PERMIT;
 
   if (!require(snapshot.input.leftTowerPsi_x10 == 111U,
-               "system snapshot should retain input sub-snapshot")) return false;
+               "system snapshot should retain input sub-snapshot"))
+    return false;
+
+  if (!require(snapshot.input.rotarySwitchStatus == 0x6CU,
+               "system snapshot should retain rotary switch status"))
+    return false;
+
   if (!require(snapshot.tower.state == TowerController::STATE_LEFT_ONLY,
-               "system snapshot should retain tower sub-snapshot")) return false;
+               "system snapshot should retain tower sub-snapshot"))
+    return false;
+
   if (!require(snapshot.o2.hasValue && snapshot.o2.n2Percent > 79.0f,
-               "system snapshot should retain o2 sub-snapshot")) return false;
+               "system snapshot should retain o2 sub-snapshot"))
+    return false;
+
   if (!require(snapshot.n2.state == N2Controller::STATE_LOW_PERMIT_HIGH_PERMIT,
-               "system snapshot should retain n2 sub-snapshot")) return false;
+               "system snapshot should retain n2 sub-snapshot"))
+    return false;
 
   return true;
 }
 
 int main() {
-  if (!test_BB_systemSnapshotAggregatesInputAndControllerSnapshots()) return 1;
+  if (!test_BB_systemSnapshotAggregatesInputAndControllerSnapshots())
+    return 1;
 
   printf("PASS: test_BB_system_snapshot\n");
   return 0;
 }
-// host_tests/test_BB_system_snapshot.cpp v1
+
+// host_tests/test_BB_system_snapshot.cpp v2
