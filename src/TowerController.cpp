@@ -5,6 +5,18 @@
 #include <Arduino.h>
 #endif
 
+static const char* towerStateName(uint8_t state) {
+  switch (static_cast<TowerController::State>(state)) {
+    case TowerController::STATE_INACTIVE: return "Inactive";
+    case TowerController::STATE_LEFT_ONLY: return "LeftOnly";
+    case TowerController::STATE_BOTH_AFTER_LEFT: return "BothAfterLeft";
+    case TowerController::STATE_RIGHT_ONLY: return "RightOnly";
+    case TowerController::STATE_BOTH_AFTER_RIGHT: return "BothAfterRight";
+    case TowerController::STATE_LOW_SUPPLY: return "LowSupply";
+    default: return "Unknown";
+  }
+}
+
 TowerController::StateView::StateView(const TowerController& owner)
  : owner_(owner) {
 }
@@ -42,10 +54,10 @@ const char* TowerController::StateView::name() const {
 
 TowerController::Config TowerController::defaultConfig() {
  Config config;
- config.leftOpenMs = 60000UL;
  config.overlapMs = 750UL;
- config.rightOpenMs = 60000UL;
- config.lowSupplyPsi_x10 = 900U;
+ config.towerOpenMs = 60000UL-config.overlapMs;
+ config.airSupplyOnPsi_x10 = 900U;  // on above this
+ config.airSupplyOffPsi_x10 = 700U; // off beloew this
  return config;
 }
 
@@ -67,7 +79,7 @@ TowerController::TowerController(
     IBinaryOutput& rightValve,
     const Config& config)
  : clock_(clock),
-   timedStateMachine_(clock, STATE_INACTIVE),
+   timedStateMachine_(clock, STATE_INACTIVE, "Tower", towerStateName),
    leftValve_(leftValve),
    rightValve_(rightValve),
    config_(config),
@@ -91,7 +103,7 @@ void TowerController::setEnabled(bool enabled) {
   return;
  }
 
- transitionTo(STATE_LEFT_ONLY, config_.leftOpenMs, true);
+ transitionTo(STATE_LEFT_ONLY, config_.towerOpenMs, true);
 }
 
 void TowerController::step(const InputSnapshot& inputs) {
@@ -99,16 +111,21 @@ void TowerController::step(const InputSnapshot& inputs) {
   return;
  }
 
- if (!isSupplySufficient(inputs.supplyPsi_x10)) {
-  if (state() != STATE_LOW_SUPPLY) {
-   transitionTo(STATE_LOW_SUPPLY, 0U, false);
-  }
-  return;
- }
-
- if (state() == STATE_LOW_SUPPLY) {
-  transitionTo(STATE_LEFT_ONLY, config_.leftOpenMs, true);
-  return;
+ /*
+/* 
+while running, if supply goes below low threshold, disable
+while idle, if supply goes above high threshold, enable
+*/
+  if (TowerController::isActive()) {
+    if (inputs.supplyPsi_x10 <= config_.airSupplyOffPsi_x10) {
+    transitionTo(STATE_LOW_SUPPLY, 0U, false);
+    return;
+    }
+ } else {
+    if (inputs.supplyPsi_x10 >= config_.airSupplyOnPsi_x10) {
+    transitionTo(STATE_LEFT_ONLY, config_.towerOpenMs, true);
+    return;
+    }
  }
 
  if (!timedStateMachine_.isExpired()) {
@@ -121,7 +138,7 @@ void TowerController::step(const InputSnapshot& inputs) {
   return;
 
  case STATE_BOTH_AFTER_LEFT:
-  transitionTo(STATE_RIGHT_ONLY, config_.rightOpenMs, true);
+  transitionTo(STATE_RIGHT_ONLY, config_.towerOpenMs, true);
   return;
 
  case STATE_RIGHT_ONLY:
@@ -129,7 +146,7 @@ void TowerController::step(const InputSnapshot& inputs) {
   return;
 
  case STATE_BOTH_AFTER_RIGHT:
-  transitionTo(STATE_LEFT_ONLY, config_.leftOpenMs, true);
+  transitionTo(STATE_LEFT_ONLY, config_.towerOpenMs, true);
   return;
 
  case STATE_INACTIVE:
@@ -189,9 +206,9 @@ void TowerController::setConfig(const Config& config) {
  config_ = config;
 }
 
-bool TowerController::isSupplySufficient(uint16_t supplyPsi_x10) const {
- return supplyPsi_x10 >= config_.lowSupplyPsi_x10;
-}
+// bool TowerController::isSupplySufficient(uint16_t supplyPsi_x10) const {
+//  return supplyPsi_x10 >= config_.lowSupplyPsi_x10;
+// }
 
 void TowerController::transitionTo(State nextState, uint32_t durationMs, bool timed) {
  if (timed) {

@@ -231,10 +231,11 @@ SystemConfig makeSystemConfig() {
   config.o2.freshnessThresholdMs = 250U;
   config.o2.errorBackoffMs = 100U;
 
-  config.tower.leftOpenMs = 300U;
+
   config.tower.overlapMs = 100U;
-  config.tower.rightOpenMs = 300U;
-  config.tower.lowSupplyPsi_x10 = 900U;
+  config.tower.towerOpenMs = 1000U-config.tower.overlapMs;
+  config.tower.airSupplyOnPsi_x10 = 900U;  // on above this
+  config.tower.airSupplyOffPsi_x10 = 700U; // off beloew this
 
   return config;
 }

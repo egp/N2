@@ -41,10 +41,10 @@ struct SystemConfig {
   };
 
   struct TowerConfig {
-    uint32_t leftOpenMs;
+    uint32_t towerOpenMs;
     uint32_t overlapMs;
-    uint32_t rightOpenMs;
-    uint16_t lowSupplyPsi_x10;
+    uint16_t airSupplyOnPsi_x10;
+    uint16_t airSupplyOffPsi_x10;
   };
 
   struct O2Config {

@@ -280,12 +280,12 @@ uint8_t readRotarySwitch() {
     }
 
     snprintf(
-        sprintfBuffer,
-        sizeof(sprintfBuffer),
-        "rotary switch changed from %02X to %02X (%s)",
-        systemContext.runtime.display.previousButtonValue,
-        buttonValue,
-        selectorName);
+      sprintfBuffer,
+      sizeof(sprintfBuffer),
+      "rotary switch changed from %02X to %02X (%s)",
+      systemContext.runtime.display.previousButtonValue,
+      buttonValue,
+      selectorName);
     Serial.println(sprintfBuffer);
   }
 
@@ -392,7 +392,7 @@ void disableDisplay4() {
 
 /*
 *********************************************************
-I2C and RTC helpers
+I2C setup and RTC helper functions
 *********************************************************
 */
 
@@ -545,13 +545,13 @@ void setup() {
   displaySelfTest();
   displaySelfTest20x4();
 
-  // if (!rtc.begin()) {
-  //   Serial.println("RTC begin failed");
-  //   rtcPresent = false;
-  // } else {
-  //   rtcPresent = true;
-  //   Serial.println("RTC begin ok");
-  // }
+  if (!rtc.begin()) {  // FIXME
+    Serial.println("RTC begin failed");
+    rtcPresent = false;
+  } else {
+    rtcPresent = true;
+    Serial.println("RTC begin ok");
+  }
 
   Serial.println();
   Serial.println("Setup complete");
