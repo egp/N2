@@ -22,7 +22,7 @@
 #error "No system profile selected"
 #endif
 
-const char* PROGRAM_VERSION = "5.0";
+const char* PROGRAM_VERSION = "5.1";
 
 /*
 I2C bus declarations, they are initialized during setup()
@@ -545,13 +545,13 @@ void setup() {
   displaySelfTest();
   displaySelfTest20x4();
 
-  if (!rtc.begin()) {
-    Serial.println("RTC begin failed");
-    rtcPresent = false;
-  } else {
-    rtcPresent = true;
-    Serial.println("RTC begin ok");
-  }
+  // if (!rtc.begin()) {
+  //   Serial.println("RTC begin failed");
+  //   rtcPresent = false;
+  // } else {
+  //   rtcPresent = true;
+  //   Serial.println("RTC begin ok");
+  // }
 
   Serial.println();
   Serial.println("Setup complete");
@@ -580,7 +580,7 @@ void loop() {
     }
 
 #if !defined(ARDUINO_UNOWIFIR4)
-    delay(10000);
+    // delay(10000);
 #endif
 
     return;

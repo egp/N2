@@ -80,11 +80,11 @@ const uint8_t I2C_BUSC_SCL = D10;
 
 // D11 on R4 Minima and WiFi boards, digital pin D11 functions as a PWM-capable pin
 // and serves as the SPI COPI (Controller Out, Peripheral In) pin
-const uint8_t O2_FLUSH_VALVE_PIN = D11;  // PWM digital output TODO verify correct pin Relay_4
+const uint8_t I2C_BUSD_SDA = D11;
 
 // D12 on both Minima and WiFi variants), functions as GPIO 12
 // and serves as the SPI Controller In Peripheral Out (CIPO)
-const uint8_t I2C_BUSD_SDA = D12;
+const uint8_t O2_FLUSH_VALVE_PIN = D12;  // PWM digital output TODO verify correct pin Relay_4
 
 // D13 on Minima and WiFi, serves as GPIO 13, SPI Clock (SCK),
 // and the Built-in LED pin.

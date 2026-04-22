@@ -124,10 +124,10 @@ SystemConfig makeSystemConfig() {
   config.o2.freshnessThresholdMs = 15000UL;
   config.o2.errorBackoffMs = 1000UL;
 
-  config.tower.leftOpenMs = 60000UL;
+  config.tower.leftOpenMs = 19250UL; // FIXME
   config.tower.overlapMs = 750UL;
-  config.tower.rightOpenMs = 60000UL;
-  config.tower.lowSupplyPsi_x10 = 900U;
+  config.tower.rightOpenMs = 29250UL; //FIXME
+  config.tower.lowSupplyPsi_x10 = 700U;
 
   return config;
 

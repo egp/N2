@@ -43,13 +43,13 @@ uint32_t TimedStateMachine::timeInStateMs() const {
 }
 
 void TimedStateMachine::transitionTo(uint8_t newState) {
-  const uint8_t oldState = state_;
+   uint8_t oldState = state_;
   const uint32_t nowMs = clock_.nowMs();
 
 
   if (newState != oldState && controllerName_ != nullptr
     && stateNameFn_ != nullptr) {
-#if defined(ARDUINO)
+// #if defined(ARDUINO)
     Serial.print(nowMs);
     Serial.print(F(" "));
     Serial.print(controllerName_);
@@ -57,7 +57,7 @@ void TimedStateMachine::transitionTo(uint8_t newState) {
     Serial.print(stateNameFn_(oldState));
     Serial.print(F(" to "));
     Serial.println(stateNameFn_(newState));
-#endif
+// #endif
     }
   state_ = newState;
   stateEnteredAtMs_ = nowMs;
