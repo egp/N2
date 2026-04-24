@@ -1,4 +1,4 @@
-// host_tests/test_WB_tower_controller.cpp v1
+// host_tests/test_WB_tower_controller.cpp v2
 #include <stdio.h>
 
 #include "BinaryOutput.h"
@@ -74,7 +74,6 @@ static TowerController::Config testConfig() {
   TowerController::Config config;
   config.towerOpenMs = 60000U;
   config.overlapMs = 750U;
-  config.towerOpenMs = 60000U;
   config.airSupplyOnPsi_x10 = 900U;
   config.airSupplyOffPsi_x10 = 700U;
   return config;
@@ -91,37 +90,11 @@ static InputSnapshot makeInputs(uint16_t supplyPsi_x10) {
 }
 
 // static bool test_WB_defaultConfigIncludesLowSupplyThreshold() {
-//   const TowerController::Config config = TowerController::defaultConfig();
-
-//   if (!require(config.towerOpenMs == 60000U,
-//                "default towerOpenMs should be 60000")) return false;
-//   if (!require(config.overlapMs == 750U,
-//                "default overlapMs should be 750")) return false;
-//   if (!require(config.towerOpenMs == 60000U,
-//                "default towerOpenMs should be 60000")) return false;
-//   if (!require(config.airSupplyOnPsi_x10 == 900U,
-//                "default airSupplyOnPsi_x10 should be 900")) return false;
-
-//   return true;
+//   ...
 // }
 
 // static bool test_WB_constructorSeedsConfigAndDisabledState() {
-//   FakeClock clock;
-//   FakeBinaryOutput leftValve;
-//   FakeBinaryOutput rightValve;
-//   TowerController controller(clock, leftValve, rightValve, testConfig());
-
-//   if (!require(!TowerControllerTestProbe::enabled(controller),
-//                "constructor should seed enabled_ false")) return false;
-//   if (!require(TowerControllerTestProbe::config(controller).airSupplyOnPsi_x10 == 1000U,
-//                "constructor should store supplied config")) return false;
-//   if (!require(TowerControllerTestProbe::timedStateMachine(controller).state() ==
-//                    static_cast<uint8_t>(TowerController::STATE_INACTIVE),
-//                "constructor should seed inactive timed-state-machine state")) return false;
-//   if (!require(!leftValve.isOn() && !rightValve.isOn(),
-//                "constructor should apply inactive outputs")) return false;
-
-//   return true;
+//   ...
 // }
 
 static bool test_WB_isSupplySufficientUsesInclusiveThreshold() {
@@ -130,10 +103,13 @@ static bool test_WB_isSupplySufficientUsesInclusiveThreshold() {
   FakeBinaryOutput rightValve;
   TowerController controller(clock, leftValve, rightValve, testConfig());
 
-  if (!require(!TowerControllerTestProbe::isSupplySufficient(controller, 700-1),
+  // OFF threshold = 700, ON threshold = 900
+  if (!require(!TowerControllerTestProbe::isSupplySufficient(controller, 699U),
                "below threshold should be insufficient")) return false;
-  if (!require(TowerControllerTestProbe::isSupplySufficient(controller, 900),
-               "above threshold should be sufficient")) return false;
+
+  if (!require(TowerControllerTestProbe::isSupplySufficient(controller, 900U),
+               "on threshold should be sufficient")) return false;
+
   return true;
 }
 
@@ -144,6 +120,7 @@ static bool test_WB_transitionToTimedSetsDeadlineAndOutputs() {
   TowerController controller(clock, leftValve, rightValve, testConfig());
 
   clock.setNowMs(42U);
+
   TowerControllerTestProbe::transitionTo(
       controller,
       TowerController::STATE_RIGHT_ONLY,
@@ -151,13 +128,16 @@ static bool test_WB_transitionToTimedSetsDeadlineAndOutputs() {
       true);
 
   if (!require(controller.state() == TowerController::STATE_RIGHT_ONLY,
-               "timed transition should update state")) return false;
+               "state should update")) return false;
+
   if (!require(TowerControllerTestProbe::timedStateMachine(controller).hasDeadline(),
-               "timed transition should set deadline")) return false;
+               "deadline should be set")) return false;
+
   if (!require(TowerControllerTestProbe::timedStateMachine(controller).deadlineAtMs() == 49U,
-               "timed transition should set deadline from now")) return false;
+               "deadline should be now + duration")) return false;
+
   if (!require(!leftValve.isOn() && rightValve.isOn(),
-               "timed transition should apply right-only outputs")) return false;
+               "outputs should match right-only")) return false;
 
   return true;
 }
@@ -175,6 +155,7 @@ static bool test_WB_transitionToUntimedClearsDeadlineAndOutputs() {
       true);
 
   clock.advanceMs(5U);
+
   TowerControllerTestProbe::transitionTo(
       controller,
       TowerController::STATE_LOW_SUPPLY,
@@ -182,13 +163,16 @@ static bool test_WB_transitionToUntimedClearsDeadlineAndOutputs() {
       false);
 
   if (!require(controller.state() == TowerController::STATE_LOW_SUPPLY,
-               "untimed transition should update state")) return false;
+               "state should update")) return false;
+
   if (!require(!TowerControllerTestProbe::timedStateMachine(controller).hasDeadline(),
-               "untimed transition should clear deadline")) return false;
+               "deadline should be cleared")) return false;
+
   if (!require(TowerControllerTestProbe::timedStateMachine(controller).deadlineAtMs() == 0U,
-               "untimed transition should zero deadline")) return false;
+               "deadline should be zero")) return false;
+
   if (!require(!leftValve.isOn() && !rightValve.isOn(),
-               "untimed transition should apply low-supply outputs")) return false;
+               "outputs should match low-supply")) return false;
 
   return true;
 }
@@ -201,27 +185,27 @@ static bool test_WB_applyOutputsForStateMatchesEveryState() {
 
   TowerControllerTestProbe::applyOutputsForState(controller, TowerController::STATE_INACTIVE);
   if (!require(!leftValve.isOn() && !rightValve.isOn(),
-               "inactive should close both valves")) return false;
+               "inactive")) return false;
 
   TowerControllerTestProbe::applyOutputsForState(controller, TowerController::STATE_LEFT_ONLY);
   if (!require(leftValve.isOn() && !rightValve.isOn(),
-               "left-only should open only left valve")) return false;
+               "left-only")) return false;
 
   TowerControllerTestProbe::applyOutputsForState(controller, TowerController::STATE_BOTH_AFTER_LEFT);
   if (!require(leftValve.isOn() && rightValve.isOn(),
-               "both-after-left should open both valves")) return false;
+               "both-after-left")) return false;
 
   TowerControllerTestProbe::applyOutputsForState(controller, TowerController::STATE_RIGHT_ONLY);
   if (!require(!leftValve.isOn() && rightValve.isOn(),
-               "right-only should open only right valve")) return false;
+               "right-only")) return false;
 
   TowerControllerTestProbe::applyOutputsForState(controller, TowerController::STATE_BOTH_AFTER_RIGHT);
   if (!require(leftValve.isOn() && rightValve.isOn(),
-               "both-after-right should open both valves")) return false;
+               "both-after-right")) return false;
 
   TowerControllerTestProbe::applyOutputsForState(controller, TowerController::STATE_LOW_SUPPLY);
   if (!require(!leftValve.isOn() && !rightValve.isOn(),
-               "low-supply should close both valves")) return false;
+               "low-supply")) return false;
 
   return true;
 }
@@ -233,6 +217,7 @@ static bool test_WB_snapshotTimestampMirrorsTimedStateMachineEnteredAt() {
   TowerController controller(clock, leftValve, rightValve, testConfig());
 
   clock.setNowMs(55U);
+
   TowerControllerTestProbe::transitionTo(
       controller,
       TowerController::STATE_RIGHT_ONLY,
@@ -242,10 +227,11 @@ static bool test_WB_snapshotTimestampMirrorsTimedStateMachineEnteredAt() {
   const TowerController::Snapshot snapshot = controller.snapshot();
 
   if (!require(snapshot.createdAtMs ==
-                   TowerControllerTestProbe::timedStateMachine(controller).stateEnteredAtMs(),
-               "tower snapshot timestamp should mirror timed-state-machine entered-at")) return false;
+               TowerControllerTestProbe::timedStateMachine(controller).stateEnteredAtMs(),
+               "timestamp mismatch")) return false;
+
   if (!require(snapshot.state == TowerController::STATE_RIGHT_ONLY,
-               "tower snapshot should mirror current state")) return false;
+               "state mismatch")) return false;
 
   return true;
 }
@@ -258,12 +244,11 @@ static bool test_WB_isSupplySufficient_activeUsesOffThreshold() {
 
   controller.setEnabled(true);
 
-  // Active → uses OFF threshold (700)
   if (!require(!TowerControllerTestProbe::isSupplySufficient(controller, 700U),
-               "active: <= off threshold should be insufficient")) return false;
+               "active at off threshold fails")) return false;
 
   if (!require(TowerControllerTestProbe::isSupplySufficient(controller, 701U),
-               "active: above off threshold should be sufficient")) return false;
+               "active above off threshold passes")) return false;
 
   return true;
 }
@@ -274,12 +259,11 @@ static bool test_WB_isSupplySufficient_inactiveUsesOnThreshold() {
   FakeBinaryOutput rightValve;
   TowerController controller(clock, leftValve, rightValve, testConfig());
 
-  // Inactive → uses ON threshold (900)
   if (!require(!TowerControllerTestProbe::isSupplySufficient(controller, 899U),
-               "inactive: below on threshold should be insufficient")) return false;
+               "inactive below ON fails")) return false;
 
   if (!require(TowerControllerTestProbe::isSupplySufficient(controller, 900U),
-               "inactive: >= on threshold should be sufficient")) return false;
+               "inactive at ON passes")) return false;
 
   return true;
 }
@@ -290,19 +274,15 @@ static bool test_WB_isSupplySufficient_hasDeadbandGap() {
   FakeBinaryOutput rightValve;
   TowerController controller(clock, leftValve, rightValve, testConfig());
 
-  // Pick value inside deadband
   const uint16_t mid = 800U;
 
-  // Inactive → insufficient
   if (!require(!TowerControllerTestProbe::isSupplySufficient(controller, mid),
-               "inactive: deadband should be insufficient")) return false;
+               "inactive deadband fails")) return false;
 
-  // Activate controller
   controller.setEnabled(true);
 
-  // Active → sufficient
   if (!require(TowerControllerTestProbe::isSupplySufficient(controller, mid),
-               "active: deadband should be sufficient")) return false;
+               "active deadband passes")) return false;
 
   return true;
 }
@@ -313,26 +293,20 @@ static bool test_WB_isSupplySufficient_matchesStepSemantics() {
   FakeBinaryOutput rightValve;
   TowerController controller(clock, leftValve, rightValve, testConfig());
 
-  // Force LOW_SUPPLY via step()
   controller.setEnabled(true);
   controller.step(makeInputs(600U));
-
-  // At ON threshold, step() will recover
   controller.step(makeInputs(900U));
 
   if (!require(controller.state() == TowerController::STATE_LEFT_ONLY,
-               "step(): >= on threshold should recover")) return false;
+               "step recovery expected")) return false;
 
-  // WB helper must agree
   if (!require(TowerControllerTestProbe::isSupplySufficient(controller, 900U),
-               "WB helper must match step() semantics")) return false;
+               "helper matches step semantics")) return false;
 
   return true;
 }
 
 int main() {
-  // if (!test_WB_defaultConfigIncludesLowSupplyThreshold()) return 1;
-  // if (!test_WB_constructorSeedsConfigAndDisabledState()) return 1;
   if (!test_WB_isSupplySufficientUsesInclusiveThreshold()) return 1;
   if (!test_WB_transitionToTimedSetsDeadlineAndOutputs()) return 1;
   if (!test_WB_transitionToUntimedClearsDeadlineAndOutputs()) return 1;
@@ -346,4 +320,4 @@ int main() {
   printf("PASS: test_WB_tower_controller\n");
   return 0;
 }
-// host_tests/test_WB_tower_controller.cpp v1
+// host_tests/test_WB_tower_controller.cpp v2
