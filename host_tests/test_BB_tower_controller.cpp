@@ -465,6 +465,101 @@ static bool test_BB_lowSupplyWhileInactiveDoesNotActivate() {
 //   return true;
 // }
 
+static bool test_BB_hysteresis_activeDropsAtOffThreshold() {
+  FakeClock clock;
+  FakeBinaryOutput leftValve;
+  FakeBinaryOutput rightValve;
+  TowerController controller(clock, leftValve, rightValve, testConfig());
+
+  controller.setEnabled(true);
+
+  // Precondition: active
+  if (!require(controller.isActive(), "should start active")) return false;
+
+  // Exactly at OFF threshold → should drop
+  controller.step(makeInputs(700U));
+
+  if (!require(controller.state() == TowerController::STATE_LOW_SUPPLY,
+               "active should drop to low-supply at <= off threshold")) return false;
+  if (!require(!controller.isActive(),
+               "low-supply should not be active")) return false;
+  if (!require(!leftValve.isOn() && !rightValve.isOn(),
+               "low-supply should close valves")) return false;
+
+  return true;
+}
+static bool test_BB_hysteresis_deadbandHoldsLowSupply() {
+  FakeClock clock;
+  FakeBinaryOutput leftValve;
+  FakeBinaryOutput rightValve;
+  TowerController controller(clock, leftValve, rightValve, testConfig());
+
+  controller.setEnabled(true);
+
+  // Force LOW_SUPPLY
+  controller.step(makeInputs(600U));
+
+  if (!require(controller.state() == TowerController::STATE_LOW_SUPPLY,
+               "precondition: should be low-supply")) return false;
+
+  // Move into deadband (between off=700 and on=900)
+  controller.step(makeInputs(800U));
+
+  if (!require(controller.state() == TowerController::STATE_LOW_SUPPLY,
+               "deadband should hold low-supply state")) return false;
+
+  return true;
+}
+static bool test_BB_hysteresis_recoveryRequiresOnThreshold() {
+  FakeClock clock;
+  FakeBinaryOutput leftValve;
+  FakeBinaryOutput rightValve;
+  TowerController controller(clock, leftValve, rightValve, testConfig());
+
+  controller.setEnabled(true);
+
+  // Enter LOW_SUPPLY
+  controller.step(makeInputs(600U));
+
+  // Below ON threshold → no recovery
+  controller.step(makeInputs(899U));
+
+  if (!require(controller.state() == TowerController::STATE_LOW_SUPPLY,
+               "should not recover below on threshold")) return false;
+
+  // At ON threshold → recover
+  controller.step(makeInputs(900U));
+
+  if (!require(controller.state() == TowerController::STATE_LEFT_ONLY,
+               "should recover at >= on threshold")) return false;
+  if (!require(controller.isActive(),
+               "recovery should be active")) return false;
+  if (!require(leftValve.isOn() && !rightValve.isOn(),
+               "recovery should restore left-only outputs")) return false;
+
+  return true;
+}
+static bool test_BB_hysteresis_deadbandHoldsActive() {
+  FakeClock clock;
+  FakeBinaryOutput leftValve;
+  FakeBinaryOutput rightValve;
+  TowerController controller(clock, leftValve, rightValve, testConfig());
+
+  controller.setEnabled(true);
+
+  // In active state, go into deadband (>700, <900)
+  controller.step(makeInputs(800U));
+
+  if (!require(controller.isActive(),
+               "deadband should not drop active state")) return false;
+  if (!require(controller.state() == TowerController::STATE_LEFT_ONLY,
+               "should remain in current active state")) return false;
+
+  return true;
+}
+
+
+
 int main() {
   if (!test_BB_startsInactiveWithBothValvesClosed()) return 1;
   if (!test_BB_enableImmediatelyStartsLeftOnly()) return 1;
@@ -480,7 +575,10 @@ int main() {
   // if (!test_BB_exactLowSupplyThresholdIsSufficient()) return 1;
   // if (!test_BB_lowSupplyWinsOverTimedTransitionAtExpiryBoundary()) return 1;
   // if (!test_BB_snapshotReflectsCurrentTowerState()) return 1;
-
+  if (!test_BB_hysteresis_activeDropsAtOffThreshold()) return 1;
+  if (!test_BB_hysteresis_deadbandHoldsLowSupply()) return 1;
+  if (!test_BB_hysteresis_recoveryRequiresOnThreshold()) return 1;
+  if (!test_BB_hysteresis_deadbandHoldsActive()) return 1;
   printf("PASS: test_BB_tower_controller\n");
   return 0;
 }

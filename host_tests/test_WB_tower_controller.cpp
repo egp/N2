@@ -240,6 +240,64 @@ static bool test_WB_snapshotTimestampMirrorsTimedStateMachineEnteredAt() {
   return true;
 }
 
+static bool test_WB_isSupplySufficient_activeUsesOffThreshold() {
+  FakeClock clock;
+  FakeBinaryOutput leftValve;
+  FakeBinaryOutput rightValve;
+  TowerController controller(clock, leftValve, rightValve, testConfig());
+
+  controller.setEnabled(true);
+
+  // Active → uses OFF threshold (700)
+  if (!require(!TowerControllerTestProbe::isSupplySufficient(controller, 700U),
+               "active: <= off threshold should be insufficient")) return false;
+
+  if (!require(TowerControllerTestProbe::isSupplySufficient(controller, 701U),
+               "active: above off threshold should be sufficient")) return false;
+
+  return true;
+}
+
+static bool test_WB_isSupplySufficient_inactiveUsesOnThreshold() {
+  FakeClock clock;
+  FakeBinaryOutput leftValve;
+  FakeBinaryOutput rightValve;
+  TowerController controller(clock, leftValve, rightValve, testConfig());
+
+  // Inactive → uses ON threshold (900)
+  if (!require(!TowerControllerTestProbe::isSupplySufficient(controller, 899U),
+               "inactive: below on threshold should be insufficient")) return false;
+
+  if (!require(TowerControllerTestProbe::isSupplySufficient(controller, 900U),
+               "inactive: >= on threshold should be sufficient")) return false;
+
+  return true;
+}
+
+static bool test_WB_isSupplySufficient_hasDeadbandGap() {
+  FakeClock clock;
+  FakeBinaryOutput leftValve;
+  FakeBinaryOutput rightValve;
+  TowerController controller(clock, leftValve, rightValve, testConfig());
+
+  // Pick value inside deadband
+  const uint16_t mid = 800U;
+
+  // Inactive → insufficient
+  if (!require(!TowerControllerTestProbe::isSupplySufficient(controller, mid),
+               "inactive: deadband should be insufficient")) return false;
+
+  // Activate controller
+  controller.setEnabled(true);
+
+  // Active → sufficient
+  if (!require(TowerControllerTestProbe::isSupplySufficient(controller, mid),
+               "active: deadband should be sufficient")) return false;
+
+  return true;
+}
+
+
 int main() {
   // if (!test_WB_defaultConfigIncludesLowSupplyThreshold()) return 1;
   // if (!test_WB_constructorSeedsConfigAndDisabledState()) return 1;
@@ -248,6 +306,9 @@ int main() {
   if (!test_WB_transitionToUntimedClearsDeadlineAndOutputs()) return 1;
   if (!test_WB_applyOutputsForStateMatchesEveryState()) return 1;
   if (!test_WB_snapshotTimestampMirrorsTimedStateMachineEnteredAt()) return 1;
+  if (!test_WB_isSupplySufficient_activeUsesOffThreshold()) return 1;
+  if (!test_WB_isSupplySufficient_inactiveUsesOnThreshold()) return 1;
+  if (!test_WB_isSupplySufficient_hasDeadbandGap()) return 1;
 
   printf("PASS: test_WB_tower_controller\n");
   return 0;

@@ -110,7 +110,7 @@ bool TowerController::isSupplySufficient(uint16_t supplyPsi_x10) const {
    if (TowerController::isActive()) {
     return (supplyPsi_x10 > config_.airSupplyOffPsi_x10);
   } else {
-    return (supplyPsi_x10 > config_.airSupplyOnPsi_x10); 
+    return (supplyPsi_x10 >= config_.airSupplyOnPsi_x10); 
   }
 }
 
