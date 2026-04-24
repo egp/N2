@@ -80,6 +80,16 @@ static TowerController::Config testConfig() {
   return config;
 }
 
+static InputSnapshot makeInputs(uint16_t supplyPsi_x10) {
+  InputSnapshot inputs{};
+  inputs.sampledAtMs = 0U;
+  inputs.blackSwitchEnabled = true;
+  inputs.supplyPsi_x10 = supplyPsi_x10;
+  inputs.lowN2Psi_x100 = 0U;
+  inputs.highN2Psi_x10 = 0U;
+  return inputs;
+}
+
 // static bool test_WB_defaultConfigIncludesLowSupplyThreshold() {
 //   const TowerController::Config config = TowerController::defaultConfig();
 
@@ -297,6 +307,28 @@ static bool test_WB_isSupplySufficient_hasDeadbandGap() {
   return true;
 }
 
+static bool test_WB_isSupplySufficient_matchesStepSemantics() {
+  FakeClock clock;
+  FakeBinaryOutput leftValve;
+  FakeBinaryOutput rightValve;
+  TowerController controller(clock, leftValve, rightValve, testConfig());
+
+  // Force LOW_SUPPLY via step()
+  controller.setEnabled(true);
+  controller.step(makeInputs(600U));
+
+  // At ON threshold, step() will recover
+  controller.step(makeInputs(900U));
+
+  if (!require(controller.state() == TowerController::STATE_LEFT_ONLY,
+               "step(): >= on threshold should recover")) return false;
+
+  // WB helper must agree
+  if (!require(TowerControllerTestProbe::isSupplySufficient(controller, 900U),
+               "WB helper must match step() semantics")) return false;
+
+  return true;
+}
 
 int main() {
   // if (!test_WB_defaultConfigIncludesLowSupplyThreshold()) return 1;
@@ -309,6 +341,7 @@ int main() {
   if (!test_WB_isSupplySufficient_activeUsesOffThreshold()) return 1;
   if (!test_WB_isSupplySufficient_inactiveUsesOnThreshold()) return 1;
   if (!test_WB_isSupplySufficient_hasDeadbandGap()) return 1;
+  if (!test_WB_isSupplySufficient_matchesStepSemantics()) return 1;
 
   printf("PASS: test_WB_tower_controller\n");
   return 0;
