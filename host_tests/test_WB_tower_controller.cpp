@@ -306,6 +306,33 @@ static bool test_WB_isSupplySufficient_matchesStepSemantics() {
   return true;
 }
 
+static bool test_WB_supplyModel_isStateIndependentPureThreshold() {
+  FakeClock clock;
+  FakeBinaryOutput l, r;
+  TowerController c(clock, l, r, testConfig());
+
+  constexpr uint16_t OFF = 700U;
+  constexpr uint16_t ON  = 900U;
+
+  // INACTIVE domain
+  if (!require(!TowerControllerTestProbe::isSupplySufficient(c, OFF),
+               "inactive at OFF should fail")) return false;
+
+  if (!require(TowerControllerTestProbe::isSupplySufficient(c, ON),
+               "inactive at ON should pass")) return false;
+
+  // ACTIVE domain
+  c.setEnabled(true);
+
+  if (!require(!TowerControllerTestProbe::isSupplySufficient(c, OFF),
+               "active at OFF should fail")) return false;
+
+  if (!require(TowerControllerTestProbe::isSupplySufficient(c, OFF + 1),
+               "active above OFF should pass")) return false;
+
+  return true;
+}
+
 int main() {
   if (!test_WB_isSupplySufficientUsesInclusiveThreshold()) return 1;
   if (!test_WB_transitionToTimedSetsDeadlineAndOutputs()) return 1;
@@ -316,7 +343,8 @@ int main() {
   if (!test_WB_isSupplySufficient_inactiveUsesOnThreshold()) return 1;
   if (!test_WB_isSupplySufficient_hasDeadbandGap()) return 1;
   if (!test_WB_isSupplySufficient_matchesStepSemantics()) return 1;
-
+  if (!test_WB_supplyModel_isStateIndependentPureThreshold()) return 1;
+  
   printf("PASS: test_WB_tower_controller\n");
   return 0;
 }
