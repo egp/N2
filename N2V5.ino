@@ -499,30 +499,15 @@ void displaySelfTest() {
   disp4.setDot(1, true);
 }
 
-// const char* lcd20x4StatusName(TCP20x4Status status) {
-//   switch (status) {
-//     case TCP20x4Status::Ok: return "Ok";
-//     case TCP20x4Status::InvalidLine: return "InvalidLine";
-//     case TCP20x4Status::LineTooLong: return "LineTooLong";
-//     case TCP20x4Status::InvalidArgument: return "InvalidArgument";
-//     case TCP20x4Status::NotInitialized: return "NotInitialized";
-//     case TCP20x4Status::TransportError: return "TransportError";
-//     case TCP20x4Status::NotImplemented: return "NotImplemented";
-//     default: return "Unknown";
-//   }
-// }
-
 void displaySelfTest20x4() {
   Serial.println(F("20x4 self-test starting"));
-
   display20x4.begin();
   display20x4.backlightOn();
   display20x4.displayOn();
-
-  display20x4.writeLine(0, "20x4 SELF TEST      ");
-  display20x4.writeLine(1, "Pins 9,10 expected  ");
-  display20x4.writeLine(2, "If dark: bus/usage  ");
-  display20x4.writeLine(3, "Check Serial status ");
+  display20x4.writeLine(0, "20x4 SELF TEST     0");
+  display20x4.writeLine(0, "20x4 SELF TEST     1");
+  display20x4.writeLine(0, "20x4 SELF TEST     2");
+  display20x4.writeLine(0, "20x4 SELF TEST     3");
 }
 
 /* ---------- Arduino setup ---------- */
