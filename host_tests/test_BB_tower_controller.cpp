@@ -263,54 +263,6 @@ static bool test_BB_perStateOutputsAndIsActive() {
   return true;
 }
 
-// static bool test_BB_configOverrideChangesTiming() {
-//   FakeClock clock;
-//   FakeBinaryOutput leftValve;
-//   FakeBinaryOutput rightValve;
-
-//   TowerController::Config config;
-//   config.towerOpenMs = 5U;
-//   config.overlapMs = 2U;
-//   config.towerOpenMs = 7U;
-//   config.airSupplyOnPsi_x10 = 9000U;
-//   config.airSupplyOffPsi_x10 = 7000U;
-
-//   TowerController controller(clock, leftValve, rightValve, config);
-
-//   controller.setEnabled(true);
-
-//   clock.advanceMs(4U);
-//   controller.step(makeInputs(1500U));
-//   if (!require(controller.state() == TowerController::STATE_LEFT_ONLY,
-//                "custom left duration should not expire early")) return false;
-
-//   clock.advanceMs(1U);
-//   controller.step(makeInputs(1500U));
-//   if (!require(controller.state() == TowerController::STATE_BOTH_AFTER_LEFT,
-//                "custom left duration should expire at configured boundary")) return false;
-
-//   clock.advanceMs(1U);
-//   controller.step(makeInputs(1500U));
-//   if (!require(controller.state() == TowerController::STATE_BOTH_AFTER_LEFT,
-//                "custom overlap should hold before configured boundary")) return false;
-
-//   clock.advanceMs(1U);
-//   controller.step(makeInputs(1500U));
-//   if (!require(controller.state() == TowerController::STATE_RIGHT_ONLY,
-//                "custom overlap should expire at configured boundary")) return false;
-
-//   clock.advanceMs(6U);
-//   controller.step(makeInputs(1500U));
-//   if (!require(controller.state() == TowerController::STATE_RIGHT_ONLY,
-//                "custom right duration should hold before configured boundary")) return false;
-
-//   clock.advanceMs(1U);
-//   controller.step(makeInputs(1500U));
-//   if (!require(controller.state() == TowerController::STATE_BOTH_AFTER_RIGHT,
-//                "custom right duration should expire at configured boundary")) return false;
-
-//   return true;
-// }
 
 static bool test_BB_lowSupplyForcesDedicatedLowSupplyState() {
   FakeClock clock;
@@ -358,30 +310,6 @@ static bool test_BB_recoveryFromLowSupplyRestartsAtLeftOnly() {
   return true;
 }
 
-// static bool test_BB_disableFromLowSupplyForcesInactive() {
-//   FakeClock clock;
-//   FakeBinaryOutput leftValve;
-//   FakeBinaryOutput rightValve;
-//   TowerController controller(clock, leftValve, rightValve, testConfig());
-
-//   controller.setEnabled(true);
-//   controller.step(makeInputs(900U));
-
-//   if (!require(controller.state() == TowerController::STATE_LOW_SUPPLY,
-//                "precondition: controller should be in low-supply")) return false;
-
-//   controller.setEnabled(false);
-
-//   if (!require(controller.state() == TowerController::STATE_INACTIVE,
-//                "disable from low-supply should force inactive")) return false;
-//   if (!require(!controller.isEnabled(),
-//                "disable from low-supply should clear enabled flag")) return false;
-//   if (!require(!leftValve.isOn() && !rightValve.isOn(),
-//                "disable from low-supply should close both valves")) return false;
-
-//   return true;
-// }
-
 static bool test_BB_lowSupplyWhileInactiveDoesNotActivate() {
   FakeClock clock;
   FakeBinaryOutput leftValve;
@@ -417,28 +345,6 @@ static bool test_BB_exactLowSupplyThresholdIsSufficient() {
 
   return true;
 }
-
-// static bool test_BB_lowSupplyWinsOverTimedTransitionAtExpiryBoundary() {
-//   FakeClock clock;
-//   FakeBinaryOutput leftValve;
-//   FakeBinaryOutput rightValve;
-//   const TowerController::Config config = fastConfig();
-//   TowerController controller(clock, leftValve, rightValve, config);
-
-//   controller.setEnabled(true);
-
-//   clock.advanceMs(config.towerOpenMs);
-//   controller.step(makeInputs(900U));
-
-//   if (!require(controller.state() == TowerController::STATE_LOW_SUPPLY,
-//                "low supply should win over left-only expiry transition at the boundary")) return false;
-//   if (!require(!controller.isActive(),
-//                "low-supply boundary result should not be active")) return false;
-//   if (!require(!leftValve.isOn() && !rightValve.isOn(),
-//                "low-supply boundary result should close both valves")) return false;
-
-//   return true;
-// }
 
 static bool test_BB_snapshotReflectsCurrentTowerState() {
   FakeClock clock;
@@ -569,13 +475,10 @@ int main() {
   if (!test_BB_fullCycleAdvancesWithMockClockWhenSupplyIsSufficient()) return 1;
   if (!test_BB_disableForcesImmediateInactiveFromActiveState()) return 1;
   if (!test_BB_perStateOutputsAndIsActive()) return 1;
-  // if (!test_BB_configOverrideChangesTiming()) return 1;
   if (!test_BB_lowSupplyForcesDedicatedLowSupplyState()) return 1;
   if (!test_BB_recoveryFromLowSupplyRestartsAtLeftOnly()) return 1;
-  // if (!test_BB_disableFromLowSupplyForcesInactive()) return 1;
   if (!test_BB_lowSupplyWhileInactiveDoesNotActivate()) return 1;
   if (!test_BB_exactLowSupplyThresholdIsSufficient()) return 1;
-  // if (!test_BB_lowSupplyWinsOverTimedTransitionAtExpiryBoundary()) return 1;
   if (!test_BB_snapshotReflectsCurrentTowerState()) return 1;
   if (!test_BB_hysteresis_activeDropsAtOffThreshold()) return 1;
   if (!test_BB_hysteresis_deadbandHoldsLowSupply()) return 1;
