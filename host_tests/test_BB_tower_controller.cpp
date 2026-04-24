@@ -46,15 +46,15 @@ static TowerController::Config testConfig() {
   return config;
 }
 
-// static TowerController::Config fastConfig() {
-//   TowerController::Config config;
-//   config.towerOpenMs = 10U;
-//   config.overlapMs = 3U;
-//   config.towerOpenMs = 20U;
-//   config.airSupplyOnPsi_x10 = 900U;
-//   config.airSupplyOffPsi_x10 = 700U;
-//   return config;
-// }
+static TowerController::Config fastConfig() {
+  TowerController::Config config;
+  config.towerOpenMs = 10U;
+  config.overlapMs = 3U;
+  config.towerOpenMs = 20U;
+  config.airSupplyOnPsi_x10 = 900U;
+  config.airSupplyOffPsi_x10 = 700U;
+  return config;
+}
 
 static InputSnapshot makeInputs(uint16_t supplyPsi_x10) {
   InputSnapshot inputs{};
@@ -127,141 +127,141 @@ static bool test_BB_enableImmediatelyStartsLeftOnly() {
 //   return true;
 // }
 
-// static bool test_BB_fullCycleAdvancesWithMockClockWhenSupplyIsSufficient() {
-//   FakeClock clock;
-//   FakeBinaryOutput leftValve;
-//   FakeBinaryOutput rightValve;
-//   const TowerController::Config config = fastConfig();
-//   TowerController controller(clock, leftValve, rightValve, config);
+static bool test_BB_fullCycleAdvancesWithMockClockWhenSupplyIsSufficient() {
+  FakeClock clock;
+  FakeBinaryOutput leftValve;
+  FakeBinaryOutput rightValve;
+  const TowerController::Config config = fastConfig();
+  TowerController controller(clock, leftValve, rightValve, config);
 
-//   controller.setEnabled(true);
+  controller.setEnabled(true);
 
-//   if (!require(controller.state() == TowerController::STATE_LEFT_ONLY,
-//                "enable should enter left-only state")) return false;
-//   if (!require(leftValve.isOn(),
-//                "left valve should be open in left-only state")) return false;
-//   if (!require(!rightValve.isOn(),
-//                "right valve should be closed in left-only state")) return false;
+  if (!require(controller.state() == TowerController::STATE_LEFT_ONLY,
+               "enable should enter left-only state")) return false;
+  if (!require(leftValve.isOn(),
+               "left valve should be open in left-only state")) return false;
+  if (!require(!rightValve.isOn(),
+               "right valve should be closed in left-only state")) return false;
 
-//   clock.advanceMs(config.towerOpenMs);
-//   controller.step(makeInputs(1500U));
-//   if (!require(controller.state() == TowerController::STATE_BOTH_AFTER_LEFT,
-//                "left-only should transition to first overlap")) return false;
-//   if (!require(leftValve.isOn() && rightValve.isOn(),
-//                "both valves should be open in first overlap")) return false;
+  clock.advanceMs(config.towerOpenMs);
+  controller.step(makeInputs(1500U));
+  if (!require(controller.state() == TowerController::STATE_BOTH_AFTER_LEFT,
+               "left-only should transition to first overlap")) return false;
+  if (!require(leftValve.isOn() && rightValve.isOn(),
+               "both valves should be open in first overlap")) return false;
 
-//   clock.advanceMs(config.overlapMs);
-//   controller.step(makeInputs(1500U));
-//   if (!require(controller.state() == TowerController::STATE_RIGHT_ONLY,
-//                "first overlap should transition to right-only")) return false;
-//   if (!require(!leftValve.isOn() && rightValve.isOn(),
-//                "only right valve should be open in right-only")) return false;
+  clock.advanceMs(config.overlapMs);
+  controller.step(makeInputs(1500U));
+  if (!require(controller.state() == TowerController::STATE_RIGHT_ONLY,
+               "first overlap should transition to right-only")) return false;
+  if (!require(!leftValve.isOn() && rightValve.isOn(),
+               "only right valve should be open in right-only")) return false;
 
-//   clock.advanceMs(config.towerOpenMs);
-//   controller.step(makeInputs(1500U));
-//   if (!require(controller.state() == TowerController::STATE_BOTH_AFTER_RIGHT,
-//                "right-only should transition to second overlap")) return false;
-//   if (!require(leftValve.isOn() && rightValve.isOn(),
-//                "both valves should be open in second overlap")) return false;
+  clock.advanceMs(config.towerOpenMs);
+  controller.step(makeInputs(1500U));
+  if (!require(controller.state() == TowerController::STATE_BOTH_AFTER_RIGHT,
+               "right-only should transition to second overlap")) return false;
+  if (!require(leftValve.isOn() && rightValve.isOn(),
+               "both valves should be open in second overlap")) return false;
 
-//   clock.advanceMs(config.overlapMs);
-//   controller.step(makeInputs(1500U));
-//   if (!require(controller.state() == TowerController::STATE_LEFT_ONLY,
-//                "second overlap should transition back to left-only")) return false;
-//   if (!require(leftValve.isOn() && !rightValve.isOn(),
-//                "cycle should return to left-only outputs")) return false;
+  clock.advanceMs(config.overlapMs);
+  controller.step(makeInputs(1500U));
+  if (!require(controller.state() == TowerController::STATE_LEFT_ONLY,
+               "second overlap should transition back to left-only")) return false;
+  if (!require(leftValve.isOn() && !rightValve.isOn(),
+               "cycle should return to left-only outputs")) return false;
 
-//   return true;
-// }
+  return true;
+}
 
-// static bool test_BB_disableForcesImmediateInactiveFromActiveState() {
-//   FakeClock clock;
-//   FakeBinaryOutput leftValve;
-//   FakeBinaryOutput rightValve;
-//   const TowerController::Config config = fastConfig();
-//   TowerController controller(clock, leftValve, rightValve, config);
+static bool test_BB_disableForcesImmediateInactiveFromActiveState() {
+  FakeClock clock;
+  FakeBinaryOutput leftValve;
+  FakeBinaryOutput rightValve;
+  const TowerController::Config config = fastConfig();
+  TowerController controller(clock, leftValve, rightValve, config);
 
-//   controller.setEnabled(true);
-//   clock.advanceMs(config.towerOpenMs);
-//   controller.step(makeInputs(1500U));
+  controller.setEnabled(true);
+  clock.advanceMs(config.towerOpenMs);
+  controller.step(makeInputs(1500U));
 
-//   if (!require(controller.state() == TowerController::STATE_BOTH_AFTER_LEFT,
-//                "precondition: controller should reach overlap state")) return false;
+  if (!require(controller.state() == TowerController::STATE_BOTH_AFTER_LEFT,
+               "precondition: controller should reach overlap state")) return false;
 
-//   controller.setEnabled(false);
+  controller.setEnabled(false);
 
-//   if (!require(!controller.isEnabled(),
-//                "disable should clear enabled flag")) return false;
-//   if (!require(controller.state() == TowerController::STATE_INACTIVE,
-//                "disable should force inactive")) return false;
-//   if (!require(!controller.isActive(),
-//                "inactive should not be active")) return false;
-//   if (!require(!leftValve.isOn() && !rightValve.isOn(),
-//                "disable should close both valves")) return false;
+  if (!require(!controller.isEnabled(),
+               "disable should clear enabled flag")) return false;
+  if (!require(controller.state() == TowerController::STATE_INACTIVE,
+               "disable should force inactive")) return false;
+  if (!require(!controller.isActive(),
+               "inactive should not be active")) return false;
+  if (!require(!leftValve.isOn() && !rightValve.isOn(),
+               "disable should close both valves")) return false;
 
-//   return true;
-// }
+  return true;
+}
 
-// static bool test_BB_perStateOutputsAndIsActive() {
-//   FakeClock clock;
-//   FakeBinaryOutput leftValve;
-//   FakeBinaryOutput rightValve;
-//   const TowerController::Config config = fastConfig();
-//   TowerController controller(clock, leftValve, rightValve, config);
+static bool test_BB_perStateOutputsAndIsActive() {
+  FakeClock clock;
+  FakeBinaryOutput leftValve;
+  FakeBinaryOutput rightValve;
+  const TowerController::Config config = fastConfig();
+  TowerController controller(clock, leftValve, rightValve, config);
 
-//   controller.setEnabled(true);
-//   if (!require(controller.state() == TowerController::STATE_LEFT_ONLY,
-//                "enable should enter left-only")) return false;
-//   if (!require(controller.isActive(),
-//                "left-only should be active")) return false;
-//   if (!require(leftValve.isOn() && !rightValve.isOn(),
-//                "left-only outputs should be left on, right off")) return false;
+  controller.setEnabled(true);
+  if (!require(controller.state() == TowerController::STATE_LEFT_ONLY,
+               "enable should enter left-only")) return false;
+  if (!require(controller.isActive(),
+               "left-only should be active")) return false;
+  if (!require(leftValve.isOn() && !rightValve.isOn(),
+               "left-only outputs should be left on, right off")) return false;
 
-//   clock.advanceMs(config.towerOpenMs);
-//   controller.step(makeInputs(1500U));
-//   if (!require(controller.state() == TowerController::STATE_BOTH_AFTER_LEFT,
-//                "should enter both-after-left")) return false;
-//   if (!require(controller.isActive(),
-//                "both-after-left should be active")) return false;
-//   if (!require(leftValve.isOn() && rightValve.isOn(),
-//                "both-after-left outputs should be both on")) return false;
+  clock.advanceMs(config.towerOpenMs);
+  controller.step(makeInputs(1500U));
+  if (!require(controller.state() == TowerController::STATE_BOTH_AFTER_LEFT,
+               "should enter both-after-left")) return false;
+  if (!require(controller.isActive(),
+               "both-after-left should be active")) return false;
+  if (!require(leftValve.isOn() && rightValve.isOn(),
+               "both-after-left outputs should be both on")) return false;
 
-//   clock.advanceMs(config.overlapMs);
-//   controller.step(makeInputs(1500U));
-//   if (!require(controller.state() == TowerController::STATE_RIGHT_ONLY,
-//                "should enter right-only")) return false;
-//   if (!require(controller.isActive(),
-//                "right-only should be active")) return false;
-//   if (!require(!leftValve.isOn() && rightValve.isOn(),
-//                "right-only outputs should be left off, right on")) return false;
+  clock.advanceMs(config.overlapMs);
+  controller.step(makeInputs(1500U));
+  if (!require(controller.state() == TowerController::STATE_RIGHT_ONLY,
+               "should enter right-only")) return false;
+  if (!require(controller.isActive(),
+               "right-only should be active")) return false;
+  if (!require(!leftValve.isOn() && rightValve.isOn(),
+               "right-only outputs should be left off, right on")) return false;
 
-//   clock.advanceMs(config.towerOpenMs);
-//   controller.step(makeInputs(1500U));
-//   if (!require(controller.state() == TowerController::STATE_BOTH_AFTER_RIGHT,
-//                "should enter both-after-right")) return false;
-//   if (!require(controller.isActive(),
-//                "both-after-right should be active")) return false;
-//   if (!require(leftValve.isOn() && rightValve.isOn(),
-//                "both-after-right outputs should be both on")) return false;
+  clock.advanceMs(config.towerOpenMs);
+  controller.step(makeInputs(1500U));
+  if (!require(controller.state() == TowerController::STATE_BOTH_AFTER_RIGHT,
+               "should enter both-after-right")) return false;
+  if (!require(controller.isActive(),
+               "both-after-right should be active")) return false;
+  if (!require(leftValve.isOn() && rightValve.isOn(),
+               "both-after-right outputs should be both on")) return false;
 
-//   controller.step(makeInputs(900U));
-//   if (!require(controller.state() == TowerController::STATE_LOW_SUPPLY,
-//                "low supply should force low-supply state")) return false;
-//   if (!require(!controller.isActive(),
-//                "low-supply should not be active")) return false;
-//   if (!require(!leftValve.isOn() && !rightValve.isOn(),
-//                "low-supply outputs should close both valves")) return false;
+  controller.step(makeInputs(700U));
+  if (!require(controller.state() == TowerController::STATE_LOW_SUPPLY,
+             "low supply should force low-supply state")) return false;
+  if (!require(!controller.isActive(),
+               "low-supply should not be active")) return false;
+  if (!require(!leftValve.isOn() && !rightValve.isOn(),
+               "low-supply outputs should close both valves")) return false;
 
-//   controller.setEnabled(false);
-//   if (!require(controller.state() == TowerController::STATE_INACTIVE,
-//                "disable should force inactive from low-supply")) return false;
-//   if (!require(!controller.isActive(),
-//                "inactive should not be active")) return false;
-//   if (!require(!leftValve.isOn() && !rightValve.isOn(),
-//                "inactive outputs should close both valves")) return false;
+  controller.setEnabled(false);
+  if (!require(controller.state() == TowerController::STATE_INACTIVE,
+               "disable should force inactive from low-supply")) return false;
+  if (!require(!controller.isActive(),
+               "inactive should not be active")) return false;
+  if (!require(!leftValve.isOn() && !rightValve.isOn(),
+               "inactive outputs should close both valves")) return false;
 
-//   return true;
-// }
+  return true;
+}
 
 // static bool test_BB_configOverrideChangesTiming() {
 //   FakeClock clock;
@@ -312,48 +312,51 @@ static bool test_BB_enableImmediatelyStartsLeftOnly() {
 //   return true;
 // }
 
-// static bool test_BB_lowSupplyForcesDedicatedLowSupplyState() {
-//   FakeClock clock;
-//   FakeBinaryOutput leftValve;
-//   FakeBinaryOutput rightValve;
-//   TowerController controller(clock, leftValve, rightValve, testConfig());
+static bool test_BB_lowSupplyForcesDedicatedLowSupplyState() {
+  FakeClock clock;
+  FakeBinaryOutput leftValve;
+  FakeBinaryOutput rightValve;
+  TowerController controller(clock, leftValve, rightValve, testConfig());
 
-//   controller.setEnabled(true);
-//   controller.step(makeInputs(900U));
+  controller.setEnabled(true);
 
-//   if (!require(controller.state() == TowerController::STATE_LOW_SUPPLY,
-//                "low supply should force low-supply state")) return false;
-//   if (!require(!controller.isActive(),
-//                "low-supply state should not be active")) return false;
-//   if (!require(!leftValve.isOn() && !rightValve.isOn(),
-//                "low supply should close both valves")) return false;
+  // Force drop below OFF threshold
+  controller.step(makeInputs(700U));
 
-//   return true;
-// }
+  if (!require(controller.state() == TowerController::STATE_LOW_SUPPLY,
+               "should enter low-supply at or below off threshold")) return false;
 
-// static bool test_BB_recoveryFromLowSupplyRestartsAtLeftOnly() {
-//   FakeClock clock;
-//   FakeBinaryOutput leftValve;
-//   FakeBinaryOutput rightValve;
-//   TowerController controller(clock, leftValve, rightValve, testConfig());
+  if (!require(!controller.isActive(),
+               "low-supply should not be active")) return false;
 
-//   controller.setEnabled(true);
-//   controller.step(makeInputs(900U));
+  return true;
+}
 
-//   if (!require(controller.state() == TowerController::STATE_LOW_SUPPLY,
-//                "precondition: controller should enter low-supply")) return false;
+static bool test_BB_recoveryFromLowSupplyRestartsAtLeftOnly() {
+  FakeClock clock;
+  FakeBinaryOutput leftValve;
+  FakeBinaryOutput rightValve;
+  TowerController controller(clock, leftValve, rightValve, testConfig());
 
-//   controller.step(makeInputs(1100U));
+  controller.setEnabled(true);
 
-//   if (!require(controller.state() == TowerController::STATE_LEFT_ONLY,
-//                "recovery should restart at left-only")) return false;
-//   if (!require(controller.isActive(),
-//                "recovery left-only should be active")) return false;
-//   if (!require(leftValve.isOn() && !rightValve.isOn(),
-//                "recovery should restore left-only outputs")) return false;
+  controller.step(makeInputs(600U)); // LOW_SUPPLY
 
-//   return true;
-// }
+  if (!require(controller.state() == TowerController::STATE_LOW_SUPPLY,
+               "precondition: low-supply")) return false;
+
+  controller.step(makeInputs(800U)); // deadband
+
+  if (!require(controller.state() == TowerController::STATE_LOW_SUPPLY,
+               "deadband must hold low-supply")) return false;
+
+  controller.step(makeInputs(900U)); // recovery
+
+  if (!require(controller.state() == TowerController::STATE_LEFT_ONLY,
+               "recovery requires >= on threshold")) return false;
+
+  return true;
+}
 
 // static bool test_BB_disableFromLowSupplyForcesInactive() {
 //   FakeClock clock;
@@ -399,22 +402,21 @@ static bool test_BB_lowSupplyWhileInactiveDoesNotActivate() {
   return true;
 }
 
-// static bool test_BB_exactLowSupplyThresholdIsSufficient() {
-//   FakeClock clock;
-//   FakeBinaryOutput leftValve;
-//   FakeBinaryOutput rightValve;
-//   TowerController controller(clock, leftValve, rightValve, testConfig());
+static bool test_BB_exactLowSupplyThresholdIsSufficient() {
+  FakeClock clock;
+  FakeBinaryOutput leftValve;
+  FakeBinaryOutput rightValve;
+  TowerController controller(clock, leftValve, rightValve, testConfig());
 
-//   controller.setEnabled(true);
-//   controller.step(makeInputs(1000U));
+  controller.setEnabled(true);
 
-//   if (!require(controller.state() == TowerController::STATE_LEFT_ONLY,
-//                "exact low-supply threshold should be treated as sufficient")) return false;
-//   if (!require(leftValve.isOn() && !rightValve.isOn(),
-//                "exact low-supply threshold should keep left-only outputs")) return false;
+  controller.step(makeInputs(700U));
 
-//   return true;
-// }
+  if (!require(controller.state() == TowerController::STATE_LOW_SUPPLY,
+               "700 should trigger low-supply (off threshold)")) return false;
+
+  return true;
+}
 
 // static bool test_BB_lowSupplyWinsOverTimedTransitionAtExpiryBoundary() {
 //   FakeClock clock;
@@ -438,32 +440,32 @@ static bool test_BB_lowSupplyWhileInactiveDoesNotActivate() {
 //   return true;
 // }
 
-// static bool test_BB_snapshotReflectsCurrentTowerState() {
-//   FakeClock clock;
-//   FakeBinaryOutput leftValve;
-//   FakeBinaryOutput rightValve;
-//   const TowerController::Config config = fastConfig();
-//   TowerController controller(clock, leftValve, rightValve, config);
+static bool test_BB_snapshotReflectsCurrentTowerState() {
+  FakeClock clock;
+  FakeBinaryOutput leftValve;
+  FakeBinaryOutput rightValve;
+  const TowerController::Config config = fastConfig();
+  TowerController controller(clock, leftValve, rightValve, config);
 
-//   controller.setEnabled(true);
-//   TowerController::Snapshot snapshot = controller.snapshot();
+  controller.setEnabled(true);
+  TowerController::Snapshot snapshot = controller.snapshot();
 
-//   if (!require(snapshot.createdAtMs == 0U,
-//                "tower snapshot should start at initial transition time")) return false;
-//   if (!require(snapshot.state == TowerController::STATE_LEFT_ONLY,
-//                "tower snapshot should report left-only after enable")) return false;
+  if (!require(snapshot.createdAtMs == 0U,
+               "tower snapshot should start at initial transition time")) return false;
+  if (!require(snapshot.state == TowerController::STATE_LEFT_ONLY,
+               "tower snapshot should report left-only after enable")) return false;
 
-//   clock.advanceMs(config.towerOpenMs);
-//   controller.step(makeInputs(1500U));
-//   snapshot = controller.snapshot();
+  clock.advanceMs(config.towerOpenMs);
+  controller.step(makeInputs(1500U));
+  snapshot = controller.snapshot();
 
-//   if (!require(snapshot.createdAtMs == config.towerOpenMs,
-//                "tower snapshot timestamp should refresh on state transition")) return false;
-//   if (!require(snapshot.state == TowerController::STATE_BOTH_AFTER_LEFT,
-//                "tower snapshot should report updated state after transition")) return false;
+  if (!require(snapshot.createdAtMs == config.towerOpenMs,
+               "tower snapshot timestamp should refresh on state transition")) return false;
+  if (!require(snapshot.state == TowerController::STATE_BOTH_AFTER_LEFT,
+               "tower snapshot should report updated state after transition")) return false;
 
-//   return true;
-// }
+  return true;
+}
 
 static bool test_BB_hysteresis_activeDropsAtOffThreshold() {
   FakeClock clock;
@@ -564,17 +566,17 @@ int main() {
   if (!test_BB_startsInactiveWithBothValvesClosed()) return 1;
   if (!test_BB_enableImmediatelyStartsLeftOnly()) return 1;
   // if (!test_BB_tickBeforeExpiryDoesNotTransition()) return 1;
-  // if (!test_BB_fullCycleAdvancesWithMockClockWhenSupplyIsSufficient()) return 1;
-  // if (!test_BB_disableForcesImmediateInactiveFromActiveState()) return 1;
-  // if (!test_BB_perStateOutputsAndIsActive()) return 1;
+  if (!test_BB_fullCycleAdvancesWithMockClockWhenSupplyIsSufficient()) return 1;
+  if (!test_BB_disableForcesImmediateInactiveFromActiveState()) return 1;
+  if (!test_BB_perStateOutputsAndIsActive()) return 1;
   // if (!test_BB_configOverrideChangesTiming()) return 1;
-  // if (!test_BB_lowSupplyForcesDedicatedLowSupplyState()) return 1;
-  // if (!test_BB_recoveryFromLowSupplyRestartsAtLeftOnly()) return 1;
+  if (!test_BB_lowSupplyForcesDedicatedLowSupplyState()) return 1;
+  if (!test_BB_recoveryFromLowSupplyRestartsAtLeftOnly()) return 1;
   // if (!test_BB_disableFromLowSupplyForcesInactive()) return 1;
   if (!test_BB_lowSupplyWhileInactiveDoesNotActivate()) return 1;
-  // if (!test_BB_exactLowSupplyThresholdIsSufficient()) return 1;
+  if (!test_BB_exactLowSupplyThresholdIsSufficient()) return 1;
   // if (!test_BB_lowSupplyWinsOverTimedTransitionAtExpiryBoundary()) return 1;
-  // if (!test_BB_snapshotReflectsCurrentTowerState()) return 1;
+  if (!test_BB_snapshotReflectsCurrentTowerState()) return 1;
   if (!test_BB_hysteresis_activeDropsAtOffThreshold()) return 1;
   if (!test_BB_hysteresis_deadbandHoldsLowSupply()) return 1;
   if (!test_BB_hysteresis_recoveryRequiresOnThreshold()) return 1;

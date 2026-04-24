@@ -132,7 +132,7 @@ static bool test_WB_isSupplySufficientUsesInclusiveThreshold() {
 
   if (!require(!TowerControllerTestProbe::isSupplySufficient(controller, 700-1),
                "below threshold should be insufficient")) return false;
-  if (!require(TowerControllerTestProbe::isSupplySufficient(controller, 901),
+  if (!require(TowerControllerTestProbe::isSupplySufficient(controller, 900),
                "above threshold should be sufficient")) return false;
   return true;
 }
