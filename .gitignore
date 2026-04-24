@@ -1,68 +1,65 @@
-<<<<<<< HEAD
+# .gitignore v2
+
+##################################################
+# OS / Editor
+##################################################
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+##################################################
 # Arduino build artifacts
-build/
+##################################################
 *.hex
 *.elf
 *.bin
-*.map
 *.eep
+*.map
 
-# Arduino IDE
-*.bak
-*.tmp
+# Arduino CLI / IDE temp build dirs
+/build/
+build/
+*.arduino.*
+*.core.a
 
-# VS Code
-.vscode/settings.json
-.vscode/launch.json
-.vscode/extensions.json
-.vscode/*.log
+# Doxygen derivatives
+/docs/doxygen/*
 
-# Arduino CLI / arduino-language-server
-compile_commands.json
-.arduino15/
+##################################################
+# Host test / Makefile builds
+##################################################
+/build*/
+*.o
+*.a
+*.so
+*.dylib
+*.exe
 
-# macOS
-.DS_Store
-.AppleDouble
-.LSOverride
-
-# Linux
-*~
-
-# Coverage artifacts
+##################################################
+# Coverage / test artifacts
+##################################################
+*.gcno
+*.gcda
+*.gcov
+coverage/
 *.profraw
 *.profdata
 
-# claude
-resume_claude.txt
-=======
-# macOS
-.DS_Store
-
-# Build output
-build/
-dist/
-out/
-
-# Arduino / IDE
-.arduinoIDE/
-arduino-cli.yaml
-*.ino.bin
-*.ino.elf
-*.hex
-
-#temporary
-tmp/
-temp/
-
-# Editors
-.vscode/
-.idea/
-*.code-workspace
-
-# Backups / temp
-*~
-*.swp
-*.swo
+##################################################
+# Logs / temp
+##################################################
+*.log
 *.tmp
->>>>>>> abea67b (chore: initialize N2 repository)
+
+##################################################
+# Keep source of truth
+##################################################
+# DO NOT ignore:
+# - src/
+# - extras/host_test/
+# - *.ino
+# - Makefile

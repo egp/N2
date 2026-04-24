@@ -106,12 +106,19 @@ void TowerController::setEnabled(bool enabled) {
  transitionTo(STATE_LEFT_ONLY, config_.towerOpenMs, true);
 }
 
+bool TowerController::isSupplySufficient(uint16_t supplyPsi_x10) const {
+   if (TowerController::isActive()) {
+    return (supplyPsi_x10 > config_.airSupplyOffPsi_x10);
+  } else {
+    return (supplyPsi_x10 > config_.airSupplyOnPsi_x10); 
+  }
+}
+
 void TowerController::step(const InputSnapshot& inputs) {
  if (!enabled_) {
   return;
  }
 
- /*
 /* 
 while running, if supply goes below low threshold, disable
 while idle, if supply goes above high threshold, enable
@@ -205,10 +212,6 @@ const TowerController::Config& TowerController::config() const {
 void TowerController::setConfig(const Config& config) {
  config_ = config;
 }
-
-// bool TowerController::isSupplySufficient(uint16_t supplyPsi_x10) const {
-//  return supplyPsi_x10 >= config_.lowSupplyPsi_x10;
-// }
 
 void TowerController::transitionTo(State nextState, uint32_t durationMs, bool timed) {
  if (timed) {

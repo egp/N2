@@ -1,6 +1,17 @@
+/*!
+ *@file N2V5.ino
+ *@brief Arduino controller for the N2 Generator
+ *@details Manages pressure sensors, valves, etc.
+ *@copyright   Copyright (c) 2026 EGP
+ *@license     The MIT license (MIT)
+ *@author [egp](github.com/egp/)
+ *@version  V5.1
+ *@date  2026-04-22
+ *@url https://github.com/egp/N2
+*/
 #include <Arduino.h>
 
-#include <TCP1819.h>  // clone of BitBang lib
+#include <TCP1819.h>  // https://github.com/egp/TCP1819
 #include <TCP1650.h>  // https://github.com/egp/TCP1650
 #include <TCP20x4.h>  // https://github.com/egp/TCP20x4
 #include <TCP0465.h>  // https://github.com/egp/TCP0465
