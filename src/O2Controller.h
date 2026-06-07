@@ -1,11 +1,8 @@
-// O2Controller.h v5
+// O2Controller.h v6
 #ifndef O2_CONTROLLER_H
 #define O2_CONTROLLER_H
-
 #include <stdint.h>
-
 #include "BinaryOutput.h"
-#include "IController.h"
 #include "InputSnapshot.h"
 #include "SystemConfig.h"
 #include "TimedStateMachine.h"
@@ -18,12 +15,13 @@ public:
   virtual const char* errorString() const = 0;
 };
 
-class O2Controller : public IController {
+class O2Controller {
 public:
   using Config = SystemConfig::O2Config;
 
   enum State : uint8_t {
     STATE_UNINITIALIZED = 0,
+    STATE_INIT_RETRY,              // sensor.begin() failed; waiting to retry
     STATE_WARMUP,
     STATE_WAITING_TO_FLUSH,
     STATE_FLUSHING,
@@ -38,47 +36,37 @@ public:
     State state;
     bool hasValue;
     bool isValueFresh;
-    float o2Percent;
-    float n2Percent;
+    float o2Percent;       // final averaged value from last completed cycle
+    float n2Percent;       // 100 - o2Percent; zero if no value
+    float liveN2Percent;   // current in-progress reading; same as n2Percent when idle
     const char* errorString;
-  };
-
-  class StateView : public ControllerState {
-  public:
-    explicit StateView(const O2Controller& owner);
-
-    ControllerKind kind() const override;
-    uint32_t enteredAtMs() const override;
-    uint32_t code() const override;
-    const char* name() const override;
-
-  private:
-    const O2Controller& owner_;
   };
 
   static Config defaultConfig();
 
   O2Controller(IClock& clock, IO2Sensor& sensor, IBinaryOutput& flushValve);
-  O2Controller(IClock& clock, IO2Sensor& sensor, IBinaryOutput& flushValve, const SystemConfig& systemConfig);
-  O2Controller(IClock& clock, IO2Sensor& sensor, IBinaryOutput& flushValve, const Config& config);
+  O2Controller(IClock& clock, IO2Sensor& sensor, IBinaryOutput& flushValve,
+               const SystemConfig& systemConfig);
+  O2Controller(IClock& clock, IO2Sensor& sensor, IBinaryOutput& flushValve,
+               const Config& config);
 
-  bool init() override;
-  void setEnabled(bool enabled) override;
-  void step(const InputSnapshot& inputs) override;
-  void shutdown() override;
-  IClock& clock() const override;
-  const ControllerState& getState() const override;
+  bool init();
+  void step(const InputSnapshot& inputs);
+  void shutdown();
 
-  void requestMeasurementIfStale();
-
+  // Query methods — also used by tests
   bool isWarmingUp() const;
   bool isBusy() const;
   bool hasValue() const;
   bool isValueFresh() const;
   float averagedPercent() const;
+  float liveN2Percent() const;   // current reading; use for display during cycle
   const char* errorString() const;
   State state() const;
   Snapshot snapshot() const;
+
+  void requestMeasurementIfStale();
+
   const Config& config() const;
   void setConfig(const Config& config);
 
@@ -101,11 +89,10 @@ private:
   bool earlyMeasurementRequested_;
   uint32_t lastCompletedMeasurementAtMs_;
   float cachedAveragePercent_;
+  float liveN2Percent_;          // updated on each sample during active cycle
   float runningSumPercent_;
   uint8_t samplesCollected_;
   const char* lastError_;
-  StateView stateView_;
 };
-
 #endif
-// O2Controller.h v5
+// O2Controller.h v6

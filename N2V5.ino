@@ -14,7 +14,7 @@
 #include <TCP1819.h>  // https://github.com/egp/TCP1819
 #include <TCP1650.h>  // https://github.com/egp/TCP1650
 #include <TCP20x4.h>  // https://github.com/egp/TCP20x4
-#include <TCP0465.h>  // https://github.com/egp/TCP0465
+// #include <TCP0465.h>  // https://github.com/egp/TCP0465
 #include <TCP3231.h>  // https://github.com/egp/TCP3231
 
 #include "src/TimedStateMachine.h"
@@ -33,7 +33,7 @@
 #error "No system profile selected"
 #endif
 
-const char* PROGRAM_VERSION = "5.1";
+const char* PROGRAM_VERSION = "5.2";
 
 /*
 I2C bus declarations, they are initialized during setup()
@@ -43,10 +43,7 @@ BBI2C i2c_o2{};
 BBI2C i2c_20x4{};
 BBI2C i2c_rtc{};
 
-/* Real Time Clock setup */
-TCP3231::DateTime rtc_dt{};
-bool rtcPresent = false;
-TCP3231 rtc(i2c_rtc);
+
 
 // Forward declarations
 SystemContext makeSystemContext();
@@ -63,10 +60,10 @@ void readRightTowerPressure();
 void readLowPressureN2();
 void readHighPressureN2();
 void displayToLCD20x4();
-void enableDisplay20x4();
-void disableDisplay20x4();
-void enableDisplay4();
-void disableDisplay4();
+void enableDisp20x4();
+void disableDisp20x4();
+void enableDisp4();
+void disableDisp4();
 void setupI2C();
 void printDateTime(const TCP3231::DateTime& dt);
 void printTwoDigits(uint8_t value);
@@ -79,8 +76,8 @@ SystemContext systemContext = makeSystemContext();
 char sprintfBuffer[80];  // holds debugging information before printing
 char dtostrfBuf1[9];     // temp buffers for dtostrf(), longer than needed
 char dtostrfBuf2[9];
-char display4buffer[] = "1234 ";  // holds data before sending to display4
-char LCDline0[21];                // 20 chars needed, but extra to avoid overiting something else
+char disp4buffer[] = "1234 ";  // holds data before sending to disp4
+char LCDline0[21];             // 20 chars needed, but extra to avoid overwriting something else
 char LCDline1[21];
 char LCDline2[21];
 char LCDline3[21];
@@ -90,6 +87,9 @@ Instances of the library classes
 */
 TCP1650 disp4(i2c_disp4);
 
+TCP3231::DateTime rtc_dt{};
+bool rtcPresent = false;
+TCP3231 rtc(i2c_rtc);
 /*
 ************************************************************************************
  setup for LCD20x4 library
@@ -110,7 +110,7 @@ TCP20x4Pcf8574Config makeLcdConfig() {
 
 const TCP20x4Pcf8574Config kLcdConfig = makeLcdConfig();
 
-TCP20x4 display20x4(i2c_20x4, kLcdConfig);
+TCP20x4 disp20x4(i2c_20x4, kLcdConfig);
 
 char commandBuffer[kCommandBufferSize];
 
@@ -220,8 +220,8 @@ void displaySelectedValue() {
   const uint8_t rotarySwitchStatus = systemContext.snapshot.input.rotarySwitchStatus;
 
   if (rotarySwitchStatus == systemContext.config.display.rotaryOff) {
-    disableDisplay4();
-    disableDisplay20x4();
+    disableDisp4();
+    disableDisp20x4();
   } else if (rotarySwitchStatus == systemContext.config.display.rotarySupply) {
     disp4.setNumber(systemContext.snapshot.input.supplyPsi_x10, true);
     setDotTenths();
@@ -338,8 +338,8 @@ void displayToLCD20x4() {
     n2_x100 = static_cast<uint16_t>(systemContext.snapshot.o2.n2Percent * 100.0f + 0.5f);
   }
 
-  display20x4.backlightOn();
-  display20x4.displayOn();
+  disp20x4.backlightOn();
+  disp20x4.displayOn();
 
   formatFixed1(supplyBuf, sizeof(supplyBuf), systemContext.snapshot.input.supplyPsi_x10);
   formatFixed1(leftBuf, sizeof(leftBuf), systemContext.snapshot.input.leftTowerPsi_x10);
@@ -353,10 +353,10 @@ void displayToLCD20x4() {
   snprintf(LCDline2, sizeof(LCDline2), "%5s LO N2 HI %5s", lowN2Buf, highN2Buf);
   snprintf(LCDline3, sizeof(LCDline3), " NITROGEN %6s %%", n2Buf);
 
-  display20x4.writeLine(0, LCDline0);
-  display20x4.writeLine(1, LCDline1);
-  display20x4.writeLine(2, LCDline2);
-  display20x4.writeLine(3, LCDline3);
+  disp20x4.writeLine(0, LCDline0);
+  disp20x4.writeLine(1, LCDline1);
+  disp20x4.writeLine(2, LCDline2);
+  disp20x4.writeLine(3, LCDline3);
 }
 
 void readBlackSwitch() {
@@ -372,32 +372,32 @@ void checkTBS() {
   }
 
   if (systemContext.input.blackSwitchEnabled && !systemContext.runtime.power.systemWasEnabled) {
-    enableDisplay4();
-    enableDisplay20x4();
+    enableDisp4();
+    enableDisp20x4();
   } else if (!systemContext.input.blackSwitchEnabled && systemContext.runtime.power.systemWasEnabled) {
-    disableDisplay4();
-    disableDisplay20x4();
+    disableDisp4();
+    disableDisp20x4();
   }
 
   systemContext.runtime.power.systemWasEnabled = systemContext.input.blackSwitchEnabled;
 }
 
-void enableDisplay20x4() {
-  display20x4.backlightOn();
-  display20x4.displayOn();
+void enableDisp20x4() {
+  disp20x4.backlightOn();
+  disp20x4.displayOn();
 }
 
-void disableDisplay20x4() {
-  display20x4.backlightOff();
-  display20x4.displayOff();
+void disableDisp20x4() {
+  disp20x4.backlightOff();
+  disp20x4.displayOff();
 }
 
-void enableDisplay4() {
+void enableDisp4() {
   disp4.displayOn();
   disp4.setBrightness(systemContext.config.display.disp4Brightness);
 }
 
-void disableDisplay4() {
+void disableDisp4() {
   disp4.displayOff();
 }
 
@@ -493,21 +493,67 @@ void printScenarioBanner() {
 #endif
 }
 
-void displaySelfTest() {
-  enableDisplay4();
+void disp4SelfTest() {
+  enableDisp4();
   disp4.setNumber(1234, true);
   disp4.setDot(1, true);
 }
 
-void displaySelfTest20x4() {
+void disp20x4SelfTest() {
   Serial.println(F("20x4 self-test starting"));
-  display20x4.begin();
-  display20x4.backlightOn();
-  display20x4.displayOn();
-  display20x4.writeLine(0, "20x4 SELF TEST     0");
-  display20x4.writeLine(0, "20x4 SELF TEST     1");
-  display20x4.writeLine(0, "20x4 SELF TEST     2");
-  display20x4.writeLine(0, "20x4 SELF TEST     3");
+  disp20x4.begin();
+  disp20x4.backlightOn();
+  disp20x4.displayOn();
+  disp20x4.writeLine(0, "20x4 SELF TEST     0");
+  disp20x4.writeLine(0, "20x4 SELF TEST     1");
+  disp20x4.writeLine(0, "20x4 SELF TEST     2");
+  disp20x4.writeLine(0, "20x4 SELF TEST     3");
+}
+
+void rtcPostTest() {
+  Serial.println("RTC POST: START");
+
+  TCP3231::DateTime t0;
+
+  if (!rtc.readTime(t0)) {
+    Serial.println("RTC POST: FAIL - read t0 failed");
+    return;
+  }
+
+  if (t0.second > 59 || t0.minute > 59 || t0.hour > 23) {
+    Serial.println("RTC POST: FAIL - t0 out of range");
+    return;
+  }
+
+  delay(1100);
+
+  TCP3231::DateTime t1;
+
+  if (!rtc.readTime(t1)) {
+    Serial.println("RTC POST: FAIL - read t1 failed");
+    return;
+  }
+
+  if (t1.second > 59 || t1.minute > 59 || t1.hour > 23) {
+    Serial.println("RTC POST: FAIL - t1 out of range");
+    return;
+  }
+
+  bool unchanged =
+    (t0.second == t1.second && t0.minute == t1.minute && t0.hour == t1.hour);
+
+  if (unchanged) {
+    Serial.println("RTC POST: FAIL - time not advancing");
+    return;
+  }
+
+  Serial.print("RTC POST: PASS ");
+  Serial.print(" now =");
+  Serial.print(t1.hour);
+  Serial.print(":");
+  Serial.print(t1.minute);
+  Serial.print(":");
+  Serial.println(t1.second);
 }
 
 /* ---------- Arduino setup ---------- */
@@ -533,20 +579,17 @@ void setup() {
   }
 
   disp4.begin();
-  enableDisplay4();
+  enableDisp4();
+  disp4SelfTest();
 
-  display20x4.begin();
-  enableDisplay20x4();
+  disp20x4.begin();
+  enableDisp20x4();
+  disp20x4SelfTest();
 
-  displaySelfTest();
-  displaySelfTest20x4();
-
-  if (!rtc.begin()) {  // FIXME
-    Serial.println("RTC begin failed");
-    rtcPresent = false;
-  } else {
+  rtcPresent = false;
+  if (rtc.begin()) {
     rtcPresent = true;
-    Serial.println("RTC begin ok");
+    rtcPostTest();
   }
 
   Serial.println();
@@ -609,8 +652,8 @@ void shutdown() {
   o2Controller.shutdown();
   n2Controller.shutdown();
 
-  disableDisplay4();
-  disableDisplay20x4();
+  disableDisp4();
+  disableDisp20x4();
 }
 
 // EOF

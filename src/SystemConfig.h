@@ -1,34 +1,18 @@
-// SystemConfig.h v3
+// SystemConfig.h v4
 #ifndef SYSTEM_CONFIG_H
 #define SYSTEM_CONFIG_H
-
 #include <stdint.h>
-
 struct SystemConfig {
-  struct GlobalConfig {
-    // Intentionally empty for now.
-    // Add stable, non-controller configuration here as needed.
-  };
-
+  struct GlobalConfig {};
   struct HardwareConfig {
     uint8_t i2cAddrLed;
     uint8_t i2cAddrLcd20x4;
-    uint8_t i2cAddrRtc;
     uint8_t i2cAddrO2;
-    uint8_t i2cAddrRotary;
     bool lcdBacklightActiveHigh;
   };
-
   struct DisplayConfig {
     uint8_t disp4Brightness;
-    uint8_t rotaryOff;
-    uint8_t rotarySupply;
-    uint8_t rotaryLeft;
-    uint8_t rotaryRight;
-    uint8_t rotaryN2Low;
-    uint8_t rotaryN2Percent;
   };
-
   struct PressureConfig {
     uint8_t adcBits;
     int analogScaleMax;
@@ -39,16 +23,15 @@ struct SystemConfig {
     uint16_t lowN2FullScalePsi_x100;
     uint16_t highN2FullScalePsi_x10;
   };
-
   struct TowerConfig {
     uint32_t towerOpenMs;
     uint32_t overlapMs;
     uint16_t airSupplyOnPsi_x10;
     uint16_t airSupplyOffPsi_x10;
   };
-
   struct O2Config {
     uint32_t warmupDurationMs;
+    uint32_t initRetryMs;          // how often to retry sensor.begin() on failure
     uint32_t measurementIntervalMs;
     uint32_t flushDurationMs;
     uint32_t settleDurationMs;
@@ -57,14 +40,12 @@ struct SystemConfig {
     uint32_t freshnessThresholdMs;
     uint32_t errorBackoffMs;
   };
-
   struct N2Config {
     uint16_t lowOffPsi_x100;
     uint16_t lowOnPsi_x100;
     uint16_t highOnPsi_x10;
     uint16_t highOffPsi_x10;
   };
-
   GlobalConfig global;
   HardwareConfig hardware;
   DisplayConfig display;
@@ -73,7 +54,4 @@ struct SystemConfig {
   O2Config o2;
   N2Config n2;
 };
-
 #endif
-
-// SystemConfig.h v3

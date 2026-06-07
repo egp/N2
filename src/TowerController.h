@@ -1,93 +1,68 @@
-// TowerController.h v8
+// TowerController.h v9
 #ifndef TOWER_CONTROLLER_H
 #define TOWER_CONTROLLER_H
-
 #include <stdint.h>
-
 #include "BinaryOutput.h"
-#include "IController.h"
 #include "InputSnapshot.h"
 #include "SystemConfig.h"
 #include "TimedStateMachine.h"
 
-class TowerController : public IController {
-
+class TowerController {
 public:
+  using Config = SystemConfig::TowerConfig;
 
- using Config = SystemConfig::TowerConfig;
+  enum State : uint8_t {
+    STATE_INACTIVE = 0,
+    STATE_LEFT_ONLY,
+    STATE_BOTH_AFTER_LEFT,
+    STATE_RIGHT_ONLY,
+    STATE_BOTH_AFTER_RIGHT,
+    STATE_LOW_SUPPLY
+  };
 
- enum State : uint8_t {
-  STATE_INACTIVE = 0,
-  STATE_LEFT_ONLY,
-  STATE_BOTH_AFTER_LEFT,
-  STATE_RIGHT_ONLY,
-  STATE_BOTH_AFTER_RIGHT,
-  STATE_LOW_SUPPLY
- };
+  struct Snapshot {
+    uint32_t createdAtMs;
+    State state;
+  };
 
- struct Snapshot {
-  uint32_t createdAtMs;
-  State state;
- };
+  static Config defaultConfig();
 
- class StateView : public ControllerState {
- public:
-  explicit StateView(const TowerController& owner);
+  TowerController(IClock& clock, IBinaryOutput& leftValve, IBinaryOutput& rightValve);
+  TowerController(IClock& clock, IBinaryOutput& leftValve, IBinaryOutput& rightValve,
+                  const Config& config);
+  TowerController(IClock& clock, IBinaryOutput& leftValve, IBinaryOutput& rightValve,
+                  const SystemConfig& systemConfig);
 
-  ControllerKind kind() const override;
-  uint32_t enteredAtMs() const override;
-  uint32_t code() const override;
-  const char* name() const override;
+  bool init();
+  void setEnabled(bool enabled);
+  void step(const InputSnapshot& inputs);
+  void shutdown();
 
- private:
-  const TowerController& owner_;
- };
+  bool isEnabled() const;
+  State state() const;
+  bool isActive() const;
+  Snapshot snapshot() const;
 
- static Config defaultConfig();
+  const Config& config() const;
+  void setConfig(const Config& config);
 
- TowerController(IClock& clock, IBinaryOutput& leftValve, IBinaryOutput& rightValve);
- TowerController(IClock& clock, IBinaryOutput& leftValve, IBinaryOutput& rightValve, const Config& config);
- TowerController(IClock& clock, IBinaryOutput& leftValve, IBinaryOutput& rightValve, const SystemConfig& systemConfig);
-
- bool init() override;
- void setEnabled(bool enabled) override;
- void step(const InputSnapshot& inputs) override;
- void shutdown() override;
- IClock& clock() const override;
- const ControllerState& getState() const override;
-
- bool isEnabled() const;
-
- State state() const;
-
- bool isActive() const;
-
- Snapshot snapshot() const;
-
- const Config& config() const;
-
- void setConfig(const Config& config);
-
- friend struct TowerControllerTestProbe;
+  friend struct TowerControllerTestProbe;
 
 private:
+  // Two distinct methods — no bool flag
+  void transitionTo(State nextState);
+  void transitionToFor(State nextState, uint32_t durationMs);
+  void applyOutputsForState(State state);
 
- bool isSupplySufficient(uint16_t supplyPsi_x10) const;
+  // Kept for WB tests via TestProbe
+  bool isSupplySufficient(uint16_t supplyPsi_x10) const;
 
- void transitionTo(State nextState, uint32_t durationMs, bool timed);
-
- void applyOutputsForState(State state);
-
- IClock& clock_;
- TimedStateMachine timedStateMachine_;
- IBinaryOutput& leftValve_;
- IBinaryOutput& rightValve_;
- Config config_;
- bool enabled_;
- StateView stateView_;
-
+  IClock& clock_;
+  TimedStateMachine timedStateMachine_;
+  IBinaryOutput& leftValve_;
+  IBinaryOutput& rightValve_;
+  Config config_;
+  bool enabled_;
 };
-
 #endif
-
-// TowerController.h v8
+// TowerController.h v9
