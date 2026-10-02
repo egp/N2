@@ -34,6 +34,16 @@ void System::begin(const ResetInfo& reset, uint32_t warmCreditMs) {
   faults_.report(FaultId::kBrownoutReset, reset.brownout, now, cfg_.faultHoldMs);
 }
 
+void System::resume() {
+  const uint32_t now = hal_.millis();
+  driver_.begin(now);
+  tower_.disable(now);
+  compressor_.disable(now);
+  o2_.disable(now);
+  prevTbs_ = false;
+  prevEnabled_ = false;
+}
+
 void System::step() {
   const uint32_t now = hal_.millis();
   in_.ms = now;

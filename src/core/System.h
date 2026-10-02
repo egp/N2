@@ -35,6 +35,10 @@ class System {
   // Boot (RST-1..RST-5): outputs safe, controllers DISABLED, warm-up starts (minus trusted credit).
   void begin(const ResetInfo& reset = ResetInfo(), uint32_t warmCreditMs = 0);
 
+  // After POST/BIST: outputs safe again, controllers forget their state, TBS edge detection restarts (RST-3).
+  // The O2 warm-up is NOT restarted: the sensor kept its power.
+  void resume();
+
   // One pass of loop().
   void step();
 
@@ -43,6 +47,7 @@ class System {
   const Compressor& compressor() const { return compressor_; }
   const O2Controller& o2() const { return o2_; }
   const FaultSet& faults() const { return faults_; }
+  FaultSet& faultSet() { return faults_; }  // POST, BIST and the display manager report their own faults here
   const OutputDriver& outputs() const { return driver_; }
   const WarmupTracker& warmup() const { return warmup_; }
   const ControlConfig& config() const { return cfg_; }

@@ -33,6 +33,9 @@ Screen renderFault(const DisplayData& d, uint8_t faultIndex);
 // Startup banner (DSP-8).
 Screen renderBanner(const char* version, const char* board, const char* buildDate);
 
+// A screen from up to four lines of text (each clipped or padded to 20 columns). For POST, BIST and banners.
+Screen makeScreen(const char* r0, const char* r1 = "", const char* r2 = "", const char* r3 = "");
+
 // Fixed-point formatting used by the screens, exposed for tests and the console.
 void formatX10(char* out, uint16_t value);    // "123.4" (5 chars)
 void formatX100(char* out, uint16_t value);   // " 12.34" -> "12.34" (5 chars)

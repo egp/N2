@@ -150,6 +150,14 @@ Screen renderFault(const DisplayData& d, uint8_t faultIndex) {
   return s;
 }
 
+Screen makeScreen(const char* r0, const char* r1, const char* r2, const char* r3) {
+  Screen s;
+  clearScreen(s);
+  const char* rows[4] = {r0, r1, r2, r3};
+  for (uint8_t r = 0; r < kLcdRows; ++r) put(s, r, 0, rows[r]);
+  return s;
+}
+
 Screen renderBanner(const char* version, const char* board, const char* buildDate) {
   Screen s;
   clearScreen(s);
