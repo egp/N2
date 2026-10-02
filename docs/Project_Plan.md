@@ -6,12 +6,14 @@ No firmware code exists yet.
 
 ## 1. Principles
 
+0. **Design priorities, in order: testability, readability, maintainability** (GOAL-10). When two designs compete, this order decides.
 1. **Requirements first, then tests, then code.** Each requirement ID gets a test before its code.
 2. **Host first.** Everything provable on a laptop or in CI is proven there. Hardware time is scarce.
 3. **Diagnostics before logic (GOAL-9).** The first thing that touches production is a diagnostic-only build that guarantees the pinouts. Production logic only runs on hardware whose wiring has been proven.
 4. **Reuse what worked (GOAL-8).** V5 controllers/tests, V6/V7 state machines and V7 mini-libraries are the starting material, brought under host tests.
 5. **Closed loop.** The production unit prints; the laptop captures to a file; the file comes back to Claude for analysis (§8).
 6. **Never lose the working unit.** The known-good firmware stays available for the field trip (NFR-3).
+7. **The firmware is the only protection** (hardware answer HQ2: no independent safeguard; GOAL-11). The invariants in Requirements §6 get an independent review before the first hardware visit and again before production.
 
 ## 2. Decisions
 
@@ -106,7 +108,7 @@ Both build without errors; the only warnings are inside the Arduino core itself.
 ### M3 — DIAG build: console, drivers, POST, BIST  *(new — diagnostics first)*
 - Console (non-blocking both ways, attach detection, command parser, log format, `report`), build identity, loop-time statistics (min/mean/median/max).
 - LCD and LED drivers behind a transport interface with exhaustive golden-byte tests; display model and the `display` echo.
-- POST (hands-off; hangs only on fault; TOB releases) and BIST (console required; operator confirms; y/n table).
+- POST (hands-off; hangs only on fault; TOB releases) and BIST (console required; operator confirms p/f/r/s/q; pass/fail table).
 - No controllers: `DIAG` keeps all outputs OFF except inside BIST.
 - **Exit:** host tests green; DIAG compiles for both boards in CI; golden screens for every BIST step.
 
@@ -153,7 +155,7 @@ Results go to `docs/results/bench-YYYYMMDD.md`:
 1. Photograph wiring; TBS OFF; note which firmware is installed.
 2. Connect the laptop; open the Arduino IDE Serial Monitor (timestamps on); you will copy its contents into a text file at the end of each session.
 3. Flash **DIAG**; boot; read POST.
-4. Run BIST steps 0–B with TBS OFF, confirming each y/n; record gauge readings against BIST step 5.
+4. Run BIST steps 0–B with TBS OFF, confirming each p/f; record gauge readings against BIST step 5.
 5. Verify each output by sound; each input by toggling; each I2C device by echo.
 6. Save the captured file → `docs/results/field-DATE.md` (Claude reviews).
 7. Fix `BoardPins.h` only; rebuild; re-run POST/BIST.
@@ -200,7 +202,8 @@ Commit messages end with the attribution line shown in the session settings.
 | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|
 | ~~No R4 compiler on this Mac (no Rosetta)~~ | Resolved | — | Rosetta installed 2026-10-02 |
-| A5/SCL conflict makes current wiring unworkable | High | High | Owner resolves pinout (M1); PIN-4 compile-time check |
+| A5/SCL conflict; A1/A2 may be left/right tower sensors, leaving no free analog pin for N2-high | High | High | Owner finds out what is wired (M1); PIN-4 compile-time check; if truly six analog sensors, revisit I2C wiring |
+| **No independent hardware safeguard (HQ2)** | Certain | High | GOAL-11: invariants reviewed independently; DIAG proves wiring first; owner may wish to consider a hardware over-pressure device |
 | Minima pin behavior differs from WiFi | Medium | Medium | DIAG on site proves it before any logic runs |
 | `Serial` blocks or a Serial Monitor connection upsets the board | Unknown | High | CON-2/3 tests on bench and on site |
 | I2C hang from a bad device | Medium | High | Wire timeout + watchdog; display failure never stops control |

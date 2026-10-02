@@ -1,6 +1,6 @@
-# Nitrogen Generator Controller — Requirements (v2.1 DRAFT)
+# Nitrogen Generator Controller — Requirements (v2.2 DRAFT)
 
-**Status:** DRAFT for iteration — no code written yet. v2.1 folds in the author's review of v2.0.
+**Status:** DRAFT for iteration — no code written yet. v2.2 folds in the author's reviews of v2.0 and v2.1.
 **Supersedes:** `N2V6/N2V6_Requirements.md` v1.1 (2026-06-10)
 **Behavioral reference:** `N2V7/N2V7.ino` (2026-07-13). Where V6 text and V7 code disagree, V7 is
 treated as the more recent intent and the difference is called out. Code from V5–V7 that meets a
@@ -25,6 +25,8 @@ requirement shall be reused rather than rewritten (GOAL-8).
 | GOAL-7 | The DFRobot Multigas library shall be used **unmodified**. All libraries (DFRobot, any other public library, the board core) shall be the **latest available release** at the time work starts, and the versions used shall be recorded in `BuildInfo` (§10). |
 | GOAL-8 | **Reuse over rewrite.** Working code from earlier iterations (V5 controllers and tests, V6/V7 state machines, V7 mini-libraries) shall be used where it meets these requirements, after it has host tests. Earlier iterations worked in parts but never all at once. |
 | GOAL-9 | **Diagnostics first.** The first firmware taken to the field shall be the diagnostic-only build (§2, DIAG) that exercises all hardware and **guarantees the pinouts** before any production logic runs. |
+| GOAL-10 | **Design priorities, in this order: testability, readability, maintainability.** Where requirements or designs conflict, this order decides. Concretely: small single-purpose modules; pure functions where possible; names that say what a thing is; one place for each fact (pins, constants, text); no clever code; every behavior reachable from a host test. |
+| GOAL-11 | **The firmware is the only protection.** The plant has no independent hardware safeguard against over-pressure or similar faults (hardware-team answer HQ2: none). The invariants (§6) are therefore safety-critical: they shall be independently reviewed before the first hardware visit and again before production use. |
 
 ## 2. Phases and build configurations
 
@@ -93,7 +95,7 @@ may be reused for any tested logic that meets these requirements. The DFRobot li
 | PIN-8 | The firmware shall not use `Serial1` (D0/D1 are TBS/TOB). |
 | PIN-9 | The R4 core maps D2–D7 and D10–D13 to different MCU port pins on the two boards. Only plain GPIO/ADC is used, so header numbers should behave the same, but this is **unverified on the Minima** and is settled by DIAG on site (GOAL-9). |
 
-Initial contents, from V7 (all **unverified**):
+Initial contents, from V7 (**V6 and V7 agree on every pin, active level and I2C address**; differences with V5 are in Appendix C). All **unverified** until DIAG on site:
 
 | Signal | Pin | Direction | Active level | Notes |
 |---|---|---|---|---|
@@ -113,9 +115,9 @@ Initial contents, from V7 (all **unverified**):
 
 | ID | Requirement |
 |---|---|
-| PIN-10 | **[Q1 — top priority]** In the installed R4 core (renesas_uno 1.6.0) `Wire` is bound to core pins 18/19 = **A4/A5** on *both* boards, and V7 reads the high-N2 sensor on **A5**, the I2C SCL line. The sensor shall move to an unused analog pin (A1 or A2) unless a bench test shows A5 coexists with I2C. PIN-4 enforces this at compile time. The author is resolving the pinout before bench work. |
+| PIN-10 | **[Q1 — top priority]** In the installed R4 core (renesas_uno 1.6.0) `Wire` is bound to core pins 18/19 = **A4/A5** on *both* boards, and V7 reads the high-N2 sensor on **A5**, the I2C SCL line. The sensor shall move to another analog pin unless a bench test shows A5 coexists with I2C. **Caution:** A1 and A2 are *not* known to be free — V5 used them for left/right tower pressure sensors; A0 is air and A3 is N2-low; A4/A5 are I2C. The author is finding out what is physically wired (Owner_TODO 3, 5). If six analog sensors really exist, I2C and analog cannot all share the six analog pins (V5 solved this with bit-banged I2C on D2/D3 etc.; that is not planned here). PIN-4 enforces this at compile time. The author is resolving the pinout before bench work. |
 | PIN-11 | The author reports I2C SDA/SCL are on D18/D19 on the WiFi board and on A4/A5 on the Minima. The installed core defines both as 18/19 (= A4/A5). `BoardPins.h` shall record the bus pins per board; the author will confirm the production wiring. |
-| PIN-12 | TBS and TOB roles: **TBS** is the system on/off; it determines whether the generator is enabled and producing N2 and affects the displays (details TBD [Q17]). **TOB** is available in Debug and Production as needed: single-step during diagnosis, confirm/acknowledge an event. |
+| PIN-12 | TBS and TOB roles: **TBS** is the system on/off; it determines whether the generator is enabled and producing N2 and affects the displays (the LCD shows its state if there is room: DSP-9). **TOB** is available in Debug and Production as needed: single-step during diagnosis, confirm/acknowledge an event. |
 
 ## 5. Inputs and scaling
 
@@ -149,21 +151,23 @@ in addition to being implemented inside each controller — defense in depth):
 |---|---|
 | INV-5 | **Safety actions are never delayed.** Turning an output OFF because of an invariant, fault, TBS-off, POST or BIST abort shall happen immediately regardless of `OUTPUT_MIN_HOLD_MS`. |
 | INV-6 | If an invariant is violated by a controller's output, the firmware shall force the safe state, log the violation with the controller name, and raise F20. On host this is a test failure (it indicates a bug). |
-| INV-7 | On host, property tests shall drive randomized sensor/TBS/clock sequences through all controllers and assert INV-1…INV-4 after every step. |
-| OUT-1 | **Minimum hold time.** Every output shall have a minimum time since its last change before a *non-safety* change is made (anti-buzz, short-cycle protection). `OUTPUT_MIN_HOLD_MS` = **1000 ms** until determined (the author suggests 500 ms may suffice [Q6]). The state-machine rules shall guarantee this anyway (tower valves change at most every ~60 s); the OutputDriver enforces it as a backstop and logs when it defers a change. BIST toggling (≥ 500 ms per half-cycle) uses a documented BIST bypass. |
+| INV-7 | On host, property tests shall drive randomized sensor/TBS/clock sequences through all controllers and assert INV-1…INV-4, INV-8 and INV-9 after every step. |
+| INV-8 | **F04 inhibits.** While F04 (N2-low reads above N2-high) is active, INV-3 and INV-4 apply as if both N2 sensors were faulty: towers closed, SSR off. |
+| INV-9 | **O2 mandatory in `FIELD`.** While F12 (O2 sensor missing or failed) is active in a `FIELD` build, **all outputs are off** (towers, SSR, flush valve) until it clears. `BENCH`, `HOST` and `DIAG` builds do not apply this (the home bench has no O2 sensor), selected by `O2_MANDATORY` in `BuildConfig.h`. |
+| OUT-1 | **Minimum hold time.** Every output shall have a minimum time since its last change before a *non-safety* change is made (anti-buzz, short-cycle protection). `OUTPUT_MIN_HOLD_MS` = **1000 ms** (decided by the author). The state-machine rules shall guarantee this anyway (tower valves change at most every ~60 s); the OutputDriver enforces it as a backstop and logs when it defers a change. BIST toggling (≥ 500 ms per half-cycle) is the one **documented exception** (the BIST output steps toggle at ~2 Hz). |
 
 **Reset behavior:**
 
 | ID | Requirement |
 |---|---|
 | RST-1 | Behavior after a reset shall be a function of sensors and TBS only, not of the reset cause or any stored state. |
-| RST-2 | All outputs shall be driven to their safe level as the **first** action in `setup()`, before I2C, display, or POST. |
+| RST-2 | All outputs shall be driven to their safe level **as early as possible**: the core calls `initVariant()` before `setup()`, so the output-safe code shall run from `initVariant()` (verified at the bench) and again as the first lines of `setup()`, before `Serial`, I2C, displays or POST. Setting the outputs early matters more than anything else in startup. |
 | RST-3 | At boot every controller starts DISABLED. If TBS is ON, the normal enable path runs on the first loop pass and sensor rules choose the state. |
 | RST-4 | Compressor initial state on enable shall be chosen from sensors: N2 high above `n2HighOn` → STOPPED_HIGH; else N2 low below `n2LowOn` → STOPPED_LOW; else RUNNING (subject to OUT-1). [CHG] |
 | RST-5 | Reset cause (power-on, external, watchdog, brown-out) shall be read at boot if the core exposes it, and logged. |
 | RST-6 | The two pushbuttons are: the board RESET button (hardware; not readable by software) and TOB. TOB held during reset/power-up selects BIST (§12). |
 | RST-7 | Running POST or BIST means normal operation is **disabled**: controllers DISABLED, outputs OFF (except those BIST is exercising). |
-| RST-8 | **Hardware default.** Output lines should default to OFF while the MCU is in reset or before `pinMode`. The author believes the hardware pulls outputs to OFF; if verification shows otherwise, a pull resistor shall be added [Q14]. |
+| RST-8 | **Hardware default.** Output lines should default to OFF while the MCU is in reset or before `pinMode`. The hardware team assumes outputs are OFF while the MCU is in reset (HQ3), which is why RST-2 matters; if verification shows otherwise, a pull resistor shall be added. |
 
 ## 7. Controllers and configuration
 
@@ -187,7 +191,7 @@ so that a **later version** can change pressure thresholds from the console. In 
 | `O2SampleTime` | 250 | ms | between samples |
 | `O2SampleCount` | 10 | | averaged per cycle |
 | `O2CommRetryMs` | 1 000 | ms | retry while UNKNOWN |
-| `O2_WARMUP_MS` | TBD | ms | sensor warm-up (O2-6); placeholder until the datasheet value is entered |
+| `O2_WARMUP_MS` | 300 000 | ms | sensor warm-up, **5 minutes (published)** (O2-6) |
 | `OUTPUT_MIN_HOLD_MS` | 1 000 | ms | OUT-1 |
 | `WDT_TIMEOUT_MS` | 4 000 | ms | WDT-1; revisit after loop-time analysis |
 
@@ -213,7 +217,7 @@ STOPPED_HIGH → RUNNING when N2 high < `n2HighOn` **and N2 low is not below `n2
 All non-RUNNING states hold the SSR off. `enable()` selects the state per RST-4.
 
 ### 7.3 O2 controller
-Monitoring only (Q7: no purity alarm). States: `UNKNOWN, FLUSHING, SAMPLING, WAITING, ERROR, DISABLED` (??, F, S, W, E, OFF).
+Monitoring only (no purity alarm), but in `FIELD` the sensor is **mandatory** (O2-1, INV-9). States: `UNKNOWN, FLUSHING, SAMPLING, WAITING, ERROR, DISABLED` (??, F, S, W, E, OFF).
 Cycle as V6/V7: UNKNOWN → (sensor responds) FLUSHING (open flush valve) → after `O2FlushTime` close
 valve, first sample → SAMPLING (re-arm per sample, no transition logged) → after `O2SampleCount`
 samples store average → WAITING until cycle-start + `O2SampleInterval` → FLUSHING.
@@ -221,13 +225,14 @@ N2% ×100 = 10000 − O2% ×100, clamped to 9999 (and 0 if O2 ≥ 100%).
 
 | ID | Requirement |
 |---|---|
-| O2-1 | The O2 controller shall never inhibit tower or compressor operation. |
+| O2-1 | **The O2 sensor is mandatory in production.** In a `FIELD` build, a missing or failed O2 sensor is an INHIBIT fault (F12) that turns **all outputs off** (INV-9). The O2 controller otherwise has no authority over the towers or compressor (no purity alarm). While the sensor is present but still warming up, production **runs** and N2% is shown invalid [Q21]. |
 | O2-2 | ERROR shall not be permanent: it shall retry via UNKNOWN after a delay (proposed 60 s), showing the fault while it persists. [CHG] |
 | O2-3 | A failed read shall be detected from the library's actual failure signaling, not only from an I2C address probe (V7's `sensorPresent()`). The failure modes of the unmodified DFRobot library (absent, wrong address, stuck bus, bad data) shall be characterized at the bench and recorded here. |
 | O2-4 | The flush valve shall be closed whenever the O2 controller is not in FLUSHING. |
 | O2-5 | N2% shall be marked invalid (`--.--`) until the first complete cycle, after any ERROR, after `disable()`, and **while warming up**. |
-| O2-6 | **Warm-up.** The sensor documents a warm-up period. Samples shall not be taken or displayed until the warm-up has elapsed. The warm-up is assumed to run from sensor power-on (thermal settling). A reset (button, watchdog) does not power-cycle the sensor, so if the warm-up had already completed no new warm-up is required — but **if the firmware cannot know that, it shall assume the warm-up is not complete** and wait `O2_WARMUP_MS` from boot. The firmware cannot currently know it (RAM is lost across reset), so every boot waits the full warm-up unless a later requirement adds a trustworthy record. During warm-up the LCD/console show `WARM mm:ss`. |
-| O2-7 | **Gating [HQ1].** Whether the O2 cycle runs when the towers are not cycling is a hardware question: the sensor reads the N2 product line downstream of the towers. Until answered, the O2 controller runs whenever TBS is ON (V6/V7 behavior), and N2% shall be flagged **stale** when the tower controller is not cycling. A constant `O2_REQUIRES_TOWER_ACTIVE` shall allow either policy. |
+| O2-6 | **Warm-up (5 minutes).** Samples shall not be taken or displayed until `O2_WARMUP_MS` (5 min) of warm-up has elapsed, counted from sensor power-on (thermal settling). During warm-up the LCD/console show `WARM mm:ss` and N2% is invalid. **Baseline rule:** if the firmware cannot know that the warm-up completed, it assumes it did not and waits the full 5 minutes from boot. |
+| O2-6a | **Power-on vs reset discrimination [Q23, optional, bench-verified].** A reset button press does not power-cycle the sensor, so a completed warm-up need not repeat. The firmware may therefore keep **warm-up credit** across resets: (a) read the reset-status register (RA4M1 `RSTSR0.PORF` = power-on reset; the core's linker script has a `.noinit` RAM section); (b) keep a small record `{magic, checksum, warmCreditMs}` in `.noinit` RAM, updated about once per second while the sensor is communicating; (c) at boot, if the reset was **not** a power-on reset *and* the record is valid, start with that credit; otherwise credit = 0. Any O2 communication failure resets the credit to 0 (the sensor may have lost power). The feature shall be enabled only after the bench shows that the status flag and the RAM record both behave as expected on both boards. Until then the baseline rule applies. |
+| O2-7 | **Gating (HQ1: yes).** The O2 cycle may run when the towers are not cycling, **as long as the N2 low and high thresholds are met** (proposed: N2-low above `n2LowOff` and N2-high below `n2HighOff`, i.e. gas is available and the tank is within limits). When they are not met, the cycle pauses and N2% is flagged **stale**. [Q22: confirm this reading of "thresholds met"] |
 
 ## 8. Displays
 
@@ -235,7 +240,7 @@ N2% ×100 = 10000 − O2% ×100, clamped to 9999 (and 0 if O2 ≥ 100%).
 |---|---|
 | DSP-1 | Displays render from the output snapshot and fault state only, after controllers update. |
 | DSP-2 | Writes to LCD/LED occur only when a rendered field has changed (fixed per-field positions, V6 Layout C). |
-| DSP-3 | **LED:** TBS on and N2% valid → `nn.nn`; TBS on and invalid → `--.--`; TBS off → blank. [Q17: how else TBS affects displays] |
+| DSP-3 | **LED:** TBS on and N2% valid → `nn.nn`; TBS on and invalid → `--.--`; TBS off → blank. |
 | DSP-4 | **LCD normal layout (Layout C):** |
 
 ```
@@ -251,6 +256,7 @@ N2% 99.99  LRFS 1001
 | DSP-5 | **Fault line.** In Production, with a fault of severity ≥ WARN active, **one LCD line (proposed: row 3) shall be co-opted** to show `Fnn <text>` (≤ 20 chars), alternating with its normal content every 2 s (so N2%/LRFS stay available). With several faults they rotate. The LED shows `Fnn` of the first active fault. This is the fault channel when no console is attached. [Q9] |
 | DSP-6 | A display failure (no ACK) shall never stop the control loop; it raises an INFO fault logged to the console. |
 | DSP-7 | LCD and LED initialization shall tolerate an absent or slow device and re-initialize when a later probe finds it. |
+| DSP-9 | **TBS state on the LCD.** The LCD shall show the TBS state as `ON` or `OFF` **if the layout has room**. Layout C has only 2-character gaps, so the exact field is settled with the golden-screen tests in M3 (candidates: shorten a label gap, or reuse the N2% value field when N2% is invalid). With TBS off the controller states already read `OFF`. |
 | DSP-8 | **Startup banner.** At startup the LCD shall show the firmware version and build date for about 1 s (user request); the console prints the full build identity (§10). |
 
 ## 9. Faults [NEW]
@@ -260,10 +266,10 @@ N2% 99.99  LRFS 1001
 | F01 | Air sensor out of range | **INHIBIT** | INV-2 |
 | F02 | N2-low sensor out of range | **INHIBIT** | INV-4 |
 | F03 | N2-high sensor out of range | **INHIBIT** | INV-3 |
-| F04 | N2-low reads above N2-high | WARN | log + display [Q18: INHIBIT?] |
+| F04 | N2-low reads above N2-high | **INHIBIT** | INV-8 |
 | F10 | LCD no ACK | INFO | log only |
 | F11 | LED no ACK | INFO | log only |
-| F12 | O2 comm failure | WARN | O2 ERROR, N2% invalid |
+| F12 | O2 sensor missing/failed | **INHIBIT** in `FIELD` (WARN elsewhere) | INV-9: all outputs off; O2 ERROR; N2% invalid |
 | F20 | Invariant violation | **INHIBIT** | forced safe state (INV-6); latches until reset |
 | F30 | Watchdog reset occurred | WARN | cleared after first normal cycle |
 | F31 | Brown-out reset occurred | WARN | same |
@@ -329,7 +335,7 @@ disables normal operation while it runs (RST-7).
 | POST-1 | POST shall be quick (proposed ≤ 3 s) and shall not wait for anyone **unless a fault occurs**. |
 | POST-2 | Checks: (1) outputs verified safe; (2) reset cause logged; (3) I2C scan against expected addresses (LCD, LED, O2): each OK/MISSING, unexpected responders listed; (4) each pressure sensor within the valid window; (5) TBS/TOB read; (6) config sanity; (7) build identity. |
 | POST-3 | Result: one summary line (`POST PASS`, `POST WARN n`, `POST FAIL n`) plus one line per check, to the console if attached, and on the LCD. |
-| POST-4 | **POST shall hang if and only if a fault occurs.** On a fault of severity ≥ `POST_HANG_SEVERITY` (proposed WARN; INFO faults do not hang) the system stays disabled with the fault shown on the LCD (and console if attached) until the operator presses **TOB**, which releases it to normal operation. The matching faults stay active, so the INV rules still protect the plant. A constant sets the maximum hold (forever by default). [Q20: does an O2 failure alone hang a headless restart?] |
+| POST-4 | **POST shall hang if and only if a fault occurs.** On a fault of severity ≥ `POST_HANG_SEVERITY` (proposed WARN; INFO faults do not hang) the system stays disabled with the fault shown on the LCD (and console if attached) until the operator presses **TOB**, which releases it to normal operation. The matching faults stay active, so the INV rules still protect the plant. A constant sets the maximum hold (forever by default). In `FIELD` a missing O2 sensor is an INHIBIT fault (O2-1), so it **holds POST** until TOB; the outputs stay off either way (INV-9). |
 | POST-5 | A clean POST shall show `N2 vX.Y POST OK` on the LCD for ~1 s and continue. |
 | POST-6 | `post` on the console re-runs POST; it shall disable the controllers while it runs and re-enable them after, per RST-3. |
 
@@ -342,15 +348,16 @@ most important feature during Debug. It **requires an attached console**.
 |---|---|
 | BIST-1 | BIST runs **only on request**: TOB held during reset/power-up, or `bist` on the console with TBS OFF. It shall refuse to start without an attached console (LCD shows `BIST: NO CONSOLE`). [CHG] V6/V7 run BIST on every boot and block, which hangs an unattended unit. |
 | BIST-2 | BIST disables normal operation (RST-7). Steps are numbered in HEX; the LED shows the step (except in the LED test), the LCD shows the step (except in the LCD test), the console logs every step and observation. |
-| BIST-3 | **Operator confirmation.** Each step ends with a prompt on the console; the operator types one letter and Enter (or presses **TOB = `y`**). The result is printed as one line per step and a final table, all in the captured log; nothing is stored on the board. |
+| BIST-3 | **Operator confirmation.** Each step ends with a prompt on the console; the operator types one letter and Enter (or presses **TOB = `p`**). The result is printed as one line per step and a final table, all in the captured log; nothing is stored on the board. |
 
 | Key | Meaning | Effect |
 |---|---|---|
-| `y` | **Yes — pass.** What I saw, heard or read matched the console's expectation. | Step recorded PASS; next step. |
-| `n` | **No — fail.** Optional note follows, e.g. `n LCD row 2 blank`. | Step recorded FAIL with the note; next step (BIST does not stop; the final table shows all failures). |
-| `r` | **Repeat.** I missed it or want another look. | Step runs again from the start; nothing recorded. |
-| `s` | **Skip.** Not applicable here (e.g. the O2 sensor is not connected on the bench). | Step recorded SKIPPED; next step. |
+| `p` | **Pass.** What I saw, heard or read matched the console's expectation. | Step recorded PASS; next step. |
+| `f` | **Fail.** Optional note follows, e.g. `f LCD row 2 blank`. | Step recorded FAIL with the note; next step (BIST does not stop; the final table lists all failures). |
+| `r` | **Rerun / repeat.** I missed it or want another look. | Step runs again from the start; nothing recorded. |
+| `s` | **Skip.** Not applicable here (e.g. no O2 sensor on the bench). | Step recorded SKIPPED; next step. |
 | `q` | **Quit.** Stop the BIST now. | Outputs forced OFF; the table so far is printed; normal operation resumes (BIST-7). |
+
 | BIST-4 | **Display steps echo the expectation to the console** (DRV-3): e.g. `EXPECT LCD  row0 "0123456789ABCDEFGHIJ"` and `EXPECT LED  "8.8.8.8."`, so the operator compares console and display and then confirms. |
 | BIST-5 | **Output steps** run only with TBS OFF; each toggles at ~2 Hz for 10 s or until confirmation (the valves are loud enough to confirm audibly) and leaves the output OFF on exit, timeout or any abort (INV-5). Output steps print which signal, which pin, and the active level. |
 | BIST-6 | The watchdog (if enabled) is kicked from every BIST wait loop. |
@@ -371,7 +378,7 @@ most important feature during Debug. It **requires an attached console**.
 | 8 | RIGHT valve | same |
 | 9 | Flush valve | same |
 | A | SSR | same |
-| B | Summary | table of y/n per step |
+| B | Summary | table of pass/fail/skip per step |
 
 ## 13. Verification
 
@@ -404,12 +411,12 @@ pins on production; SEN0465 warm-up time; output pull-down wiring.
 
 | # | Question | Proposal / status |
 |---|---|---|
-| Q1 | High-N2 sensor on A5 = SCL | Author is resolving the pinout; move to A1/A2 |
+| Q1 | High-N2 sensor on A5 = SCL | Author is finding out the physical wiring; A1/A2 may be left/right tower sensors (V5) — see PIN-10 and Appendix C |
 | Q2 | LCD/LED libs | **Resolved:** DIY minimal, from V7 mini-libs; reuse TCP logic where good |
 | Q3 | Fixed-point ranges as V7 | Resolved: yes |
 | Q4 | Sensor fault window/sample count | Resolved: ok (0.4/4.6 V, 3 samples) |
 | Q5 | RST-4 and §7.2 cross-checks | Resolved: ok |
-| Q6 | Minimum output hold time | 1000 ms until determined (500 ms proposed by author); BIST bypass for 2 Hz — confirm |
+| Q6 | Minimum output hold time | **Resolved:** 1000 ms; BIST has a 2 Hz exception |
 | Q7 | O2 purity alarm | Resolved: none |
 | Q8 | O2 auto-retry | Resolved: yes |
 | Q9 | Fault display | Resolved: ok, as DSP-5 (one co-opted LCD line) |
@@ -420,20 +427,23 @@ pins on production; SEN0465 warm-up time; output pull-down wiring.
 | Q14 | Output pull-downs | Author believes yes; **verify**; else add |
 | Q15 | Independent safety device | Reworded in HQ2 |
 | Q16 | (reserved) | |
-| Q17 | How does TBS affect LCD/LED beyond the LED blanking? | TBD |
-| Q18 | Should F04 (N2 low > N2 high) inhibit outputs, or warn only? | WARN until field data |
+| Q17 | TBS and the displays | **Resolved:** LCD shows `ON`/`OFF` if room (DSP-9); LED blank when off |
+| Q18 | F04 severity | **Resolved:** INHIBIT (INV-8) |
 | Q19 | Capture tool | **Resolved:** copy/paste from the IDE Serial Monitor is the baseline (LOG-3); an optional script comes later |
-| Q20 | Should a missing O2 sensor alone hold POST until TOB? | Propose: only INHIBIT-severity faults hang a headless unit |
+| Q20 | Missing O2 sensor | **Resolved:** mandatory in production; inhibit all; holds POST (O2-1) |
+| Q21 | Does production run while the O2 sensor is present but warming up (5 min)? | Proposed: yes; N2% invalid until warm |
+| Q22 | HQ1 "N2 low and high thresholds are met" | Proposed: N2-low > `n2LowOff` and N2-high < `n2HighOff` (O2-7) |
+| Q23 | Can the firmware tell power-on from reset-button, and keep warm-up credit? | Proposed O2-6a; bench-verify `RSTSR0.PORF` and `.noinit` retention on both boards |
 
-## 17. Questions for the hardware team
+## 17. Questions for the hardware team (answers recorded 2026-10-02)
 
-| # | Question |
-|---|---|
-| HQ1 | The O2 sensor reads the N2 product line downstream of the towers. Can the O2 sample cycle (flush, then 10 samples) run meaningfully when the towers are **not** cycling (TBS on but air low, tank full, or compressor stopped)? Is there flow, or is the sensor then reading stale or air-contaminated gas? |
-| HQ2 | Is there a **mechanical or hardware safeguard independent of the Arduino** — a pressure relief valve, a hardware pressure switch on the tank or compressor, or a stop that cuts power? (This tells us how much the firmware alone must guarantee; if none exists, the firmware's fail-safe behavior is the only protection.) |
-| HQ3 | Do the valve/SSR driver circuits default to OFF when the Arduino pin is floating or in reset? |
-| HQ4 | Which plant gauges are readable (air supply, and which others — left/right tower or N2 low/high)? |
-| HQ5 | What is the SEN0465 warm-up time, and is the sensor powered from the same supply as the Arduino or separately? |
+| # | Question | Answer |
+|---|---|---|
+| HQ1 | Can the O2 sample cycle run when the towers are not cycling? | **Yes**, as long as the N2 low and high thresholds are met (→ O2-7, Q22). |
+| HQ2 | Is there a mechanical/hardware safeguard independent of the Arduino (relief valve, pressure switch, power cut)? | **No.** The firmware is the only protection (→ GOAL-11). |
+| HQ3 | Do the valve/SSR drivers default OFF in reset or with a floating pin? | **Assume yes (safe)** during reset. More important to set the outputs as early as possible in startup (→ RST-2, RST-8). |
+| HQ4 | Which plant gauges are readable? | **TBD** (author will check; INP-8). |
+| HQ5 | SEN0465 warm-up time? | **5 minutes** (→ O2-6). Whether it shares the Arduino's supply is still open. |
 
 ---
 
@@ -444,7 +454,7 @@ pins on production; SEN0465 warm-up time; output pull-down wiring.
 | Architecture | Monolithic, no abstraction, pasted libraries | Thin HAL, fakes, host tests, drivers behind interfaces |
 | Pinouts | `const` block in the sketch | One header, board-selected, with direction/pull/active level, compile-time checked, set up from a table |
 | ADC | 10-bit hardcoded | `ADC_BITS` 10/12/14, limits derived |
-| BIST | Every boot, blocks | On request, console required, operator confirms y/n, display echo |
+| BIST | Every boot, blocks | On request, console required, operator confirms p/f/r/s/q, display echo |
 | POST | none | New, hands-off, hangs only on fault; TOB releases |
 | Faults | O2 ERROR only | Fault table, co-opted LCD line |
 | Invariants/reset | implicit | Explicit, tested; sensors decide after reset |
@@ -463,3 +473,28 @@ pins on production; SEN0465 warm-up time; output pull-down wiring.
 6. **O2 ERROR is permanent** until a TBS toggle. → O2-2.
 7. **No O2 warm-up** handling. → O2-6.
 8. `inputs.tob` is read but unused; display drivers ignore I2C errors; `Serial.print` use assumes a host. → DRV-1, CON-2.
+
+## Appendix C — Pin history across iterations
+
+V6 and V7 agree on every pin, active level, I2C address and tuning constant (V7 adds `O2CommRetryMs`).
+V5 differs:
+
+| Signal | V5 `PinAssignments.h` | V5 `UnoR4PinAssignments.h` | V6 / V7 (adopted) |
+|---|---|---|---|
+| TBS | D2 (pull-up, LOW = on) | D0 | **D0** (pull-up, LOW = on) |
+| TOB | — | D1 | **D1** (pull-up, LOW = pressed) |
+| LEFT valve | D4 | D4 (`Relay_1`) | **D4** (HIGH = open) |
+| RIGHT valve | D7 | D7 (`Relay_2`) | **D7** (HIGH = open) |
+| SSR | D8 | D8 (`Relay_3`, "TODO verify") | **D8** (HIGH = on) |
+| Flush valve | D11 | **D12** (`Relay_4`, "TODO verify") | **D11** (HIGH = open) |
+| Air pressure | A0 | A0 | **A0** |
+| Left tower pressure | **A1** | **A1** | *not used* |
+| Right tower pressure | **A2** | **A2** | *not used* |
+| N2 low | A3 | A3 | **A3** |
+| N2 high | A5 ("TODO verify") | **A4** | **A5** |
+| I2C | — (addresses "TODO verify") | four **bit-banged** buses on D2/D3, D5/D6, D9/D10, D11/D13 | hardware `Wire`, A4/A5 |
+| I2C addresses | 0x24 / 0x27 / 0x74 | — | 0x24 / 0x27 / 0x74 |
+
+Things to settle with the physical plant: whether left/right tower pressure sensors exist (A1/A2);
+which analog pin the high-N2 sensor is actually on; whether the output modules are relays whose
+active level should be confirmed (V5 calls the outputs `Relay_1…4`); whether the flush valve is D11 or D12.
