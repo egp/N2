@@ -15,9 +15,9 @@ FetchContent_Declare(Catch2
 FetchContent_MakeAvailable(Catch2)
 list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
 
-set(N2_SRC ${CMAKE_CURRENT_SOURCE_DIR}/../../src)
+set(N2_SRC ${CMAKE_CURRENT_SOURCE_DIR}/../../N2V8/src)
 
-# Everything under src/. HalArduino.cpp is guarded by #ifdef ARDUINO, so it compiles to nothing here.
+# Everything under N2V8/src/ (the sketch's own source folder). HalArduino.cpp is guarded by #ifdef ARDUINO, so it compiles to nothing here.
 file(GLOB_RECURSE N2_SOURCES CONFIGURE_DEPENDS ${N2_SRC}/*.cpp)
 add_library(n2_core STATIC ${N2_SOURCES})
 target_include_directories(n2_core PUBLIC ${N2_SRC})

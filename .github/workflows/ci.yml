@@ -29,10 +29,8 @@ jobs:
         # Library Manager, so CI builds without it (-DN2_NO_DFROBOT: the O2 sensor then reads as absent).
         mode: [N2_BUILD_DIAG, N2_BUILD_FIELD]
     steps:
-      # The sketch folder name must equal the .ino name, so check out as N2V8.
+      # The sketch lives in the repo's N2V8/ folder (folder name = .ino name, as the Arduino IDE requires).
       - uses: actions/checkout@v7
-        with:
-          path: N2V8
       - uses: arduino/setup-arduino-cli@v2
       - name: Install the UNO R4 core
         run: |
