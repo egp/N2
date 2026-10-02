@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  host-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Configure
+        run: cmake -S test/host -B build/host -DCMAKE_BUILD_TYPE=Debug
+      - name: Build
+        run: cmake --build build/host -j
+      - name: Test
+        run: ctest --test-dir build/host --output-on-failure
+
+  compile:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        fqbn: [arduino:renesas_uno:minima, arduino:renesas_uno:unor4wifi]
+    steps:
+      # The sketch folder name must equal the .ino name, so check out as N2V8.
+      - uses: actions/checkout@v7
+        with:
+          path: N2V8
+      - uses: arduino/setup-arduino-cli@v2
+      - name: Install the UNO R4 core
+        run: |
+          arduino-cli core update-index
+          arduino-cli core install arduino:renesas_uno
+      - name: Compile (prints flash and RAM use)
+        run: arduino-cli compile --fqbn ${{ matrix.fqbn }} --warnings default N2V8

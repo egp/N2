@@ -8,15 +8,15 @@ not block development; they must be right before the first hardware visit (DIAG)
 
 ## A. Open items
 
-1. [ ] **Find out what is physically wired on the analog pins** (Requirements Appendix C). V5 used **A1 and A2 for left/right tower pressure sensors**, so they may not be free. Which analog pin carries the high-N2 sensor? V5 says A5 or A4, V6/V7 say A5; **A4 and A5 are the I2C lines**. (PIN-10, Q1)
+1. [ ] **Find out which analog pin the high-N2 sensor is really on.** V6/V7 say A5, but **A4/A5 are the I2C lines**, so `BoardPins.h` carries **A1 as a provisional placeholder** (V5 is ignored). Edit that one table row when you know. (PIN-10, Q1)
 2. [ ] **Confirm the I2C pins on production**: A4/A5 (core pins 18/19) on the Minima. You reported D18/D19 on the WiFi; the core lists both boards as 18/19 = A4/A5. (PIN-11)
 3. [ ] **Verify the pinout and active levels against the real plant.** V6 and V7 agree on all pins, levels and addresses (adopted); V5 differs for TBS, flush valve and N2-high, and calls the outputs `Relay_1…4` (are they relay modules, and is the active level as in V6/V7?). Flush valve D11 (V6/V7) or D12 (V5)? (PIN-7, Appendix C)
 4. [ ] **Identify the plant gauges** you can read by eye (HQ4: TBD). (INP-8)
 5. [ ] **Pressure and timing thresholds are all `TODO: tune` in V6.** Decide which values are final before field use. (§7)
 6. [ ] **Consider an independent hardware over-pressure safeguard.** The hardware team says there is none, so the firmware is the only protection (GOAL-11). This is a plant decision, not a software one.
-7. [ ] **Questions I proposed answers to** (reply "ok" or change): Q21 production runs while the O2 sensor is warming up; Q22 O2 gating means N2-low > `n2LowOff` and N2-high < `n2HighOff`; Q23 try to tell power-on from reset (O2-6a).
+7. [ ] **Hardware team: HQ6** — should the plant run while the O2 sensor warms up (5 min)? Interim answer: no, tower held off (INV-10). Also HQ5: does the O2 sensor share the Arduino's supply?
 8. [ ] Does the O2 sensor share the Arduino's power supply? (HQ5, needed for O2-6a)
-9. [ ] Review `Requirements.md` v2.2 and say what to change.
+9. [ ] Review `Requirements.md` v2.3 and say what to change.
 10. [ ] Bring a laptop with the IDE, core 1.6.0 and the libraries, plus the known-good firmware, on the field trip.
 
 ## B. Decided (kept for reference)
@@ -38,10 +38,11 @@ not block development; they must be right before the first hardware visit (DIAG)
 
 11. [ ] Optional early experiment: with only the LCD and LED attached, run an I2C scan, `analogRead(A5)`, scan again, to see whether A5 and I2C coexist. (PIN-10)
 12. [ ] Confirm the LCD and LED I2C addresses (0x27, 0x24) with a scan.
-13. [ ] Check reset-cause visibility: read `RSTSR0` after power-on vs the reset button, and `.noinit` RAM retention (O2-6a).
+13. [ ] **Measure the reset-to-outputs-safe window** (RST-2): the core initializes and starts USB before `setup()`. A scope or logic analyzer on one output pin, or the hardware team's confirmation that outputs default OFF in reset (HQ3), settles whether the gap matters.
+14. [ ] Check reset-cause visibility: read `RSTSR0` after power-on vs the reset button, and `.noinit` RAM retention (O2-6a).
 
 ## D. On site (DIAG visit)
 
-14. [ ] Run BIST with the console attached; answer p/f/r/s/q for each step; copy the Serial Monitor text to a file.
-15. [ ] Read the plant gauges next to BIST step 5 and note them.
-16. [ ] Disconnect one sensor (with the system disabled) and record the raw values, to calibrate the fault window. (INP-4)
+15. [ ] Run BIST with the console attached; answer p/f/r/s/q for each step; copy the Serial Monitor text to a file.
+16. [ ] Read the plant gauges next to BIST step 5 and note them.
+17. [ ] Disconnect one sensor (with the system disabled) and record the raw values, to calibrate the fault window. (INP-4)

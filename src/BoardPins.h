@@ -1,0 +1,156 @@
+// BoardPins.h — every pin, I2C address, direction and active level (PIN-1).
+//
+// This is the ONLY file that contains pin numbers, I2C addresses, or the
+// meaning of HIGH/LOW for a signal. Everything else refers to signals by name
+// and goes through the helpers below.
+//
+// Pin numbers use the Uno header numbering, identical on the UNO R4 Minima and
+// R4 WiFi in the Arduino core: D0..D13 = 0..13, A0..A5 = 14..19.
+//
+// Wiring facts come from N2V6/N2V7 (they agree). Everything is UNVERIFIED until
+// the DIAG firmware has been run on the plant (PIN-7). Changing a pin or level
+// means editing this file only; the compile-time checks at the bottom reject
+// duplicate pins, signals on the I2C pins, and missing active levels (PIN-4).
+#pragma once
+
+#include <stdint.h>
+
+#include "BuildConfig.h"
+
+namespace n2 {
+
+// ---- Pin numbers ------------------------------------------------------------
+namespace pin {
+constexpr uint8_t kD0 = 0, kD1 = 1, kD2 = 2, kD3 = 3, kD4 = 4, kD5 = 5, kD6 = 6;
+constexpr uint8_t kD7 = 7, kD8 = 8, kD9 = 9, kD10 = 10, kD11 = 11, kD12 = 12, kD13 = 13;
+constexpr uint8_t kA0 = 14, kA1 = 15, kA2 = 16, kA3 = 17, kA4 = 18, kA5 = 19;
+
+constexpr bool isAnalog(uint8_t p) { return p >= kA0 && p <= kA5; }
+constexpr bool isValid(uint8_t p) { return p <= kA5; }
+}  // namespace pin
+
+// ---- Signals ----------------------------------------------------------------
+enum class Signal : uint8_t {
+  kTbs,             // The Black Switch: system on/off (maintained)
+  kTob,             // The Other Button: momentary
+  kLeftValve,       // left tower valve
+  kRightValve,      // right tower valve
+  kFlushValve,      // O2 sensor flush valve
+  kSsr,             // compressor solid-state relay
+  kAirPressure,     // air supply pressure transducer
+  kN2LowPressure,   // low-pressure N2 transducer
+  kN2HighPressure,  // high-pressure N2 transducer
+  kCount
+};
+constexpr uint8_t kSignalCount = static_cast<uint8_t>(Signal::kCount);
+
+enum class Dir : uint8_t { kInput, kInputPullup, kOutput, kAnalogInput };
+
+// Which physical level means "on" (switch pressed, valve open, relay energized).
+enum class Active : uint8_t { kHigh, kLow, kNotApplicable };
+
+struct SignalDef {
+  const char* name;
+  uint8_t pin;
+  Dir dir;
+  Active active;
+  const char* note;
+};
+
+struct BoardDef {
+  const char* name;
+  const SignalDef* signals;  // kSignalCount entries, in Signal order
+  uint8_t signalCount;
+  uint8_t sdaPin;
+  uint8_t sclPin;
+  uint8_t addrLed;  // TM1650 4-digit display (control register address)
+  uint8_t addrLcd;  // 20x4 LCD, PCF8574 backpack
+  uint8_t addrO2;   // DFRobot SEN0465 (SEL dip switch = 0)
+};
+
+// ---- Logical <-> physical level helpers (PIN-6) --------------------------------
+// Code never writes HIGH/LOW for a signal; it states on/off and these convert.
+constexpr bool levelHigh(bool on, Active a) { return a == Active::kLow ? !on : (a == Active::kHigh ? on : false); }
+constexpr bool isOn(bool levelIsHigh, Active a) { return a == Active::kLow ? !levelIsHigh : (a == Active::kHigh && levelIsHigh); }
+// The level an output takes when it is "off" (the safe state).
+constexpr bool safeLevelHigh(Active a) { return levelHigh(false, a); }
+
+// ---- The signal table (UNVERIFIED — see header comment) ---------------------------
+// Order must match enum Signal.
+inline constexpr SignalDef kSignals[kSignalCount] = {
+    // name        pin           direction          active           note
+    {"TBS",       pin::kD0,  Dir::kInputPullup, Active::kLow,  "maintained; V6/V7"},
+    {"TOB",       pin::kD1,  Dir::kInputPullup, Active::kLow,  "momentary; V6/V7"},
+    {"LEFT",      pin::kD4,  Dir::kOutput,      Active::kHigh, "HIGH = valve open; V6/V7"},
+    {"RIGHT",     pin::kD7,  Dir::kOutput,      Active::kHigh, "HIGH = valve open; V6/V7"},
+    {"FLUSH",     pin::kD11, Dir::kOutput,      Active::kHigh, "HIGH = valve open; V6/V7"},
+    {"SSR",       pin::kD8,  Dir::kOutput,      Active::kHigh, "HIGH = compressor on; V6/V7"},
+    {"AIR",       pin::kA0,  Dir::kAnalogInput, Active::kNotApplicable, "0-150 PSI; V6/V7"},
+    {"N2LOW",     pin::kA3,  Dir::kAnalogInput, Active::kNotApplicable, "0-30 PSI; V6/V7"},
+    // V6/V7 put N2-high on A5, which is the I2C SCL line. A1 is a PROVISIONAL
+    // placeholder until the real wiring is confirmed (Requirements PIN-10).
+    {"N2HIGH",    pin::kA1,  Dir::kAnalogInput, Active::kNotApplicable, "0-150 PSI; PROVISIONAL (V6/V7: A5 = SCL)"},
+};
+
+// ---- Boards -------------------------------------------------------------------
+// I2C: the core binds Wire to A4 (SDA) / A5 (SCL) on both boards.
+// The owner reports D18/D19 on the WiFi; the core lists the same pins (18/19).
+inline constexpr BoardDef kMinimaBoard = {"UNO R4 Minima", kSignals, kSignalCount,
+                                          pin::kA4, pin::kA5, 0x24, 0x27, 0x74};
+inline constexpr BoardDef kWifiBoard = {"UNO R4 WiFi", kSignals, kSignalCount,
+                                        pin::kA4, pin::kA5, 0x24, 0x27, 0x74};
+inline constexpr BoardDef kHostBoard = {"host (fake)", kSignals, kSignalCount,
+                                        pin::kA4, pin::kA5, 0x24, 0x27, 0x74};
+
+#if defined(N2_BOARD_MINIMA)
+inline constexpr const BoardDef& kBoard = kMinimaBoard;
+#elif defined(N2_BOARD_WIFI)
+inline constexpr const BoardDef& kBoard = kWifiBoard;
+#else
+inline constexpr const BoardDef& kBoard = kHostBoard;
+#endif
+
+constexpr const SignalDef& def(const BoardDef& b, Signal s) { return b.signals[static_cast<uint8_t>(s)]; }
+constexpr uint8_t pinOf(const BoardDef& b, Signal s) { return def(b, s).pin; }
+constexpr bool isOutput(const SignalDef& d) { return d.dir == Dir::kOutput; }
+
+// ---- Compile-time validation (PIN-4) ----------------------------------------------
+enum class BoardCheck : uint8_t {
+  kOk,
+  kWrongSignalCount,
+  kBadPin,              // pin number outside D0..A5
+  kBadPinKind,          // analog signal on a non-analog pin
+  kMissingActiveLevel,  // digital signal without active level, or analog with one
+  kDuplicatePin,        // two signals share a pin
+  kSignalOnI2cPin,      // a signal uses SDA or SCL
+  kBadI2cPins,          // SDA/SCL are not valid pins or are equal
+  kDuplicateI2cAddress  // two I2C devices share an address
+};
+
+constexpr BoardCheck checkBoard(const BoardDef& b) {
+  if (b.signalCount != kSignalCount) return BoardCheck::kWrongSignalCount;
+  if (!pin::isValid(b.sdaPin) || !pin::isValid(b.sclPin) || b.sdaPin == b.sclPin)
+    return BoardCheck::kBadI2cPins;
+  for (uint8_t i = 0; i < b.signalCount; ++i) {
+    const SignalDef& d = b.signals[i];
+    if (!pin::isValid(d.pin)) return BoardCheck::kBadPin;
+    if (d.dir == Dir::kAnalogInput) {
+      if (!pin::isAnalog(d.pin)) return BoardCheck::kBadPinKind;
+      if (d.active != Active::kNotApplicable) return BoardCheck::kMissingActiveLevel;
+    } else if (d.active == Active::kNotApplicable) {
+      return BoardCheck::kMissingActiveLevel;
+    }
+    if (d.pin == b.sdaPin || d.pin == b.sclPin) return BoardCheck::kSignalOnI2cPin;
+    for (uint8_t j = static_cast<uint8_t>(i + 1); j < b.signalCount; ++j)
+      if (b.signals[j].pin == d.pin) return BoardCheck::kDuplicatePin;
+  }
+  if (b.addrLed == b.addrLcd || b.addrLed == b.addrO2 || b.addrLcd == b.addrO2)
+    return BoardCheck::kDuplicateI2cAddress;
+  return BoardCheck::kOk;
+}
+
+static_assert(checkBoard(kMinimaBoard) == BoardCheck::kOk, "BoardPins.h: UNO R4 Minima pin table is invalid");
+static_assert(checkBoard(kWifiBoard) == BoardCheck::kOk, "BoardPins.h: UNO R4 WiFi pin table is invalid");
+static_assert(checkBoard(kHostBoard) == BoardCheck::kOk, "BoardPins.h: host pin table is invalid");
+
+}  // namespace n2

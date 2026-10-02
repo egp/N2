@@ -100,10 +100,17 @@ Both build without errors; the only warnings are inside the Arduino core itself.
 - **You** verify and complete the pinout, including **direction, pull, active level, and I2C pins for both boards**, and resolve the A5/SCL conflict (Owner_TODO 1–4). Their result goes into `BoardPins.h` as data.
 - **Exit:** requirements APPROVED; signal table complete.
 
-### M2 — HAL, pinout, host skeleton, CI
-- `BoardPins.h` with PIN-2/PIN-4/PIN-6 checks, `Hal.h`, `FakeHal`, CMake/Catch2, first tests (pin table, scaling windows at 10/12/14 bits, rollover-safe deadlines).
-- `.github/workflows/ci.yml` on Ubuntu: (1) host tests, (2) `arduino-cli compile` for both boards using the same `src/` and the latest libraries, with a size report.
-- **Exit:** `ctest` green locally and in CI; both boards compile in CI.
+### M2 — HAL, pinout, host skeleton, CI  — **DONE locally 2026-10-02; CI run pending first push**
+- `src/BoardPins.h`: single signal table (pin, direction, active level, note), board definitions for Minima / WiFi / host, compile-time `checkBoard()` (PIN-2, PIN-4, PIN-6), logical on/off ↔ physical level helpers.
+- `src/hal/Hal.h` (thin interface), `HalArduino` (real, device builds only), `test/host/FakeHal.h` (recording, scriptable).
+- `src/board/BoardSetup.*`: table-driven `configurePins`, `driveOutputsSafe`, `beginHardware` (PIN-3, RST-2, INP-2).
+- `src/core/Scaling.h`, `src/core/Timing.h`: ADC window and scaling derived from `kAdcBits` (10/12/14), sensor-fault classification, rollover-safe deadlines.
+- `test/host/`: CMake + Catch2 v3.16.0; **30 tests**, all named after the requirement they cover; `-Wall -Wextra -Wpedantic -Werror`.
+- `.github/workflows/ci.yml`: host tests, and `arduino-cli compile` for both boards on Ubuntu.
+- `N2V8.ino`: skeleton (pins, ADC bits, I2C start, banner if a console is attached). **Not yet flashed to any board.**
+- **Results:** host tests 30/30 pass; sketch compiles for both boards with no warnings from our code. Skeleton size: Minima 45 744 B flash (17 %) / 5 096 B RAM (15 %); WiFi 58 632 B (22 %) / 8 992 B (27 %) — most of that is the Arduino core itself.
+- **Findings during M2:** (1) the core's `initVariant()` is not overridable and USB starts before `setup()`, so RST-2 is now "first action in `setup()`" (Requirements RST-2); the reset-to-first-write window is a bench measurement. (2) The macros `ARDUINO_UNOR4_MINIMA` / `ARDUINO_UNOR4_WIFI` are confirmed on both targets. (3) N2-high is a **provisional A1** because V6/V7's A5 is the I2C SCL line (PIN-10); the test suite proves the V6/V7 value would be rejected.
+- **Remaining for the exit criterion:** CI green on GitHub (needs a push).
 
 ### M3 — DIAG build: console, drivers, POST, BIST  *(new — diagnostics first)*
 - Console (non-blocking both ways, attach detection, command parser, log format, `report`), build identity, loop-time statistics (min/mean/median/max).
