@@ -4,11 +4,14 @@
 // Arduino headers, so it runs unchanged on the host against a fake.
 // Deliberately thin: no policy, no timing logic, no state.
 //
-// M2 covers clock, GPIO, ADC and an I2C presence probe. Console, watchdog,
-// reset-cause and I2C data transfer arrive with the milestones that need them.
+// Covers clock, GPIO, ADC, an I2C presence probe, the USB console, the watchdog and the
+// reset cause. I2C data transfer (display drivers) arrives with the drivers.
 #pragma once
 
+#include <stddef.h>
 #include <stdint.h>
+
+#include "ResetInfo.h"
 
 namespace n2 {
 
@@ -19,6 +22,7 @@ class Hal {
   virtual ~Hal() = default;
 
   virtual uint32_t millis() = 0;
+  virtual uint32_t micros() = 0;
 
   virtual void pinMode(uint8_t pin, PinMode mode) = 0;
   virtual void digitalWrite(uint8_t pin, bool high) = 0;
@@ -30,6 +34,19 @@ class Hal {
   virtual void i2cBegin() = 0;
   // True if a device acknowledges its address.
   virtual bool i2cProbe(uint8_t address) = 0;
+
+  // USB console (CON-2, CON-4). Nothing here may block.
+  virtual bool consoleAttached() = 0;                          // true only while a host has the port open
+  virtual int consoleRead() = 0;                               // next input byte, or -1
+  virtual size_t consoleWriteSpace() = 0;                      // bytes that can be written without waiting
+  virtual size_t consoleWrite(const char* data, size_t n) = 0;
+
+  // Hardware watchdog (WDT-1..3).
+  virtual void watchdogBegin(uint32_t timeoutMs) = 0;
+  virtual void watchdogRefresh() = 0;
+
+  // Reset cause: read AND cleared (the hardware flags persist until cleared). Call once at boot.
+  virtual ResetInfo readResetCause() = 0;
 };
 
 }  // namespace n2

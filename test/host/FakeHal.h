@@ -3,7 +3,9 @@
 
 #include <array>
 #include <cstdint>
+#include <deque>
 #include <set>
+#include <string>
 #include <vector>
 
 #include "hal/Hal.h"
@@ -21,6 +23,14 @@ class FakeHal : public Hal {
 
   // ---- scripting ----
   uint32_t nowMs = 0;
+  uint32_t nowUs = 0;                       // returned by micros()
+  bool consoleIsAttached = false;
+  std::deque<char> consoleIn;                // bytes the "host" has typed
+  std::string consoleOut;                    // everything written to the console
+  size_t consoleSpace = 4096;                // free TX buffer; a test can shrink it to simulate a stalled host
+  uint32_t watchdogTimeoutMs = 0;
+  uint32_t watchdogRefreshes = 0;
+  ResetInfo resetCause;
   std::array<uint16_t, 32> analogValue{};   // returned by analogRead(pin)
   std::array<bool, 32> inputLevel{};        // returned by digitalRead(pin)
   std::set<uint8_t> i2cPresent;             // addresses that acknowledge
@@ -35,6 +45,7 @@ class FakeHal : public Hal {
   FakeHal() { mode.fill(-1); level.fill(-1); }
 
   uint32_t millis() override { return nowMs; }
+  uint32_t micros() override { return nowUs; }
 
   void pinMode(uint8_t pin, PinMode m) override {
     mode[pin] = static_cast<int>(m);
@@ -65,6 +76,30 @@ class FakeHal : public Hal {
     events.push_back({Kind::kI2cProbe, address, ack ? 1 : 0});
     return ack;
   }
+
+  // ---- console ----
+  bool consoleAttached() override { return consoleIsAttached; }
+  int consoleRead() override {
+    if (!consoleIsAttached || consoleIn.empty()) return -1;
+    const char c = consoleIn.front();
+    consoleIn.pop_front();
+    return static_cast<unsigned char>(c);
+  }
+  size_t consoleWriteSpace() override { return consoleIsAttached ? consoleSpace : 0; }
+  size_t consoleWrite(const char* data, size_t n) override {
+    if (!consoleIsAttached) return 0;
+    const size_t take = n < consoleSpace ? n : consoleSpace;
+    consoleOut.append(data, take);
+    consoleSpace -= take;  // stays consumed until the test drains it (a stalled host)
+    return take;
+  }
+  void type(const std::string& text) { for (char c : text) consoleIn.push_back(c); }
+  void drain() { consoleSpace = 4096; }
+
+  // ---- watchdog and reset cause ----
+  void watchdogBegin(uint32_t timeoutMs) override { watchdogTimeoutMs = timeoutMs; }
+  void watchdogRefresh() override { ++watchdogRefreshes; }
+  ResetInfo readResetCause() override { return resetCause; }
 };
 
 }  // namespace n2

@@ -9,15 +9,9 @@
 
 #include <stdint.h>
 
-namespace n2 {
+#include "../hal/ResetInfo.h"
 
-// What the hardware says about the last reset (from the reset-status register, via the HAL).
-struct ResetInfo {
-  bool known = false;     // false if the status could not be read -> never trust credit
-  bool powerOn = false;
-  bool watchdog = false;
-  bool brownout = false;
-};
+namespace n2 {
 
 // Lives in a RAM section that is not cleared by reset (.noinit on the device).
 struct WarmRecord {
