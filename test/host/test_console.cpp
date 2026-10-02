@@ -358,10 +358,11 @@ TEST_CASE("NFR-1: loop shows the statistics, and 'loop reset' clears them") {
 
 TEST_CASE("BIST step 2/§10: scan lists responders, labels them, and reports missing expected devices") {
   Rig r;
-  r.plant.hal.i2cPresent = {0x24, 0x27, 0x50};
+  r.plant.hal.i2cPresent = {0x24, 0x34, 0x35, 0x36, 0x37, 0x27, 0x50};
   const std::string s = r.ask("scan");
-  CHECK(contains(s, "3 device(s)"));
-  CHECK(contains(s, "0x24 LED display"));
+  CHECK(contains(s, "7 device(s)"));
+  CHECK(contains(s, "0x24 LED control"));
+  CHECK(contains(s, "0x37 LED digit 3"));
   CHECK(contains(s, "0x27 LCD"));
   CHECK(contains(s, "0x50 unexpected"));
   CHECK(contains(s, "0x74 O2 sensor  MISSING"));

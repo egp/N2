@@ -33,6 +33,12 @@ bool HalArduino::i2cProbe(uint8_t address) {
   return Wire.endTransmission() == 0;
 }
 
+bool HalArduino::i2cWrite(uint8_t address, const uint8_t* data, size_t n) {
+  Wire.beginTransmission(address);
+  Wire.write(data, n);
+  return Wire.endTransmission() == 0;
+}
+
 // Console. `Serial` is true only while a host has the USB port open. NEVER call Serial.dtr():
 // in this core it forces the connected state permanently (Requirements CON-4).
 bool HalArduino::consoleAttached() { return static_cast<bool>(Serial); }

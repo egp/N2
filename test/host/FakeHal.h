@@ -33,7 +33,13 @@ class FakeHal : public Hal {
   ResetInfo resetCause;
   std::array<uint16_t, 32> analogValue{};   // returned by analogRead(pin)
   std::array<bool, 32> inputLevel{};        // returned by digitalRead(pin)
-  std::set<uint8_t> i2cPresent;             // addresses that acknowledge
+  std::set<uint8_t> i2cPresent;             // addresses that acknowledge (probes AND writes)
+  struct I2cWrite {
+    uint8_t address;
+    std::vector<uint8_t> bytes;
+    bool acked;
+  };
+  std::vector<I2cWrite> i2cWrites;          // every write, in order
 
   // ---- observed state ----
   std::vector<Event> events;
@@ -74,6 +80,11 @@ class FakeHal : public Hal {
   bool i2cProbe(uint8_t address) override {
     const bool ack = i2cPresent.count(address) != 0;
     events.push_back({Kind::kI2cProbe, address, ack ? 1 : 0});
+    return ack;
+  }
+  bool i2cWrite(uint8_t address, const uint8_t* data, size_t n) override {
+    const bool ack = i2cPresent.count(address) != 0;
+    i2cWrites.push_back({address, std::vector<uint8_t>(data, data + n), ack});
     return ack;
   }
 

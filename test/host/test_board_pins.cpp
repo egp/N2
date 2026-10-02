@@ -48,6 +48,7 @@ TEST_CASE("PIN-7: wiring facts carried from V6/V7") {
   CHECK(def(b, Signal::kAirPressure).pin == pin::kA0);
   CHECK(def(b, Signal::kN2LowPressure).pin == pin::kA3);
   CHECK(b.addrLed == 0x24);
+  CHECK(b.addrLedDigits == 0x34);  // TM1650 digit registers 0x34..0x37
   CHECK(b.addrLcd == 0x27);
   CHECK(b.addrO2 == 0x74);
 }
@@ -99,6 +100,12 @@ TEST_CASE("PIN-4: validation detects an out-of-range pin and bad I2C pins") {
 TEST_CASE("PIN-4: validation detects a duplicate I2C address") {
   BoardDef b = kMinimaBoard;
   b.addrLcd = b.addrLed;
+  CHECK(checkBoard(b) == BoardCheck::kDuplicateI2cAddress);
+}
+
+TEST_CASE("PIN-4: validation detects an I2C address inside the LED digit range") {
+  BoardDef b = kMinimaBoard;
+  b.addrO2 = 0x36;  // collides with TM1650 digit 2
   CHECK(checkBoard(b) == BoardCheck::kDuplicateI2cAddress);
 }
 

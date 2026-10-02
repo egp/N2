@@ -5,7 +5,7 @@
 // Deliberately thin: no policy, no timing logic, no state.
 //
 // Covers clock, GPIO, ADC, an I2C presence probe, the USB console, the watchdog and the
-// reset cause. I2C data transfer (display drivers) arrives with the drivers.
+// reset cause. I2C writes serve the display drivers.
 #pragma once
 
 #include <stddef.h>
@@ -34,6 +34,8 @@ class Hal {
   virtual void i2cBegin() = 0;
   // True if a device acknowledges its address.
   virtual bool i2cProbe(uint8_t address) = 0;
+  // Write n bytes in ONE transaction. True only if the device acknowledged every byte (DRV-1).
+  virtual bool i2cWrite(uint8_t address, const uint8_t* data, size_t n) = 0;
 
   // USB console (CON-2, CON-4). Nothing here may block.
   virtual bool consoleAttached() = 0;                          // true only while a host has the port open

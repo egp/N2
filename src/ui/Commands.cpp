@@ -245,7 +245,9 @@ bool Commands::Scan::line(uint8_t i, char* b, size_t n) {
   }
   // Responding addresses first, then expected-but-missing ones.
   struct Known { uint8_t addr; const char* name; };
-  const Known known[3] = {{kBoard.addrLed, "LED display"}, {kBoard.addrLcd, "LCD"}, {kBoard.addrO2, "O2 sensor"}};
+  const Known known[7] = {{kBoard.addrLed, "LED control"},          {static_cast<uint8_t>(kBoard.addrLedDigits + 0), "LED digit 0"},
+                          {static_cast<uint8_t>(kBoard.addrLedDigits + 1), "LED digit 1"}, {static_cast<uint8_t>(kBoard.addrLedDigits + 2), "LED digit 2"},
+                          {static_cast<uint8_t>(kBoard.addrLedDigits + 3), "LED digit 3"}, {kBoard.addrLcd, "LCD"}, {kBoard.addrO2, "O2 sensor"}};
   uint8_t idx = static_cast<uint8_t>(i - 1);
   for (uint8_t a = 0x08; a < 0x78; ++a) {
     if (!(found_[a / 8] & (1u << (a % 8)))) continue;

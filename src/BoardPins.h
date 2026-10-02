@@ -63,7 +63,8 @@ struct BoardDef {
   uint8_t signalCount;
   uint8_t sdaPin;
   uint8_t sclPin;
-  uint8_t addrLed;  // TM1650 4-digit display (control register address)
+  uint8_t addrLed;        // TM1650 4-digit display: control register address
+  uint8_t addrLedDigits;  // TM1650: first digit register address (digits 0..3 are consecutive)
   uint8_t addrLcd;  // 20x4 LCD, PCF8574 backpack
   uint8_t addrO2;   // DFRobot SEN0465 (SEL dip switch = 0)
 };
@@ -96,11 +97,11 @@ inline constexpr SignalDef kSignals[kSignalCount] = {
 // I2C: the core binds Wire to A4 (SDA) / A5 (SCL) on both boards.
 // The owner reports D18/D19 on the WiFi; the core lists the same pins (18/19).
 inline constexpr BoardDef kMinimaBoard = {"UNO R4 Minima", kSignals, kSignalCount,
-                                          pin::kA4, pin::kA5, 0x24, 0x27, 0x74};
+                                          pin::kA4, pin::kA5, 0x24, 0x34, 0x27, 0x74};
 inline constexpr BoardDef kWifiBoard = {"UNO R4 WiFi", kSignals, kSignalCount,
-                                        pin::kA4, pin::kA5, 0x24, 0x27, 0x74};
+                                        pin::kA4, pin::kA5, 0x24, 0x34, 0x27, 0x74};
 inline constexpr BoardDef kHostBoard = {"host (fake)", kSignals, kSignalCount,
-                                        pin::kA4, pin::kA5, 0x24, 0x27, 0x74};
+                                        pin::kA4, pin::kA5, 0x24, 0x34, 0x27, 0x74};
 
 #if defined(N2_BOARD_MINIMA)
 inline constexpr const BoardDef& kBoard = kMinimaBoard;
@@ -124,7 +125,7 @@ enum class BoardCheck : uint8_t {
   kDuplicatePin,        // two signals share a pin
   kSignalOnI2cPin,      // a signal uses SDA or SCL
   kBadI2cPins,          // SDA/SCL are not valid pins or are equal
-  kDuplicateI2cAddress  // two I2C devices share an address
+  kDuplicateI2cAddress  // two I2C devices share an address (the four TM1650 digit addresses included)
 };
 
 constexpr BoardCheck checkBoard(const BoardDef& b) {
@@ -144,8 +145,13 @@ constexpr BoardCheck checkBoard(const BoardDef& b) {
     for (uint8_t j = static_cast<uint8_t>(i + 1); j < b.signalCount; ++j)
       if (b.signals[j].pin == d.pin) return BoardCheck::kDuplicatePin;
   }
-  if (b.addrLed == b.addrLcd || b.addrLed == b.addrO2 || b.addrLcd == b.addrO2)
-    return BoardCheck::kDuplicateI2cAddress;
+  // Addresses in use: LED control, LED digits (4 consecutive), LCD, O2. None may overlap.
+  const uint8_t addrs[] = {b.addrLed, b.addrLcd, b.addrO2};
+  for (uint8_t i = 0; i < 3; ++i)
+    for (uint8_t j = static_cast<uint8_t>(i + 1); j < 3; ++j)
+      if (addrs[i] == addrs[j]) return BoardCheck::kDuplicateI2cAddress;
+  for (uint8_t a : addrs)
+    if (a >= b.addrLedDigits && a < b.addrLedDigits + 4) return BoardCheck::kDuplicateI2cAddress;
   return BoardCheck::kOk;
 }
 
