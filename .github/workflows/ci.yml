@@ -25,6 +25,9 @@ jobs:
       fail-fast: false
       matrix:
         fqbn: [arduino:renesas_uno:minima, arduino:renesas_uno:unor4wifi]
+        # DIAG = diagnostics only (the default); FIELD = production. The DFRobot library is not in the
+        # Library Manager, so CI builds without it (-DN2_NO_DFROBOT: the O2 sensor then reads as absent).
+        mode: [N2_BUILD_DIAG, N2_BUILD_FIELD]
     steps:
       # The sketch folder name must equal the .ino name, so check out as N2V8.
       - uses: actions/checkout@v7
@@ -36,4 +39,7 @@ jobs:
           arduino-cli core update-index
           arduino-cli core install arduino:renesas_uno
       - name: Compile (prints flash and RAM use)
-        run: arduino-cli compile --fqbn ${{ matrix.fqbn }} --warnings default N2V8
+        run: >
+          arduino-cli compile --fqbn ${{ matrix.fqbn }} --warnings more
+          --build-property "compiler.cpp.extra_flags=-D${{ matrix.mode }} -DN2_NO_DFROBOT"
+          N2V8

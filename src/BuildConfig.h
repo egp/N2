@@ -28,6 +28,29 @@
 #error "BuildConfig.h: define exactly one of N2_BUILD_HOST/BENCH/DIAG/FIELD"
 #endif
 
+// Default console log level: verbose while debugging (HOST/BENCH/DIAG), quiet in production (FIELD).
+// (Requirements CON-5: the author debugs with the console attached; production is headless.)
+#if defined(N2_BUILD_FIELD)
+#define N2_DEFAULT_LOG_LEVEL kInfo
+#else
+#define N2_DEFAULT_LOG_LEVEL kDebug
+#endif
+
+// FIELD: the O2 sensor is mandatory (Requirements O2-1). DIAG: no controllers run at all (CFG, §2).
+#if defined(N2_BUILD_FIELD)
+#define N2_O2_MANDATORY true
+#else
+#define N2_O2_MANDATORY false
+#endif
+#if defined(N2_BUILD_DIAG)
+#define N2_CONTROLLERS_ENABLED false
+#else
+#define N2_CONTROLLERS_ENABLED true
+#endif
+
+// The O2 sensor library (DFRobot_MultiGasSensor) is used unmodified. Define N2_NO_DFROBOT (compiler flag)
+// to build without it, e.g. in CI where the library is not installed: the O2 sensor then reads as absent.
+
 // Board. The Arduino IDE/CLI define ARDUINO_UNOR4_MINIMA or ARDUINO_UNOR4_WIFI
 // (verified with core arduino:renesas_uno 1.6.0).
 #if defined(ARDUINO_UNOR4_MINIMA)

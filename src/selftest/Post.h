@@ -36,6 +36,9 @@ class Post {
        const ResetInfo& reset, PostOptions options = PostOptions())
       : hal_(hal), board_(board), sys_(sys), display_(display), log_(log), info_(info), reset_(reset), opt_(options) {}
 
+  // The reset cause is only known at boot, after construction.
+  void setResetInfo(const ResetInfo& reset) { reset_ = reset; }
+
   void begin(uint32_t now);
   bool step(uint32_t now);  // true once POST is finished and normal operation may start
 

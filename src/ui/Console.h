@@ -32,6 +32,13 @@ class CommandHandler {
   virtual Responder* handle(const Command& command) = 0;  // nullptr: nothing to print
 };
 
+// While set, complete input lines go here instead of to the command handler (the BIST uses this).
+class LineHook {
+ public:
+  virtual ~LineHook() = default;
+  virtual void onLine(const char* line) = 0;
+};
+
 class Console : public LogSink {
  public:
   Console(Hal& hal, LogLevel level) : hal_(hal), level_(level) {}
@@ -40,6 +47,12 @@ class Console : public LogSink {
 
   // LogSink: "<L> <line>\n" where L is E, W, I or D.
   void write(LogLevel level, const char* line) override;
+
+  // Output regardless of log level. tryPrint returns false (and counts nothing) if there is no room right now;
+  // the caller keeps the line and tries again on a later pass.
+  bool tryPrint(const char* line);
+
+  void setLineHook(LineHook* hook) { hook_ = hook; }
 
   LogLevel level() const { return level_; }
   void setLevel(LogLevel level) { level_ = level; }
@@ -58,6 +71,7 @@ class Console : public LogSink {
   LogLevel level_;
   LineReader reader_;
   Responder* responder_ = nullptr;
+  LineHook* hook_ = nullptr;
   uint8_t index_ = 0;
   uint32_t dropped_ = 0;
   bool wasAttached_ = false;

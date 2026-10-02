@@ -15,6 +15,18 @@ No firmware code exists yet.
 6. **Never lose the working unit.** The known-good firmware stays available for the field trip (NFR-3).
 7. **The firmware is the only protection** (hardware answer HQ2: no independent safeguard; GOAL-11). The invariants in Requirements §6 get an independent review before the first hardware visit and again before production.
 
+## 1a. Status snapshot (2026-10-02)
+
+Everything that can be tested without hardware is built and tested: **308 host tests**, all passing, including
+randomized property tests of the safety rules (765 000 assertions) and **mutation checks** (a deliberately broken safety rule
+is caught by at least one test, 14 of 14 tried). The sketch builds for both boards in both modes (DIAG, FIELD):
+**36–37 % flash, 28–39 % RAM** with the DFRobot library. CI (Ubuntu) runs the host tests and builds the four board/mode combinations.
+
+What the host tests **cannot** prove, and so waits for the R4 WiFi (then the Minima): the real I2C timing and behavior of the
+two displays; the USB serial behavior (no host, stalled host, connect/disconnect); `Serial`/watchdog/reset-cause calls in
+`HalArduino` (written from the core's source, never run); the DFRobot adapter against a real SEN0465; the `.noinit` warm-up record;
+pin wiring and active levels (DIAG on site).
+
 ## 2. Decisions
 
 | # | Decision | Outcome |
@@ -115,7 +127,7 @@ Both build without errors; the only warnings are inside the Arduino core itself.
 ### E1 — Reset probe experiment (now, before M3)  *(owner asked 2026-10-02)*
 `experiments/reset_probe/` — a read-only sketch (no output pins, no devices) that reports the reset-cause flags, keeps a `.noinit` RAM record, and prints when a console attaches. Run the matrix in its README on the **R4 WiFi** (reset button, power cycle, software reset, watchdog reset, Serial Monitor close/reopen), later on the Minima. It settles O2-6a/6b (can PORF + RAM record tell reset from power-on, and can the flags be cleared) and CON-3 (does opening the monitor reset the board). Results go to `docs/results/`.
 
-### M3 — DIAG build: console, drivers, POST, BIST  *(new — diagnostics first)*
+### M3 — DIAG build: console, drivers, POST, BIST  *(new — diagnostics first)* — **DONE on the host**
 - Console (non-blocking both ways, attach detection, command parser, log format, `report`), build identity, loop-time statistics (min/mean/median/max).
 - LCD and LED drivers behind a transport interface with exhaustive golden-byte tests; display model and the `display` echo.
 - POST (hands-off; hangs only on fault; TOB releases) and BIST (console required; operator confirms p/f/r/s/q; pass/fail table).
@@ -125,7 +137,7 @@ Both build without errors; the only warnings are inside the Arduino core itself.
 - No controllers: `DIAG` keeps all outputs OFF except inside BIST.
 - **Exit:** host tests green; DIAG compiles for both boards in CI; golden screens for every BIST step.
 
-### M4 — Core logic (TDD on host)
+### M4 — Core logic (TDD on host) — **DONE**
 1. Scaling, sensor-fault detection and consistency check (INP-3…8).
 2. Fault table (FLT-1…4).
 3. Timed state machine — **reuse the proven V7 pattern, harden it** (ARC-6: rollover, exhaustive switches, recovery to DISABLED), plus the log line format.
@@ -135,11 +147,11 @@ Both build without errors; the only warnings are inside the Arduino core itself.
 7. Boot/reset sequencing (RST-1…8) factored so the host can "reset" mid-scenario.
 - **Exit:** every M4 requirement has a test; property tests run thousands of randomized steps with no invariant violation.
 
-### M5 — Full build and integration
+### M5 — Full build and integration — **DONE on the host** (`App`, the real sketch, DIAG/FIELD builds, O2 adapter)
 - `FIELD`/`BENCH` modes: controllers + displays + console + POST/BIST + watchdog; `HalArduino`, `HalSim`, O2 adapter around the DFRobot library.
 - **Exit:** all modes compile for both boards; sizes within the 60 % budget (NFR-2).
 
-### M6 — Bench bring-up (R4 WiFi, home)
+### M6 — Bench bring-up (R4 WiFi, home) — **NEXT** (start with E1, then flash the DIAG build)
 Results go to `docs/results/bench-YYYYMMDD.md`:
 1. DIAG: boot, POST, banner, LCD/LED via BIST steps 3–4 with `display` echo.
 2. Serial: attach/detach with the Serial Monitor; no host attached; commands still received while output is flooding (CON-2, CON-3).

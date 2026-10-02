@@ -36,6 +36,8 @@ bool Console::emit(const char* text, size_t len, bool dropIfNoRoom) {
   return true;
 }
 
+bool Console::tryPrint(const char* line) { return emit(line, strlen(line), false); }
+
 void Console::write(LogLevel level, const char* line) {
   if (level > level_) return;  // more verbose than the chosen level
   char buf[104];
@@ -85,8 +87,12 @@ void Console::poll(CommandHandler& handler) {
       char echo[LineReader::kMaxLength + 4];
       const int n = snprintf(echo, sizeof echo, "> %s", reader_.line());
       if (reader_.line()[0] != '\0') emit(echo, n < 0 ? 0 : static_cast<size_t>(n), false);
-      responder_ = handler.handle(parseCommand(reader_.line()));
-      index_ = 0;
+      if (hook_ != nullptr) {
+        hook_->onLine(reader_.line());  // e.g. the BIST: this line is an answer, not a command
+      } else {
+        responder_ = handler.handle(parseCommand(reader_.line()));
+        index_ = 0;
+      }
     }
   }
   pump();

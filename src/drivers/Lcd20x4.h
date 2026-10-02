@@ -32,6 +32,8 @@ class Lcd20x4 {
   bool healthy() const { return healthy_; }
   uint32_t i2cErrors() const { return errors_; }
   bool inSync() const;                   // the display shows exactly the desired screen
+  bool backlightOn() const { return backlight_; }
+  bool displayOn() const { return displayOn_; }
   const char* shown(uint8_t row) const { return shadow_[row]; }  // what the driver believes is on the display
 
  private:

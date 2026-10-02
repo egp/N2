@@ -15,6 +15,15 @@
 
 namespace n2 {
 
+// Lets the `post` and `bist` commands ask the application to switch modes (it does so at the start of a
+// loop pass, never in the middle of one). Each returns the one line to print.
+class CommandLauncher {
+ public:
+  virtual ~CommandLauncher() = default;
+  virtual const char* requestPost() = 0;
+  virtual const char* requestBist() = 0;
+};
+
 struct ConsoleContext {
   System* sys;
   Console* console;
@@ -22,6 +31,7 @@ struct ConsoleContext {
   Hal* hal;
   BuildInfo info;
   LcdLayout layout;
+  CommandLauncher* launcher = nullptr;
 };
 
 class Commands : public CommandHandler {

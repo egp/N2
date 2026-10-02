@@ -33,6 +33,8 @@ class Led1650 {
   bool healthy() const { return healthy_; }
   uint32_t i2cErrors() const { return errors_; }
   bool inSync() const;  // every desired digit has been written
+  uint8_t shownSegments(uint8_t digit) const { return written_[digit]; }  // last segments written (diagnostics, tests)
+  bool displayOn() const { return displayOn_; }
 
   // Segment bits for a character: '0'-'9', 'A'-'F', '-', ' '. Unknown characters show blank.
   static uint8_t segmentsFor(char c);

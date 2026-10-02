@@ -43,8 +43,14 @@ Responder* Commands::handle(const Command& cmd) {
     }
     case CommandId::kPost:
     case CommandId::kBist:
+      if (c_.launcher != nullptr) {
+        message_.set("%s", cmd.id == CommandId::kPost ? c_.launcher->requestPost() : c_.launcher->requestBist());
+        return &message_;
+      }
+      message_.set("'%s' is not available in this build", cmd.name);
+      return &message_;
     case CommandId::kSim:
-      message_.set("'%s' is not available in this build yet", cmd.name);
+      message_.set("'sim' is not available in this build");
       return &message_;
     case CommandId::kUnknown:
       message_.set("unknown command '%s' - try help", cmd.name);
@@ -80,7 +86,9 @@ bool Commands::Help::line(uint8_t i, char* b, size_t n) {
       "  log <level>        error | warn | info | debug",
       "  scan               I2C scan",
       "  report             everything above in one block",
-      "  post, bist, sim    not available in this build yet",
+      "  post               run the power-on self-test again (disables the plant while it runs)",
+      "  bist               interactive self-test (needs TBS OFF)",
+      "  sim                bench simulation (not in this build)",
   };
   if (i >= sizeof kLines / sizeof kLines[0]) return false;
   snprintf(b, n, "%s", kLines[i]);

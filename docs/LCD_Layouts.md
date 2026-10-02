@@ -1,4 +1,4 @@
-# LCD layout proposals (20 × 4, fixed-width) — revision 2
+# LCD layout proposals (20 × 4, fixed-width) — revision 3 (renders are now produced by the code)
 
 Revised after the owner's review (2026-10-02). Requirements DSP-1…DSP-9 apply. The chosen layout becomes the
 golden screens in the host tests; changing it later means editing one table and the expected text.
@@ -91,3 +91,145 @@ A warning-level fault uses `WARNING` in the header. The LED shows `F03`.
 ## Remaining questions (software)
 1. Option 1 (clear labels, compressor one row down) or Option 2 (compressor on the pressure line, labels shortened to `L`/`H`)?
 2. Fault cycle: 3 s or 4 s?
+
+## Real renders (output of `render_screens`, i.e. what the firmware's own code produces)
+
+These are not mock-ups: they come from the same functions the LCD driver uses, and the golden tests in
+`test/host/test_display.cpp` pin them exactly. The first two blocks are the two layout options; changing the choice later
+means changing which function is selected, not the screens' content.
+
+```
+=========== OPTION 1 (clear labels) ===========
+
+normal running
+   0         1
+   01234567890123456789
+  |N2% 99.99  O2 S     |
+  |N2L 12.34 N2H  98.7 |
+  |CMP ON  TWR LB  LRFS|
+  |AIR 123.4       1001|
+
+O2 warming up (4:32 left), tower held off
+   0         1
+   01234567890123456789
+  |WRM  4:32  O2 WM    |
+  |N2L 12.34 N2H  98.7 |
+  |CMP ON  TWR OF  LRFS|
+  |AIR 123.4       0001|
+
+TBS off (everything disabled, N2% invalid)
+   0         1
+   01234567890123456789
+  |N2% --.--  O2 OF    |
+  |N2L 12.34 N2H  98.7 |
+  |CMP OF  TWR OF  LRFS|
+  |AIR 123.4       0000|
+
+N2% stale (pressures out of range)
+   0         1
+   01234567890123456789
+  |N2% 99.99* O2 W     |
+  |N2L 12.34 N2H  98.7 |
+  |CMP ON  TWR LB  LRFS|
+  |AIR 123.4       1001|
+
+compressor stopped, N2-high too high
+   0         1
+   01234567890123456789
+  |N2% 99.99  O2 S     |
+  |N2L 12.34 N2H  98.7 |
+  |CMP HI  TWR LB  LRFS|
+  |AIR 123.4       1000|
+
+=========== OPTION 2 (compact) ===========
+
+normal running
+   0         1
+   01234567890123456789
+  |N2% 99.99  O2 S     |
+  |L12.34 H 98.7 CMP:ON|
+  |TWR LB          LRFS|
+  |AIR 123.4       1001|
+
+O2 warming up (4:32 left), tower held off
+   0         1
+   01234567890123456789
+  |WRM  4:32  O2 WM    |
+  |L12.34 H 98.7 CMP:ON|
+  |TWR OF          LRFS|
+  |AIR 123.4       0001|
+
+TBS off (everything disabled, N2% invalid)
+   0         1
+   01234567890123456789
+  |N2% --.--  O2 OF    |
+  |L12.34 H 98.7 CMP:OF|
+  |TWR OF          LRFS|
+  |AIR 123.4       0000|
+
+N2% stale (pressures out of range)
+   0         1
+   01234567890123456789
+  |N2% 99.99* O2 W     |
+  |L12.34 H 98.7 CMP:ON|
+  |TWR LB          LRFS|
+  |AIR 123.4       1001|
+
+compressor stopped, N2-high too high
+   0         1
+   01234567890123456789
+  |N2% 99.99  O2 S     |
+  |L12.34 H 98.7 CMP:HI|
+  |TWR LB          LRFS|
+  |AIR 123.4       1000|
+
+=========== FAULT SCREENS ===========
+
+fault 1 of 2 (sensor)
+   0         1
+   01234567890123456789
+  |FAULT 1 OF 2 INHIBIT|
+  |F03 N2H SENSOR RANGE|
+  |RAW 12  0.05V       |
+  |TOWERS+SSR OFF      |
+
+fault 2 of 2 (O2)
+   0         1
+   01234567890123456789
+  |FAULT 2 OF 2 INHIBIT|
+  |F12 O2 SENSOR FAILED|
+  |O2 STATE S          |
+  |ALL OUTPUTS OFF     |
+
+N2L above N2H
+   0         1
+   01234567890123456789
+  |FAULT 1 OF 1 INHIBIT|
+  |F04 N2L ABOVE N2H   |
+  |L28.00>H 15.0       |
+  |TOWERS+SSR OFF      |
+
+watchdog reset (warning)
+   0         1
+   01234567890123456789
+  |FAULT 1 OF 1 WARNING|
+  |F30 WATCHDOG RESET  |
+  |                    |
+  |RESET WAS LOGGED    |
+
+=========== BANNER ===========
+
+startup
+   0         1
+   01234567890123456789
+  |N2V8 0.1.0-m2       |
+  |UNO R4 Minima       |
+  |Oct  2 2026 14:05   |
+  |POST ...            |
+
+=========== LED ===========
+  running 99.99%               [9999] dot after 1
+  TBS off                      [    ] dot after -1
+  N2% invalid                  [----] dot after 1
+  fault F03 shown              [ F03] dot after -1
+```

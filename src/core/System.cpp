@@ -51,6 +51,13 @@ void System::step() {
   in_.tob = readOn(Signal::kTob);
   sensors_.sample(hal_, now, faults_, in_);
 
+  if (!controllersEnabled_) {  // DIAG: look, but do not touch
+    request_ = OutputRequest();
+    invariants_ = checkInvariants(in_, cfg_, request_);
+    driver_.apply(request_, invariants_.forced, now);
+    return;
+  }
+
   // TBS edges drive the O2 controller (it must run to find the sensor).
   if (in_.tbs && !prevTbs_) {
     logf(log_, LogLevel::kInfo, "%lu TBS OFF->ON", static_cast<unsigned long>(now));

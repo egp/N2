@@ -212,17 +212,17 @@ TEST_CASE("CON-2: typed commands still get through while the output side is comp
 
 TEST_CASE("CON-2: a multi-line answer is deferred, not dropped, when TX space is short") {
   Rig r;
-  r.plant.hal.consoleSpace = 60;  // room for about one line at a time
+  r.plant.hal.consoleSpace = 120;  // room for about one line at a time (the real buffer is 256 bytes)
   r.plant.hal.type("help\n");
   std::string collected;
   for (int i = 0; i < 200 && (collected.empty() || r.console.busy()); ++i) {
     r.console.poll(r.commands);
     collected += r.plant.hal.consoleOut;
     r.plant.hal.consoleOut.clear();
-    r.plant.hal.consoleSpace = 60;
+    r.plant.hal.consoleSpace = 120;
   }
   CHECK(contains(collected, "commands (case-insensitive):"));
-  CHECK(contains(collected, "post, bist, sim"));  // the LAST line arrived: nothing was lost
+  CHECK(contains(collected, "bench simulation"));  // the LAST line arrived: nothing was lost
   CHECK(r.console.dropped() == 0);
 }
 
@@ -274,7 +274,7 @@ TEST_CASE("CON-1: help lists the commands; unknown input is explained; post/bist
   const std::string help = r.ask("help");
   for (const char* w : {"status", "faults", "cfg", "display", "loop", "log <level>", "scan", "report"}) CHECK(contains(help, w));
   CHECK(contains(r.ask("frobnicate"), "unknown command 'frobnicate' - try help"));
-  CHECK(contains(r.ask("bist"), "'bist' is not available in this build yet"));
+  CHECK(contains(r.ask("bist"), "'bist' is not available in this build"));
 }
 
 TEST_CASE("ID-1: ver prints the build identity") {

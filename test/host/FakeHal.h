@@ -51,7 +51,8 @@ class FakeHal : public Hal {
   FakeHal() { mode.fill(-1); level.fill(-1); }
 
   uint32_t millis() override { return nowMs; }
-  uint32_t micros() override { return nowUs; }
+  uint32_t microsPerCall = 0;               // micros() advances by this much on every call (to give loop time a size)
+  uint32_t micros() override { nowUs += microsPerCall; return nowUs; }
 
   void pinMode(uint8_t pin, PinMode m) override {
     mode[pin] = static_cast<int>(m);

@@ -23,6 +23,9 @@ void Post::begin(uint32_t now) {
   level_ = PostLevel::kPass;
   problems_ = 0;
   rotation_ = 0;
+  air_ = SensorChannel();
+  n2Low_ = SensorChannel();
+  n2High_ = SensorChannel();
   tobWasUp_ = !tobPressed();  // a TOB held since power-up must be released and pressed again to continue
   summaryUntil_.clear();
   rotate_.clear();

@@ -39,6 +39,10 @@ class System {
   // The O2 warm-up is NOT restarted: the sensor kept its power.
   void resume();
 
+  // DIAG build (Requirements §2): sensors, faults and safety checks run, but no controller does and every output
+  // stays OFF (except under BIST, which drives them through the OutputDriver itself).
+  void setControllersEnabled(bool enabled) { controllersEnabled_ = enabled; }
+
   // One pass of loop().
   void step();
 
@@ -49,6 +53,7 @@ class System {
   const FaultSet& faults() const { return faults_; }
   FaultSet& faultSet() { return faults_; }  // POST, BIST and the display manager report their own faults here
   const OutputDriver& outputs() const { return driver_; }
+  OutputDriver& outputDriver() { return driver_; }  // BIST only: forceDrive()
   const WarmupTracker& warmup() const { return warmup_; }
   const ControlConfig& config() const { return cfg_; }
   uint32_t invariantViolations() const { return violations_; }
@@ -79,6 +84,7 @@ class System {
   bool resetWasWatchdog_ = false;
   bool resetWasBrownout_ = false;
   bool normalCycleSeen_ = false;
+  bool controllersEnabled_ = true;
   uint32_t violations_ = 0;
 };
 

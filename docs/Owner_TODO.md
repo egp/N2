@@ -21,6 +21,8 @@ they must be right before the first hardware visit (DIAG).
 10. [ ] Measure the **reset-to-outputs-safe window** (RST-2) with a scope, or get the hardware team's confirmation that outputs default OFF in reset (HQ3).
 
 ## 1B. At the bench (R4 WiFi, LCD + LED; rig a TBS/TOB switch if needed)
+10a. [ ] **Flash the DIAG build** (Arduino IDE: open `N2V8.ino`, board *UNO R4 WiFi*, Upload; the default build is DIAG, which runs no controllers). Expect: LCD banner, POST (the O2 sensor and pressure sensors will be missing, so POST will report faults and **hold until you press TOB**), then normal screens. Open the Serial Monitor and type `help`, `status`, `report`, `bist`. Copy the output into `docs/results/`.
+10b. [ ] Install the DFRobot library in the IDE's sketchbook (it is already in `Documents/Zephyr/Arduino/libraries`); without it the O2 sensor reads as absent.
 11. [ ] **Run the reset probe** (`experiments/reset_probe/README.md`, T1–T9) and paste the output into `docs/results/`. Repeat on the Minima. (O2-6a/6b, CON-3)
 12. [ ] I2C scan: confirm 0x24 (LED) and 0x27 (LCD). Optional early experiment: scan, `analogRead(A5)`, scan again. (PIN-10)
 
@@ -33,6 +35,8 @@ they must be right before the first hardware visit (DIAG).
 # Part 2 — SOFTWARE
 
 ## 2A. Open
+0. [ ] **Review what was built** (`git log`, `test/host/`, `docs/Requirements.md` v2.6). Newly marked **[found]** items: O2 library has no error signal (O2-3); the USB TX buffer is 256 bytes (CON-2); BIST vetoes exclude INV-9/10 (BIST-11a).
+0a. [ ] **Q25** — POST does not hold after a watchdog/brown-out reset (so an unattended unit restarts). OK? **Q26** — BIST vetoes exclude the O2-sensor rules. OK?
 1. [ ] **LCD layout:** Option 1 (clear labels) or Option 2 (compressor on the pressure line, `L`/`H` labels)? Fault cycle 3 s or 4 s? (`LCD_Layouts.md`)
 2. [ ] Review `Requirements.md` v2.5 and say what to change.
 
