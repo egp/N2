@@ -1,4 +1,4 @@
-// TestSupport.h — fakes and a ready-made "plant" for the host tests.
+// TestSupport.h — fakes and a ready-made "system" for the host tests.
 #pragma once
 
 #include <cstdint>
@@ -64,10 +64,10 @@ constexpr uint16_t kHealthyAirX10 = 1300;   // 130.0 PSI (> airLowOn 120.0)
 constexpr uint16_t kHealthyN2LowX100 = 2500;  // 25.00 PSI (> n2LowOn 20.00)
 constexpr uint16_t kHealthyN2HighX10 = 800;   // 80.0 PSI (< n2HighOn 100.0)
 
-// A whole plant on the fake HAL: sets inputs, advances time, reads actual outputs.
+// A whole system on the fake HAL: sets inputs, advances time, reads actual outputs.
 // reboot() emulates a reset: a brand-new System, millis() back to 0, pins keep whatever
 // level they had (as real hardware does until the firmware drives them).
-struct Plant {
+struct Generator {
   FakeHal hal;
   VectorLog log;
   FakeO2 o2;
@@ -75,7 +75,7 @@ struct Plant {
   uint8_t bits;
   std::unique_ptr<System> sysp;
 
-  explicit Plant(ControlConfig c = kDefaultControl, uint8_t adcBits = kAdcBits) : cfg(c), bits(adcBits) {
+  explicit Generator(ControlConfig c = kDefaultControl, uint8_t adcBits = kAdcBits) : cfg(c), bits(adcBits) {
     sysp.reset(new System(hal, kHostBoard, cfg, o2, log, bits));
     healthy();
     tbs(false);

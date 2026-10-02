@@ -281,8 +281,8 @@ TEST_CASE("INP-8: millivolts from raw counts at every bit depth") {
   CHECK(millivoltsFromRaw(8192, 14) <= 2501);
 }
 
-TEST_CASE("DSP-1: makeDisplayData reflects a running plant, and the faults of severity >= WARN") {
-  Plant p(quickWarmConfig());
+TEST_CASE("DSP-1: makeDisplayData reflects a running gen, and the faults of severity >= WARN") {
+  Generator p(quickWarmConfig());
   p.reboot();
   p.tbs(true);
   REQUIRE(p.runUntil([&] { return p.ssr() && p.left(); }, 20000));

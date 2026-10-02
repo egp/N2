@@ -12,7 +12,7 @@ using namespace n2::test;
 namespace {
 
 struct Rig {
-  Plant plant;
+  Generator gen;
   DisplayManager display;
   Console console;
   LoopStats loopStats;
@@ -24,32 +24,32 @@ struct Rig {
   std::string out;  // everything the console printed
 
   explicit Rig(BistConfig bc = BistConfig(), ControlConfig cfg = kDefaultControl)
-      : plant(cfg),
-        display(plant.hal, kHostBoard, LcdLayout::kClearLabels),
-        console(plant.hal, LogLevel::kInfo),
-        ctx{(plant.reboot(), &plant.sys()), &console, &loopStats, &plant.hal,
+      : gen(cfg),
+        display(gen.hal, kHostBoard, LcdLayout::kClearLabels),
+        console(gen.hal, LogLevel::kInfo),
+        ctx{(gen.reboot(), &gen.sys()), &console, &loopStats, &gen.hal,
             BuildInfo{"0.0.0-test", "Jan  1 2026", "12:00:00", "host (fake)", "HOST", 10}, LcdLayout::kClearLabels},
         commands(ctx),
-        bist(plant.hal, kHostBoard, plant.sys(), display, console, plant.o2, info, bc) {
-    plant.hal.consoleIsAttached = true;
-    plant.hal.i2cPresent = {0x24, 0x34, 0x35, 0x36, 0x37, 0x27, 0x74};
+        bist(gen.hal, kHostBoard, gen.sys(), display, console, gen.o2, info, bc) {
+    gen.hal.consoleIsAttached = true;
+    gen.hal.i2cPresent = {0x24, 0x34, 0x35, 0x36, 0x37, 0x27, 0x74};
     display.begin(0);
   }
 
   // One pass: displays, console, BIST.
   bool pass() {
     now += 10;
-    plant.hal.nowMs = now;
+    gen.hal.nowMs = now;
     display.service(now);
     console.poll(commands);
     const bool done = bist.step(now);
-    out += plant.hal.consoleOut;
-    plant.hal.consoleOut.clear();
-    plant.hal.drain();
+    out += gen.hal.consoleOut;
+    gen.hal.consoleOut.clear();
+    gen.hal.drain();
     return done;
   }
   void run(uint32_t ms) { for (uint32_t t = 0; t < ms; t += 10) pass(); }
-  void type(const std::string& line) { plant.hal.type(line + "\n"); run(30); }
+  void type(const std::string& line) { gen.hal.type(line + "\n"); run(30); }
   bool has(const std::string& s) const { return out.find(s) != std::string::npos; }
   size_t count(const std::string& s) const {
     size_t n = 0, pos = 0;
@@ -57,7 +57,7 @@ struct Rig {
     return n;
   }
   Bist::Start start(bool requireTbsOff = true) { return bist.begin(now, requireTbsOff); }
-  bool allOff() { return !plant.left() && !plant.right() && !plant.flush() && !plant.ssr(); }
+  bool allOff() { return !gen.left() && !gen.right() && !gen.flush() && !gen.ssr(); }
   // Answer 'p' to steps until the given step is reached (waiting a bit so a step can do its work).
   void goTo(BistStep target) {
     for (int guard = 0; guard < 40 && bist.current() != target && bist.running(); ++guard) { run(400); type("p"); }
@@ -69,7 +69,7 @@ struct Rig {
 // ============================================================================ entry
 TEST_CASE("BIST-1: BIST refuses to start without a console, and says so on the LCD") {
   Rig r;
-  r.plant.hal.consoleIsAttached = false;
+  r.gen.hal.consoleIsAttached = false;
   CHECK(r.start() == Bist::Start::kNoConsole);
   CHECK_FALSE(r.bist.running());
   r.run(300);
@@ -78,7 +78,7 @@ TEST_CASE("BIST-1: BIST refuses to start without a console, and says so on the L
 
 TEST_CASE("BIST-1: the `bist` command refuses while TBS is ON; the TOB-at-boot path does not require it") {
   Rig r;
-  r.plant.tbs(true);
+  r.gen.tbs(true);
   CHECK(r.start(true) == Bist::Start::kTbsOn);
   CHECK_FALSE(r.bist.running());
   CHECK(r.start(false) == Bist::Start::kOk);
@@ -147,20 +147,20 @@ TEST_CASE("BIST-3: TOB means pass - after a fresh press") {
   Rig r;
   REQUIRE(r.start() == Bist::Start::kOk);
   r.run(100);
-  r.plant.tob(true);
+  r.gen.tob(true);
   r.run(30);
   CHECK(r.bist.verdict(BistStep::kBanner) == BistVerdict::kPass);
 }
 
 TEST_CASE("BIST-1: a TOB held since power-up (how BIST was requested) does not auto-answer step 0") {
   Rig r;
-  r.plant.tob(true);
+  r.gen.tob(true);
   REQUIRE(r.start(false) == Bist::Start::kOk);
   r.run(200);
   CHECK(r.bist.current() == BistStep::kBanner);  // still waiting
-  r.plant.tob(false);
+  r.gen.tob(false);
   r.run(30);
-  r.plant.tob(true);
+  r.gen.tob(true);
   r.run(30);
   CHECK(r.bist.verdict(BistStep::kBanner) == BistVerdict::kPass);
 }
@@ -198,14 +198,14 @@ TEST_CASE("BIST step 1: TBS and TOB changes are printed; TOB does NOT answer the
   REQUIRE(r.bist.current() == BistStep::kSwitches);
   r.run(100);
   CHECK(r.has("TBS OFF"));
-  r.plant.tbs(true);
+  r.gen.tbs(true);
   r.run(100);
   CHECK(r.has("TBS ON"));
-  r.plant.tob(true);
+  r.gen.tob(true);
   r.run(100);
   CHECK(r.has("TOB pressed"));
   CHECK(r.bist.current() == BistStep::kSwitches);  // pressing TOB did not pass the step
-  r.plant.tob(false);
+  r.gen.tob(false);
   r.run(100);
   CHECK(r.has("TOB released"));
   r.type("p");
@@ -214,7 +214,7 @@ TEST_CASE("BIST step 1: TBS and TOB changes are printed; TOB does NOT answer the
 
 TEST_CASE("BIST step 2: the I2C scan lists responders with labels and reports missing expected devices") {
   Rig r;
-  r.plant.hal.i2cPresent = {0x24, 0x34, 0x35, 0x36, 0x37, 0x27, 0x50};  // O2 missing, a stranger present
+  r.gen.hal.i2cPresent = {0x24, 0x34, 0x35, 0x36, 0x37, 0x27, 0x50};  // O2 missing, a stranger present
   REQUIRE(r.start() == Bist::Start::kOk);
   r.goTo(BistStep::kI2c);
   r.run(500);
@@ -278,12 +278,12 @@ TEST_CASE("BIST step 5: raw counts, volts and PSI are printed; a dead sensor is 
   CHECK(r.has("AIR raw"));
   CHECK(r.has("130.0 PSI  in window"));
   CHECK(r.has("N2H raw"));
-  r.plant.rawN2High(0);
+  r.gen.rawN2High(0);
   r.run(600);
   CHECK(r.has("BELOW WINDOW (wire off?)"));
 }
 
-TEST_CASE("BIST-9: entering a plant gauge reading prints the difference to the sensor") {
+TEST_CASE("BIST-9: entering a production gauge reading prints the difference to the sensor") {
   Rig r;
   REQUIRE(r.start() == Bist::Start::kOk);
   r.goTo(BistStep::kPressures);
@@ -299,7 +299,7 @@ TEST_CASE("BIST-9: entering a plant gauge reading prints the difference to the s
 
 TEST_CASE("BIST step 6: the O2 sensor result and readings are printed on change") {
   Rig r;
-  r.plant.o2.o2x100 = 2090;
+  r.gen.o2.o2x100 = 2090;
   REQUIRE(r.start() == Bist::Start::kOk);
   r.goTo(BistStep::kO2);
   r.run(1200);
@@ -308,14 +308,14 @@ TEST_CASE("BIST step 6: the O2 sensor result and readings are printed on change"
   const size_t n = r.count("O2 20.90 %");
   r.run(1500);
   CHECK(r.count("O2 20.90 %") == n);  // unchanged reading is not repeated
-  r.plant.o2.o2x100 = 2095;
+  r.gen.o2.o2x100 = 2095;
   r.run(700);
   CHECK(r.has("O2 20.95 %"));
 }
 
 TEST_CASE("BIST step 6: no O2 sensor says so") {
   Rig r;
-  r.plant.o2.presentOk = false;
+  r.gen.o2.presentOk = false;
   REQUIRE(r.start() == Bist::Start::kOk);
   r.goTo(BistStep::kO2);
   r.run(300);
@@ -333,10 +333,10 @@ TEST_CASE("BIST-5: the LEFT valve step announces its pin and level, then toggles
   std::string timeline;
   for (int i = 0; i < 25; ++i) {  // 2.5 s in 100 ms slices
     r.run(100);
-    REQUIRE_FALSE(r.plant.right());
-    REQUIRE_FALSE(r.plant.flush());
-    REQUIRE_FALSE(r.plant.ssr());
-    timeline += r.plant.left() ? '1' : '0';
+    REQUIRE_FALSE(r.gen.right());
+    REQUIRE_FALSE(r.gen.flush());
+    REQUIRE_FALSE(r.gen.ssr());
+    timeline += r.gen.left() ? '1' : '0';
   }
   CHECK(timeline.find("11111") != std::string::npos);  // on for ~0.5 s
   CHECK(timeline.find("00000") != std::string::npos);  // off for ~0.5 s
@@ -353,10 +353,10 @@ TEST_CASE("BIST-5/OUT-1: BIST toggling at 500 ms is the documented exception to 
   uint32_t minGap = 0xFFFFFFFFu;
   for (int i = 0; i < 300; ++i) {
     r.pass();
-    if (r.plant.right() != state) {
+    if (r.gen.right() != state) {
       if (lastChange != 0 && r.now - lastChange < minGap) minGap = r.now - lastChange;
       lastChange = r.now;
-      state = r.plant.right();
+      state = r.gen.right();
     }
   }
   CHECK(minGap >= 490);
@@ -368,8 +368,8 @@ TEST_CASE("BIST-5: any answer stops an output step at once, with every output OF
   REQUIRE(r.start() == Bist::Start::kOk);
   r.goTo(BistStep::kFlush);
   r.run(700);
-  REQUIRE(r.plant.flush());
-  r.plant.hal.type("p\n");
+  REQUIRE(r.gen.flush());
+  r.gen.hal.type("p\n");
   r.pass();  // ONE pass: the answer is read and the output is switched off in that same pass
   CHECK(r.allOff());
   CHECK(r.bist.verdict(BistStep::kFlush) == BistVerdict::kPass);
@@ -387,14 +387,14 @@ TEST_CASE("BIST-5: an output step stops by itself after the maximum time and wai
 
 TEST_CASE("BIST-4: an output step is refused while TBS is ON, and starts when it goes OFF") {
   Rig r;
-  r.plant.tbs(true);                                  // TBS already ON when the output step is reached
+  r.gen.tbs(true);                                  // TBS already ON when the output step is reached
   REQUIRE(r.start(false) == Bist::Start::kOk);        // (BIST was requested with TOB at power-up)
   r.goTo(BistStep::kLeft);
   r.run(1500);
   CHECK(r.has("REFUSED: TBS is ON - switch it OFF."));
   CHECK(r.count("REFUSED") == 1);  // said once, not every pass
   CHECK(r.allOff());
-  r.plant.tbs(false);
+  r.gen.tbs(false);
   r.run(1200);
   CHECK(r.has("running LEFT valve"));
   CHECK(r.has("LEFT valve ON"));
@@ -405,8 +405,8 @@ TEST_CASE("BIST-4: switching TBS ON during an output step aborts it immediately"
   REQUIRE(r.start() == Bist::Start::kOk);
   r.goTo(BistStep::kLeft);
   r.run(700);
-  REQUIRE(r.plant.left());
-  r.plant.tbs(true);
+  REQUIRE(r.gen.left());
+  r.gen.tbs(true);
   r.pass();
   CHECK(r.allOff());
   CHECK(r.has("ABORTED: TBS switched ON - all outputs OFF"));
@@ -415,14 +415,14 @@ TEST_CASE("BIST-4: switching TBS ON during an output step aborts it immediately"
 
 TEST_CASE("BIST-11: tower valves are vetoed with low air or an over-pressure N2-high tank") {
   Rig r;
-  r.plant.air(kDefaultControl.airLowOff - 50);
+  r.gen.air(kDefaultControl.airLowOff - 50);
   REQUIRE(r.start() == Bist::Start::kOk);
   r.goTo(BistStep::kLeft);
   r.run(1500);
   CHECK(r.has("REFUSED: air supply pressure is low"));
   CHECK(r.allOff());
-  r.plant.healthy();
-  r.plant.n2High(kDefaultControl.n2HighOff + 50);
+  r.gen.healthy();
+  r.gen.n2High(kDefaultControl.n2HighOff + 50);
   r.type("r");
   r.run(1500);
   CHECK(r.has("REFUSED: N2-high pressure is over its limit"));
@@ -431,7 +431,7 @@ TEST_CASE("BIST-11: tower valves are vetoed with low air or an over-pressure N2-
 
 TEST_CASE("BIST-11: the SSR is vetoed unless N2-high is below its START threshold and N2-low is adequate") {
   Rig r;
-  r.plant.n2High((kDefaultControl.n2HighOn + kDefaultControl.n2HighOff) / 2);  // between ON and OFF: tower ok, SSR not
+  r.gen.n2High((kDefaultControl.n2HighOn + kDefaultControl.n2HighOff) / 2);  // between ON and OFF: tower ok, SSR not
   REQUIRE(r.start() == Bist::Start::kOk);
   r.goTo(BistStep::kSsr);
   r.run(1500);
@@ -444,8 +444,8 @@ TEST_CASE("BIST-11: a sensor wire that falls off mid-step aborts the step at onc
   REQUIRE(r.start() == Bist::Start::kOk);
   r.goTo(BistStep::kRight);
   r.run(700);
-  REQUIRE(r.plant.right());
-  r.plant.rawN2High(0);  // the sensor reads as an empty tank - exactly the dangerous misreading
+  REQUIRE(r.gen.right());
+  r.gen.rawN2High(0);  // the sensor reads as an empty tank - exactly the dangerous misreading
   r.pass();
   CHECK(r.allOff());
   CHECK(r.has("ABORTED: N2-high sensor out of range"));
@@ -453,11 +453,11 @@ TEST_CASE("BIST-11: a sensor wire that falls off mid-step aborts the step at onc
 
 TEST_CASE("BIST-11: the flush valve is not vetoed by the pressure rules") {
   Rig r;
-  r.plant.air(0);  // no air at all
+  r.gen.air(0);  // no air at all
   REQUIRE(r.start() == Bist::Start::kOk);
   r.goTo(BistStep::kFlush);
   r.run(700);
-  CHECK(r.plant.flush());
+  CHECK(r.gen.flush());
 }
 
 TEST_CASE("BIST-11: vetoReason is a pure function of the readings") {
@@ -501,8 +501,8 @@ TEST_CASE("HQ8: by default the compressor SSR gets ONE short pulse, not a 2 Hz t
   bool was = false;
   for (int i = 0; i < 300; ++i) {
     r.pass();
-    if (r.plant.ssr()) ++onSamples;
-    if (r.plant.ssr() != was) { ++edges; was = r.plant.ssr(); }
+    if (r.gen.ssr()) ++onSamples;
+    if (r.gen.ssr() != was) { ++edges; was = r.gen.ssr(); }
   }
   CHECK(edges == 2);  // on, off - once
   CHECK(onSamples >= 85);
@@ -518,7 +518,7 @@ TEST_CASE("HQ8: the 2 Hz SSR toggle can be selected by configuration") {
   r.goTo(BistStep::kSsr);
   int edges = 0;
   bool was = false;
-  for (int i = 0; i < 300; ++i) { r.pass(); if (r.plant.ssr() != was) { ++edges; was = r.plant.ssr(); } }
+  for (int i = 0; i < 300; ++i) { r.pass(); if (r.gen.ssr() != was) { ++edges; was = r.gen.ssr(); } }
   CHECK(edges >= 5);
 }
 
@@ -567,8 +567,8 @@ TEST_CASE("BIST-1/INV-5: losing the console in the middle of an output step swit
   REQUIRE(r.start() == Bist::Start::kOk);
   r.goTo(BistStep::kLeft);
   r.run(700);
-  REQUIRE(r.plant.left());
-  r.plant.hal.consoleIsAttached = false;
+  REQUIRE(r.gen.left());
+  r.gen.hal.consoleIsAttached = false;
   const bool done = r.pass();
   CHECK(done);
   CHECK_FALSE(r.bist.running());
@@ -595,18 +595,18 @@ TEST_CASE("BIST: the output queue copes with a very slow host (small TX buffer) 
   REQUIRE(r.start() == Bist::Start::kOk);
   for (int guard = 0; guard < 80 && r.bist.running(); ++guard) {
     for (int i = 0; i < 40; ++i) {
-      r.plant.hal.consoleSpace = 120;  // a slow host: about one long line per pass
+      r.gen.hal.consoleSpace = 120;  // a slow host: about one long line per pass
       r.now += 10;
-      r.plant.hal.nowMs = r.now;
+      r.gen.hal.nowMs = r.now;
       r.display.service(r.now);
       r.console.poll(r.commands);
       r.bist.step(r.now);
-      r.out += r.plant.hal.consoleOut;
-      r.plant.hal.consoleOut.clear();
+      r.out += r.gen.hal.consoleOut;
+      r.gen.hal.consoleOut.clear();
     }
-    r.plant.hal.type("p\n");
+    r.gen.hal.type("p\n");
   }
-  for (int i = 0; i < 400 && r.bist.running(); ++i) { r.plant.hal.consoleSpace = 120; r.pass(); }
+  for (int i = 0; i < 400 && r.bist.running(); ++i) { r.gen.hal.consoleSpace = 120; r.pass(); }
   CHECK(r.has("---- BIST RESULTS ----"));
   CHECK(r.has("BIST: 11 pass"));
 }

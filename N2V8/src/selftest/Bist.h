@@ -8,7 +8,7 @@
 // Non-blocking: call step() once per loop pass (and refresh the watchdog); it returns true when finished.
 // The operator answers each step by typing one letter (the console hands lines to onLine()) or pressing TOB:
 //   p pass   f [note] fail   r rerun   s skip   q quit        (TOB = p, except in the switch test)
-//   g air|n2l|n2h <psi>  enters a plant gauge reading in the pressure step
+//   g air|n2l|n2h <psi>  enters a production gauge reading in the pressure step
 #pragma once
 
 #include <stdint.h>

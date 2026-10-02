@@ -6,17 +6,17 @@ Things only you can do or decide, kept in two separate parts. IDs link to `Requi
 `BoardPins.h` is one table, so wrong values can be corrected at any time and do not block development;
 they must be right before the first hardware visit (DIAG).
 
-# Part 1 — HARDWARE (plant, wiring, bench)
+# Part 1 — HARDWARE (gen, wiring, bench)
 
 ## 1A. Open
 1. [ ] **HQ7 — which analog pin carries the high-N2 sensor?** V6/V7 say A5, but A4/A5 are the I2C lines; `BoardPins.h` has **A1 as a placeholder**. Edit that one row when known. (PIN-10)
 2. [ ] **Confirm the I2C pins on production**: A4/A5 (core pins 18/19) on the Minima. You reported D18/D19 on the WiFi; the core lists both as 18/19. (PIN-11)
-3. [ ] **Verify pins and active levels against the plant.** V6 and V7 agree (adopted): TBS D0 and TOB D1 pull-up, active LOW; LEFT D4, RIGHT D7, FLUSH D11, SSR D8 active HIGH; AIR A0, N2-low A3. (PIN-7)
-4. [ ] **HQ4 — which plant gauges can be read by eye?** Needed only in the diagnostic phase to check the sensors. (INP-8)
+3. [ ] **Verify pins and active levels against production.** V6 and V7 agree (adopted): TBS D0 and TOB D1 pull-up, active LOW; LEFT D4, RIGHT D7, FLUSH D11, SSR D8 active HIGH; AIR A0, N2-low A3. (PIN-7)
+4. [ ] **HQ4 — which production gauges can be read by eye?** Needed only in the diagnostic phase to check the sensors. (INP-8)
 5. [ ] **HQ5 — does the O2 sensor share the Arduino's supply?** (O2-6a)
-6. [ ] **HQ6 — should the plant run while the O2 sensor warms up (5 min)?** Interim answer: no, tower held off (INV-10).
+6. [ ] **HQ6 — should the system run while the O2 sensor warms up (5 min)?** Interim answer: no, tower held off (INV-10).
 7. [ ] **HQ8 — is a 2 Hz toggle of the compressor SSR acceptable** in the BIST, or one short pulse?
-8. [ ] **Consider an independent hardware over-pressure safeguard** (HQ2: none exists, so the firmware is the only protection, GOAL-11). A plant decision.
+8. [ ] **Consider an independent hardware over-pressure safeguard** (HQ2: none exists, so the firmware is the only protection, GOAL-11). A system decision.
 9. [ ] Pressure and timing thresholds were all `TODO: tune` in V6. Decide which are final before field use. (§7)
 10. [ ] Measure the **reset-to-outputs-safe window** (RST-2) with a scope, or get the hardware team's confirmation that outputs default OFF in reset (HQ3).
 
@@ -28,7 +28,7 @@ they must be right before the first hardware visit (DIAG).
 
 ## 1C. On site (DIAG visit, Windows laptop with the Arduino IDE)
 13. [ ] Run the BIST with the console attached; answer p/f/r/s/q; copy the Serial Monitor text to a file.
-14. [ ] Read the plant gauges next to BIST step 5 and note them.
+14. [ ] Read the production gauges next to BIST step 5 and note them.
 15. [ ] With the system disabled, disconnect one sensor and record the raw values to calibrate the fault window. (INP-4)
 16. [ ] Bring: the zip package, the same board-package version (core 1.6.0), the known-good firmware.
 

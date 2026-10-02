@@ -27,7 +27,7 @@ requirement shall be reused rather than rewritten (GOAL-8).
 | GOAL-9 | **Diagnostics first.** The first firmware taken to the field shall be the diagnostic-only build (§2, DIAG) that exercises all hardware and **guarantees the pinouts** before any production logic runs. |
 | GOAL-10 | **Design priorities, in this order: testability, readability, maintainability.** Where requirements or designs conflict, this order decides. Concretely: small single-purpose modules; pure functions where possible; names that say what a thing is; one place for each fact (pins, constants, text); no clever code; every behavior reachable from a host test. |
 | GOAL-12 | **Follow V6/V7 where they agree.** Where V6 and V7 agree, V8 does the same unless a requirement here says otherwise; every deviation is recorded in Appendix A/B. Examples the owner values: the **non-blocking timed state machine with unsigned-subtraction deadlines** (ARC-6) and the **watchdog refreshed once per `loop()` with a 4-second timeout, reduced once real loop times are known** (WDT-1/2, NFR-1). |
-| GOAL-11 | **The firmware is the only protection.** The plant has no independent hardware safeguard against over-pressure or similar faults (hardware-team answer HQ2: none). The invariants (§6) are therefore safety-critical: they shall be independently reviewed before the first hardware visit and again before production use. |
+| GOAL-11 | **The firmware is the only protection.** The system has no independent hardware safeguard against over-pressure or similar faults (hardware-team answer HQ2: none). The invariants (§6) are therefore safety-critical: they shall be independently reviewed before the first hardware visit and again before production use. |
 
 ## 2. Phases and build configurations
 
@@ -131,7 +131,7 @@ Initial contents, from V7 (**V6 and V7 agree on every pin, active level and I2C 
 | INP-5 | [NEW] A sensor shall be declared faulty only after N consecutive out-of-window samples (proposed N = 3). |
 | INP-6 | TBS and TOB shall be read without debounce (as V6). TBS ON at power-up shall be treated as an OFF→ON transition so the system starts. |
 | INP-7 | [NEW] **Sensor consistency.** The N2-low reading shall always be lower than the N2-high reading (compared in common units). If N2-low exceeds N2-high by more than a margin (proposed 1.0 PSI, so that two sensors both near zero do not trip) for a hold time (proposed 5 s), with both sensors valid, fault **F04** shall be raised. |
-| INP-8 | The system shall show the **raw ADC value, volts and scaled PSI** for each sensor so they can be compared with the plant's gauges. The gauges are needed **only in the diagnostic phase**, to confirm the sensors agree within a tolerance; they are not required for operation (they are just easier to read than the LCD). BIST-9 shall prompt for the gauge reading and report the difference. |
+| INP-8 | The system shall show the **raw ADC value, volts and scaled PSI** for each sensor so they can be compared with the production gauges. The gauges are needed **only in the diagnostic phase**, to confirm the sensors agree within a tolerance; they are not required for operation (they are just easier to read than the LCD). BIST-9 shall prompt for the gauge reading and report the difference. |
 
 ## 6. Safety invariants, outputs and reset behavior [NEW]
 
@@ -244,7 +244,7 @@ N2% ×100 = 10000 − O2% ×100, clamped to 9999 (and 0 if O2 ≥ 100%).
 | DSP-1 | Displays render from the output snapshot and fault state only, after controllers update. |
 | DSP-2 | Writes to LCD/LED occur only when a rendered field has changed (fixed per-field positions, V6 Layout C). |
 | DSP-3 | **LED:** TBS on and N2% valid → `nn.nn`; TBS on and invalid → `--.--`; TBS off → blank. |
-| DSP-4 | **LCD layout** (owner review 2026-10-02; details and options in `LCD_Layouts.md`): the normal screen shows N2%, N2-low and N2-high (on one line, with the compressor state if it fits), the tower and O2 states, the four actual outputs as a **vertical** `LRFS` over `1001` block, and AIR (the first item to drop if space is needed, since the plant has a physical gauge). **TBS is not shown** (DSP-9). Only N2% is shown, never O2%. During O2 warm-up the **countdown `mm:ss` is shown in place of N2%**. |
+| DSP-4 | **LCD layout** (owner review 2026-10-02; details and options in `LCD_Layouts.md`): the normal screen shows N2%, N2-low and N2-high (on one line, with the compressor state if it fits), the tower and O2 states, the four actual outputs as a **vertical** `LRFS` over `1001` block, and AIR (the first item to drop if space is needed, since the system has a physical gauge). **TBS is not shown** (DSP-9). Only N2% is shown, never O2%. During O2 warm-up the **countdown `mm:ss` is shown in place of N2%**. |
 
 ```
 ....5....0....5....0
@@ -338,7 +338,7 @@ disables normal operation while it runs (RST-7).
 | POST-1 | POST shall be quick (proposed ≤ 3 s) and shall not wait for anyone **unless a fault occurs**. |
 | POST-2 | Checks: (1) outputs verified safe; (2) reset cause logged; (3) I2C scan against expected addresses (LCD, LED, O2): each OK/MISSING, unexpected responders listed; (4) each pressure sensor within the valid window; (5) TBS/TOB read; (6) config sanity; (7) build identity. |
 | POST-3 | Result: one summary line (`POST PASS`, `POST WARN n`, `POST FAIL n`) plus one line per check, to the console if attached, and on the LCD. |
-| POST-4 | **POST shall hang if and only if a fault occurs.** On a fault of severity ≥ `POST_HANG_SEVERITY` (WARN) the system stays disabled with the fault shown on the LCD (and console if attached) until the operator presses **TOB** (a fresh press: a TOB held since power-up must be released first). The matching faults stay active, so the invariants still protect the plant. **F30/F31 (a watchdog or brown-out reset happened) do not hold POST**: they only record history, and holding on them would keep an unattended unit down after the very reset the watchdog exists to recover from [Q25]. A missing O2 sensor in production is an INHIBIT fault and holds POST. |
+| POST-4 | **POST shall hang if and only if a fault occurs.** On a fault of severity ≥ `POST_HANG_SEVERITY` (WARN) the system stays disabled with the fault shown on the LCD (and console if attached) until the operator presses **TOB** (a fresh press: a TOB held since power-up must be released first). The matching faults stay active, so the invariants still protect production. **F30/F31 (a watchdog or brown-out reset happened) do not hold POST**: they only record history, and holding on them would keep an unattended unit down after the very reset the watchdog exists to recover from [Q25]. A missing O2 sensor in production is an INHIBIT fault and holds POST. |
 | POST-5 | A clean POST shall show `N2 vX.Y POST OK` on the LCD for ~1 s and continue. |
 | POST-6 | `post` on the console re-runs POST; it shall disable the controllers while it runs and re-enable them after, per RST-3. |
 
@@ -366,11 +366,11 @@ most important feature during Debug. It **requires an attached console**.
 | BIST-6 | The watchdog (if enabled) is kicked from every BIST wait loop. |
 | BIST-7 | After BIST, normal operation resumes without a reset after re-running RST-2/RST-3. |
 | BIST-8 | BIST sequencing and formatting shall be host-testable; only HAL calls touch hardware. |
-| BIST-11a | **[found]** The vetoes applied to BIST output steps are INV-2, INV-3, INV-4 and INV-8, evaluated on the **raw** ADC reading as well as the debounced fault flag (a dead sensor must not be able to pass during the first samples). INV-9 and INV-10 (O2 sensor missing / warming up) are **not** vetoes: they protect production, and the BIST is the tool for diagnosing exactly that sensor. The flush valve is not vetoed by pressures. A refused `bist` request leaves a running plant undisturbed. |
+| BIST-11a | **[found]** The vetoes applied to BIST output steps are INV-2, INV-3, INV-4 and INV-8, evaluated on the **raw** ADC reading as well as the debounced fault flag (a dead sensor must not be able to pass during the first samples). INV-9 and INV-10 (O2 sensor missing / warming up) are **not** vetoes: they protect production, and the BIST is the tool for diagnosing exactly that sensor. The flush valve is not vetoed by pressures. A refused `bist` request leaves a running system undisturbed. |
 | BIST-11 | **No BIST step shall create an unsafe condition.** Every output step is subject to the invariants (INV-2…INV-4, INV-8…INV-10) as **vetoes**: it refuses to start, and aborts at once with all outputs OFF, if its action would violate one (for example the SSR step requires N2-high below `n2HighOn`, N2-low above `n2LowOff`, and valid sensors; valves one at a time; TBS must be OFF). Which steps the hardware team may run unattended is their decision; the firmware guarantees the veto. |
 | BIST-10 | **Usable by a second person.** The BIST prompts shall be self-explanatory (what to look at, what the right answer looks like, which key to press) so that a colleague who is not the author can run it from a written package (ENV-3) and email back the captured text. |
-| BIST-9a | The `g air|n2l|n2h <psi>` line in the pressure step prints the difference between the entered plant-gauge reading and the sensor. The compressor SSR step gives **one 1 s pulse** by default (hardware question HQ8 pending); `BistConfig` selects the 2 Hz toggle. |
-| BIST-9 | The sensor step shall show raw ADC, volts, scaled PSI and the in-window flag, and ask the operator to enter (or confirm) the **plant gauge reading** for the gauges that exist (INP-8). |
+| BIST-9a | The `g air|n2l|n2h <psi>` line in the pressure step prints the difference between the entered production-gauge reading and the sensor. The compressor SSR step gives **one 1 s pulse** by default (hardware question HQ8 pending); `BistConfig` selects the 2 Hz toggle. |
+| BIST-9 | The sensor step shall show raw ADC, volts, scaled PSI and the in-window flag, and ask the operator to enter (or confirm) the **production gauge reading** for the gauges that exist (INP-8). |
 
 | Step | Test | Operator confirms |
 |---|---|---|
@@ -412,7 +412,7 @@ most important feature during Debug. It **requires an attached console**.
 
 ## 14a. Reproducible environment and remote testing [NEW]
 
-Goal: some tests can be run by the hardware team on the plant from a package sent by email or fetched
+Goal: some tests can be run by the hardware team in production from a package sent by email or fetched
 with `git pull`, so the author need not travel for every test (the author attends for debugging).
 That only works if both sides build from the **same versions**.
 
@@ -423,11 +423,11 @@ That only works if both sides build from the **same versions**.
 | ENV-3 | The author builds a **test package** (`.zip`), with an author-side script if convenient: the sketch (DIAG build), a copy of every third-party library at the locked version, `env.lock`, a step-by-step README written for Windows and the Arduino IDE (install the board package version, copy the library folder, open the sketch, select the board, upload, open the Serial Monitor, what to answer, what to copy back), an example of the expected output, and a checksum. It shall work with no network access once unpacked. |
 | ENV-4 | `git pull` of a tagged commit is an equivalent transport; the tag names the exact package. |
 | ENV-5 | The firmware banner and `ver` shall print enough to trace a returned log to its package: firmware version, build date/time, git commit (supplied by `make_package`), board, ADC_BITS and the locked versions (ID-1). |
-| ENV-6 | The remote test shall be **DIAG only** (no controllers), and the package README shall say which steps move valves or the compressor and what the plant must look like (for example air supply isolated) before they are run. [Q24] |
+| ENV-6 | The remote test shall be **DIAG only** (no controllers), and the package README shall say which steps move valves or the compressor and what the system must look like (for example air supply isolated) before they are run. [Q24] |
 | ENV-7 | *Option to verify:* an `arduino-cli` **sketch profile** (`sketch.yaml`) can pin the core and libraries; DFRobot_MultiGasSensor is **not** in the Library Manager index (searched 2026-10-02), so it would have to be supplied as a local directory or git URL. Whether the profile mechanism accepts that shall be checked before relying on it. |
 
 ## 15. Owner-supplied facts still to confirm
-See `Owner_TODO.md`. Highlights: complete pinout with active levels; which plant gauges exist; I2C
+See `Owner_TODO.md`. Highlights: complete pinout with active levels; which production gauges exist; I2C
 pins on production; SEN0465 warm-up time; output pull-down wiring.
 
 ## 16. Open software questions
@@ -470,11 +470,11 @@ Hardware questions are kept separately in §17 and in `Owner_TODO.md` part 1.
 | HQ1 | Can the O2 sample cycle run when the towers are not cycling? | **Yes**, as long as the N2 low and high thresholds are met (→ O2-7, Q22). |
 | HQ2 | Is there a mechanical/hardware safeguard independent of the Arduino (relief valve, pressure switch, power cut)? | **No.** The firmware is the only protection (→ GOAL-11). |
 | HQ3 | Do the valve/SSR drivers default OFF in reset or with a floating pin? | **Assume yes (safe)** during reset. More important to set the outputs as early as possible in startup (→ RST-2, RST-8). |
-| HQ4 | Which plant gauges are readable? | **TBD** (author will check; INP-8). |
+| HQ4 | Which production gauges are readable? | **TBD** (author will check; INP-8). |
 | HQ5 | SEN0465 warm-up time? | **5 minutes** (→ O2-6). The owner believes it shares the Arduino's supply; to be confirmed with the hardware team. |
 | HQ7 | **Which analog pin is the high-pressure N2 sensor really wired to?** V6/V7 say A5, which is the I2C clock line; `BoardPins.h` carries A1 as a placeholder (PIN-10). | open |
 | HQ8 | The BIST SSR step toggles the compressor SSR at ~2 Hz (V6). Is that acceptable for the compressor, or should it be one short pulse (e.g. 1–2 s)? | open |
-| HQ6 | **Should the plant run while the O2 sensor warms up (5 min)?** Owner's interim answer: no, the tower stays off until the sensor is warm (INV-10). Does the plant need N2 production earlier, or is the delay acceptable after every power-up? | open |
+| HQ6 | **Should the system run while the O2 sensor warms up (5 min)?** Owner's interim answer: no, the tower stays off until the sensor is warm (INV-10). Does the system need N2 production earlier, or is the delay acceptable after every power-up? | open |
 
 ---
 
@@ -512,5 +512,5 @@ and are the pin source for V8. **V5's pinouts and its bit-banged I2C buses are o
 ignored** (owner, 2026-10-02): V8 uses the standard hardware `Wire` on SDA/SCL.
 
 The one V6/V7 value that cannot be used as-is is the high-pressure N2 sensor on **A5** (the I2C SCL
-line); see PIN-10. Still to confirm on the plant: which analog pin that sensor is really on, and that
+line); see PIN-10. Still to confirm in production: which analog pin that sensor is really on, and that
 the output modules' active level is as V6/V7 assume.

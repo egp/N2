@@ -86,7 +86,7 @@ bool Commands::Help::line(uint8_t i, char* b, size_t n) {
       "  log <level>        error | warn | info | debug",
       "  scan               I2C scan",
       "  report             everything above in one block",
-      "  post               run the power-on self-test again (disables the plant while it runs)",
+      "  post               run the power-on self-test again (disables the system while it runs)",
       "  bist               interactive self-test (needs TBS OFF)",
       "  sim                bench simulation (not in this build)",
   };

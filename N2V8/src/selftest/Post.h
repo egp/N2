@@ -2,7 +2,7 @@
 //
 // Hands-off and quick. Runs at every boot with the controllers disabled and the outputs off. It never needs a
 // console. It never waits for anyone UNLESS a real fault is found; then it holds, showing the fault on the LCD,
-// until the operator presses TOB (POST-4). Held or not, the plant stays protected by the invariants.
+// until the operator presses TOB (POST-4). Held or not, the system stays protected by the invariants.
 //
 // Non-blocking: call step() once per loop pass (and refresh the watchdog); it returns true when finished.
 #pragma once

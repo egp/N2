@@ -7,7 +7,7 @@
 //   loop():  watchdog refresh, console, then one of:
 //              POST  (hands-off self-test, may hold on a fault)
 //              BIST  (operator self-test; started by the `bist` command, or by TOB held at power-up)
-//              RUN   (the plant: System::step + displays)
+//              RUN   (the system: System::step + displays)
 #pragma once
 
 #include <stdint.h>

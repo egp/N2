@@ -236,8 +236,8 @@ void Bist::enter(uint32_t now) {
       say("  EXPECT LCD: backlight off, on; display off, on; all 80 cells show '#'; then cleared. ~4 s, repeats.");
       break;  // the LCD step drives the LCD itself
     case BistStep::kPressures:
-      say("  Raw counts, volts and PSI per sensor (printed on change). Compare with the plant gauges and enter");
-      say("  them: g air 120.5   g n2l 12.3   g n2h 98.0.  Disconnect a sensor (plant OFF) to see its fault values.");
+      say("  Raw counts, volts and PSI per sensor (printed on change). Compare with the production gauges and enter");
+      say("  them: g air 120.5   g n2l 12.3   g n2h 98.0.  Disconnect a sensor (system OFF) to see its fault values.");
       showStep("See console", "Enter gauges: g air 120");
       break;
     case BistStep::kO2:

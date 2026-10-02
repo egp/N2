@@ -120,7 +120,7 @@ TEST_CASE("§11: outputs stay off for the whole POST even with TBS on and good p
   }
 }
 
-TEST_CASE("§4/RST-3: TBS ON at boot starts the plant once POST is done") {
+TEST_CASE("§4/RST-3: TBS ON at boot starts the system once POST is done") {
   AppRig r;
   r.tbs(true);
   r.boot();
@@ -156,7 +156,7 @@ TEST_CASE("CON-4: when a console attaches it is told who we are (it missed the b
   CHECK(r.has("Type help."));
 }
 
-TEST_CASE("§11: the `post` command runs POST again, disabling the plant while it runs") {
+TEST_CASE("§11: the `post` command runs POST again, disabling the system while it runs") {
   AppRig r;
   r.tbs(true);
   r.boot();
@@ -170,10 +170,10 @@ TEST_CASE("§11: the `post` command runs POST again, disabling the plant while i
   CHECK_FALSE(r.anyOutputOn());
   REQUIRE(r.runUntilMode(App::Mode::kRun, 4000));
   r.run(5000);
-  CHECK(r.outputOn(Signal::kSsr));  // the plant resumed
+  CHECK(r.outputOn(Signal::kSsr));  // the system resumed
 }
 
-TEST_CASE("§12/BIST-1: the `bist` command starts the BIST, which the operator can quit; the plant then resumes") {
+TEST_CASE("§12/BIST-1: the `bist` command starts the BIST, which the operator can quit; the system then resumes") {
   AppRig r;
   r.boot();
   REQUIRE(r.runUntilMode(App::Mode::kRun, 3000));
@@ -192,7 +192,7 @@ TEST_CASE("§12/BIST-1: the `bist` command starts the BIST, which the operator c
   CHECK(r.outputOn(Signal::kSsr));  // normal operation works after BIST
 }
 
-TEST_CASE("BIST-1: `bist` is refused while TBS is ON, and the plant keeps running") {
+TEST_CASE("BIST-1: `bist` is refused while TBS is ON, and the system keeps running") {
   AppRig r;
   r.tbs(true);
   r.boot();
@@ -273,14 +273,14 @@ TEST_CASE("NFR-1: every loop pass is timed; `loop` reports the statistics") {
   CHECK(r.has("median<="));
 }
 
-TEST_CASE("DSP-6/F10: a missing LCD is reported as a fault in RUN and never stops the plant") {
+TEST_CASE("DSP-6/F10: a missing LCD is reported as a fault in RUN and never stops the system") {
   AppRig r;
   r.hal.i2cPresent.erase(0x27);
   r.tbs(true);
   r.boot();
   r.run(12000);
   CHECK(r.app->system().faults().active(FaultId::kLcd));
-  CHECK(r.outputOn(Signal::kSsr));  // the plant still runs
+  CHECK(r.outputOn(Signal::kSsr));  // the system still runs
   r.type("faults");
   CHECK(r.has("F10 LCD NO ACK"));
 }
@@ -315,7 +315,7 @@ TEST_CASE("CON-2/F40: when the host stops reading, log lines are dropped and F40
   }
   CHECK(r.app->console().dropped() > 0);
   CHECK(r.app->system().faults().active(FaultId::kConsoleDrop));
-  CHECK(r.outputOn(Signal::kSsr));  // the plant never waited for the console
+  CHECK(r.outputOn(Signal::kSsr));  // the system never waited for the console
 }
 
 TEST_CASE("O2-6a: with credit enabled, a reset-button reset keeps the warm-up already earned") {

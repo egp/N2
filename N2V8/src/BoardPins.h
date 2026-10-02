@@ -8,7 +8,7 @@
 // R4 WiFi in the Arduino core: D0..D13 = 0..13, A0..A5 = 14..19.
 //
 // Wiring facts come from N2V6/N2V7 (they agree). Everything is UNVERIFIED until
-// the DIAG firmware has been run on the plant (PIN-7). Changing a pin or level
+// the DIAG firmware has been run in production (PIN-7). Changing a pin or level
 // means editing this file only; the compile-time checks at the bottom reject
 // duplicate pins, signals on the I2C pins, and missing active levels (PIN-4).
 #pragma once

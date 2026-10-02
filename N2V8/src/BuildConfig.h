@@ -9,7 +9,7 @@
 //   N2_BUILD_FIELD  production
 //
 // The default for an Arduino build is DIAG: the first firmware taken to the
-// plant proves the pinouts and runs no production logic (Requirements GOAL-9).
+// system proves the pinouts and runs no production logic (Requirements GOAL-9).
 #pragma once
 
 #define N2_VERSION "0.1.0-m2"

@@ -27,7 +27,7 @@ bool App::tobPressed() {
 
 const char* App::requestPost() {
   postRequested_ = true;
-  return "running POST: the plant is disabled until it finishes";
+  return "running POST: the system is disabled until it finishes";
 }
 
 const char* App::requestBist() {
@@ -75,7 +75,7 @@ void App::runPass(uint32_t now) {
   const DisplayData data = makeDisplayData(sys_, kAdcBits);
   display_.showNormal(data, now);
 
-  // Report what the display side noticed (DSP-6: informational, never stops the plant).
+  // Report what the display side noticed (DSP-6: informational, never stops the system).
   FaultSet& f = sys_.faultSet();
   f.report(FaultId::kLcd, !display_.lcdHealthy(), now, cfg_.faultHoldMs);
   f.report(FaultId::kLed, !display_.ledHealthy(), now, cfg_.faultHoldMs);
@@ -124,7 +124,7 @@ void App::loop() {
         mode_ = Mode::kPost;
       } else if (bistRequested_) {
         bistRequested_ = false;
-        if (bist_.begin(now, true) == Bist::Start::kOk) {  // a refused request must not disturb the running plant
+        if (bist_.begin(now, true) == Bist::Start::kOk) {  // a refused request must not disturb the running system
           sys_.resume();
           mode_ = Mode::kBist;
         }

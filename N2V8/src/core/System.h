@@ -3,7 +3,7 @@
 //   HAL -> sensors -> faults -> O2 -> enable/disable -> tower, compressor
 //       -> invariants -> OutputDriver -> HAL
 //
-// Depends only on the Hal interface, so the entire plant runs on the host.
+// Depends only on the Hal interface, so the entire system runs on the host.
 #pragma once
 
 #include <stdint.h>

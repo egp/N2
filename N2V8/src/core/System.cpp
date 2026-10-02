@@ -102,7 +102,7 @@ void System::step() {
 
   driver_.apply(request_, invariants_.forced, now);
 
-  // F30/F31 are informational history: clear them once the plant has run a normal cycle.
+  // F30/F31 are informational history: clear them once the system has run a normal cycle.
   if (tower_.state() == Tower::State::kRight) normalCycleSeen_ = true;
   if (normalCycleSeen_) {
     faults_.report(FaultId::kWatchdogReset, false, now, cfg_.faultHoldMs);

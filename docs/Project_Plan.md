@@ -167,7 +167,7 @@ Results go to `docs/results/bench-YYYYMMDD.md`:
 - **Exit:** dry run of the checklist on the bench.
 
 ### M8 — Field commissioning
-- **Visit 1 (DIAG):** capture the full BIST run with operator confirmations, sensor volts vs plant gauges, outputs confirmed by sound, I2C scan, O2 comm and warm-up. Update `BoardPins.h` "verified on Minima" column. Take the captured text file back for analysis with Claude.
+- **Visit 1 (DIAG):** capture the full BIST run with operator confirmations, sensor volts vs production gauges, outputs confirmed by sound, I2C scan, O2 comm and warm-up. Update `BoardPins.h` "verified on Minima" column. Take the captured text file back for analysis with Claude.
 - **Visit 2 (FULL):** run the checklist; capture POST and the first minutes of operation; observe a full tower cycle.
 - **Exit:** field acceptance; PIN-7 verified column complete.
 

@@ -1,6 +1,6 @@
 // Randomized property tests: INV-1..INV-4, INV-8..INV-10, INV-6, OUT-1 (Requirements INV-7).
 //
-// Random sensors, switch, O2 faults and time steps are driven through the whole plant. After EVERY
+// Random sensors, switch, O2 faults and time steps are driven through the whole gen. After EVERY
 // step the ACTUAL pin states are checked against the safety rules, which are restated here
 // independently from the requirements (not by calling checkInvariants()).
 #include <catch2/catch_test_macros.hpp>
@@ -28,7 +28,7 @@ struct Tracker {
   void init(uint32_t now) { for (int i = 0; i < 4; ++i) { lastChange[i] = now; state[i] = false; } }
 };
 
-void checkSafety(Plant& p, const ControlConfig& cfg, Tracker& tr, uint32_t stepNo) {
+void checkSafety(Generator& p, const ControlConfig& cfg, Tracker& tr, uint32_t stepNo) {
   const Inputs& in = p.sys().inputs();
   const bool L = p.left(), R = p.right(), F = p.flush(), S = p.ssr();
   INFO("step " << stepNo << " t=" << p.hal.nowMs << " air=" << in.airX10 << "/" << in.airOk << " low=" << in.n2LowX100
@@ -59,7 +59,7 @@ void checkSafety(Plant& p, const ControlConfig& cfg, Tracker& tr, uint32_t stepN
   }
 }
 
-void randomizeInputs(Plant& p, Rng& rng) {
+void randomizeInputs(Generator& p, Rng& rng) {
   const AdcWindow w = adcWindow(p.bits);
   const uint8_t pins[3] = {pinOf(kHostBoard, Signal::kAirPressure), pinOf(kHostBoard, Signal::kN2LowPressure),
                            pinOf(kHostBoard, Signal::kN2HighPressure)};
@@ -84,7 +84,7 @@ uint32_t randomStep(Rng& rng) {
   return 3000 + rng.below(40000);                  // long stall (watchdog would catch these on a device)
 }
 
-void fuzz(Plant& p, uint32_t seed, uint32_t steps, uint32_t startMs) {
+void fuzz(Generator& p, uint32_t seed, uint32_t steps, uint32_t startMs) {
   Rng rng(seed);
   p.hal.nowMs = startMs;
   p.sys().begin();
@@ -102,36 +102,36 @@ void fuzz(Plant& p, uint32_t seed, uint32_t steps, uint32_t startMs) {
 
 TEST_CASE("INV-7: safety rules hold after every step of randomized runs (quick warm-up)") {
   const uint32_t seed = static_cast<uint32_t>(GENERATE(1, 2, 3, 4, 5, 6, 7, 8));
-  Plant p(quickWarmConfig());
+  Generator p(quickWarmConfig());
   INFO("seed " << seed);
   fuzz(p, seed * 7919u, 6000, 0);
 }
 
 TEST_CASE("INV-7: safety rules hold at every ADC bit depth") {
   const uint8_t bits = static_cast<uint8_t>(GENERATE(12, 14));
-  Plant p(quickWarmConfig(), bits);
+  Generator p(quickWarmConfig(), bits);
   fuzz(p, 4242u + bits, 5000, 0);
 }
 
 TEST_CASE("INV-7: safety rules hold across the millis() rollover") {
-  Plant p(quickWarmConfig());
+  Generator p(quickWarmConfig());
   fuzz(p, 99u, 6000, UINT32_MAX - 200000u);
 }
 
 TEST_CASE("INV-7: safety rules hold with the production 5-minute warm-up") {
-  Plant p;  // default config
+  Generator p;  // default config
   fuzz(p, 31337u, 8000, 0);
 }
 
 TEST_CASE("INV-7: bench configuration (O2 not mandatory) still obeys INV-1..INV-4 and INV-8") {
   ControlConfig c = quickWarmConfig();
   c.o2Mandatory = false;
-  Plant p(c);
+  Generator p(c);
   fuzz(p, 2024u, 6000, 0);
 }
 
 TEST_CASE("INV-7: random resets in the middle of operation never leave an output on") {
-  Plant p(quickWarmConfig());
+  Generator p(quickWarmConfig());
   Rng rng(555);
   p.reboot();
   p.tbs(true);
