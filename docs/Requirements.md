@@ -1,4 +1,4 @@
-# Nitrogen Generator Controller — Requirements (v2.4 DRAFT)
+# Nitrogen Generator Controller — Requirements (v2.5 DRAFT)
 
 **Status:** DRAFT for iteration — no code written yet. v2.3 folds in the author's reviews of v2.0–v2.2. M2 (HAL, pinout, host tests, CI) is the first code and is complete (CI green).
 **Supersedes:** `N2V6/N2V6_Requirements.md` v1.1 (2026-06-10)
@@ -219,7 +219,7 @@ STOPPED_HIGH → RUNNING when N2 high < `n2HighOn` **and N2 low is not below `n2
 All non-RUNNING states hold the SSR off. `enable()` selects the state per RST-4.
 
 ### 7.3 O2 controller
-Monitoring only (no purity alarm), but in `FIELD` the sensor is **mandatory** (O2-1, INV-9). States: `UNKNOWN, FLUSHING, SAMPLING, WAITING, ERROR, DISABLED` (??, F, S, W, E, OFF).
+Monitoring only (no purity alarm), but in `FIELD` the sensor is **mandatory** (O2-1, INV-9). States: `UNKNOWN, WARMING, FLUSHING, SAMPLING, WAITING, ERROR, DISABLED` (??, WM, F, S, W, E, OF). `WARMING` = sensor answers but the 5-minute warm-up (O2-6) is not over; the sensor-comm check continues.
 Cycle as V6/V7: UNKNOWN → (sensor responds) FLUSHING (open flush valve) → after `O2FlushTime` close
 valve, first sample → SAMPLING (re-arm per sample, no transition logged) → after `O2SampleCount`
 samples store average → WAITING until cycle-start + `O2SampleInterval` → FLUSHING.
@@ -244,7 +244,7 @@ N2% ×100 = 10000 − O2% ×100, clamped to 9999 (and 0 if O2 ≥ 100%).
 | DSP-1 | Displays render from the output snapshot and fault state only, after controllers update. |
 | DSP-2 | Writes to LCD/LED occur only when a rendered field has changed (fixed per-field positions, V6 Layout C). |
 | DSP-3 | **LED:** TBS on and N2% valid → `nn.nn`; TBS on and invalid → `--.--`; TBS off → blank. |
-| DSP-4 | **LCD layout is open for discussion**: candidates and a recommendation (B, a status bar plus V7's bottom row) are in `LCD_Layouts.md`. It must show: AIR, N2-low, N2-high, N2%, TBS (`ON`/`OF`), tower, compressor and O2 states, and the four output bits `LRFS`. The V6/V7 layout ("Layout C") is kept below as the reference. |
+| DSP-4 | **LCD layout** (owner review 2026-10-02; details and options in `LCD_Layouts.md`): the normal screen shows N2%, N2-low and N2-high (on one line, with the compressor state if it fits), the tower and O2 states, the four actual outputs as a **vertical** `LRFS` over `1001` block, and AIR (the first item to drop if space is needed, since the plant has a physical gauge). **TBS is not shown** (DSP-9). Only N2% is shown, never O2%. During O2 warm-up the **countdown `mm:ss` is shown in place of N2%**. |
 
 ```
 ....5....0....5....0
@@ -256,10 +256,10 @@ N2% 99.99  LRFS 1001
 
 | ID | Requirement |
 |---|---|
-| DSP-5 | **Fault line.** In Production, with a fault of severity ≥ WARN active, **one LCD line (proposed: row 0, the status bar, in layout B) shall be co-opted** to show `Fnn <text>` (≤ 20 chars), alternating with its normal content every 2 s (so N2%/LRFS stay available). With several faults they rotate. The LED shows `Fnn` of the first active fault. This is the fault channel when no console is attached. [Q9] |
+| DSP-5 | **Fault screen.** While any fault of severity ≥ WARN is active, the LCD **alternates** between the normal screen and a **full 20×4 fault screen** on a cycle of `LCD_FAULT_CYCLE_MS` (3000–4000 ms; default 4000), because a fault may make the system inoperable while the sensor readings are still useful. With several faults the fault screen steps through them (fault 1, normal, fault 2, normal, …). The LED shows `Fnn` of the first active fault. This is the fault channel when no console is attached. [Q9] |
 | DSP-6 | A display failure (no ACK) shall never stop the control loop; it raises an INFO fault logged to the console. |
 | DSP-7 | LCD and LED initialization shall tolerate an absent or slow device and re-initialize when a later probe finds it. |
-| DSP-9 | **TBS state on the LCD** as a 2-character field, `ON` or `OF`, so the real estate stays consistent. Its position in Layout C is fixed with the golden-screen tests in M3. |
+| DSP-9 | **Withdrawn (owner):** the TBS state is not shown on the LCD; `LRFS 0000` and the tower state `OF` already show a disabled system, and the physical switch is at least as visible. The LED still blanks when TBS is off (DSP-3). |
 | DSP-8 | **Startup banner.** At startup the LCD shall show the firmware version and build date for about 1 s (user request); the console prints the full build identity (§10). |
 
 ## 9. Faults [NEW]
@@ -366,6 +366,7 @@ most important feature during Debug. It **requires an attached console**.
 | BIST-6 | The watchdog (if enabled) is kicked from every BIST wait loop. |
 | BIST-7 | After BIST, normal operation resumes without a reset after re-running RST-2/RST-3. |
 | BIST-8 | BIST sequencing and formatting shall be host-testable; only HAL calls touch hardware. |
+| BIST-11 | **No BIST step shall create an unsafe condition.** Every output step is subject to the invariants (INV-2…INV-4, INV-8…INV-10) as **vetoes**: it refuses to start, and aborts at once with all outputs OFF, if its action would violate one (for example the SSR step requires N2-high below `n2HighOn`, N2-low above `n2LowOff`, and valid sensors; valves one at a time; TBS must be OFF). Which steps the hardware team may run unattended is their decision; the firmware guarantees the veto. |
 | BIST-10 | **Usable by a second person.** The BIST prompts shall be self-explanatory (what to look at, what the right answer looks like, which key to press) so that a colleague who is not the author can run it from a written package (ENV-3) and email back the captured text. |
 | BIST-9 | The sensor step shall show raw ADC, volts, scaled PSI and the in-window flag, and ask the operator to enter (or confirm) the **plant gauge reading** for the gauges that exist (INP-8). |
 
@@ -416,8 +417,8 @@ That only works if both sides build from the **same versions**.
 | ID | Requirement |
 |---|---|
 | ENV-1 | The exact environment shall be recorded in a committed file `env.lock`: Arduino core (`arduino:renesas_uno`, now 1.6.0), `arduino-cli` and IDE versions, DFRobot_MultiGasSensor (now 3.0.0), and any other library. |
-| ENV-2 | A script `tools/check_env` shall compare the installed environment with `env.lock` and print any difference. Both laptops run it before any test; a mismatch is reported in the returned log header. |
-| ENV-3 | A script `tools/make_package` shall build a **test package** (`.zip`): the sketch (DIAG build), a copy of every third-party library at the locked version, `env.lock`, a step-by-step README for the hardware team (install, flash, run, what to answer, what to copy back, which BIST steps are safe on a live plant), an example of the expected output, and a checksum. The package shall run without network access once its contents are installed. |
+| ENV-2 | **The receiving side needs no scripts.** The production-site laptop is a **Windows** machine running the Arduino IDE; it can receive a `.zip` and `git pull`, but external scripts must not be assumed. Everything the receiver needs is therefore plain files (sketch, libraries, README) plus IDE steps written out by hand. Version checking on the receiving side is done **by the firmware**: its banner and `ver` print the build identity and the versions it can see (ENV-5), and the README lists the IDE/core/library versions to match. Author-side scripts (macOS) may check `env.lock`. |
+| ENV-3 | The author builds a **test package** (`.zip`), with an author-side script if convenient: the sketch (DIAG build), a copy of every third-party library at the locked version, `env.lock`, a step-by-step README written for Windows and the Arduino IDE (install the board package version, copy the library folder, open the sketch, select the board, upload, open the Serial Monitor, what to answer, what to copy back), an example of the expected output, and a checksum. It shall work with no network access once unpacked. |
 | ENV-4 | `git pull` of a tagged commit is an equivalent transport; the tag names the exact package. |
 | ENV-5 | The firmware banner and `ver` shall print enough to trace a returned log to its package: firmware version, build date/time, git commit (supplied by `make_package`), board, ADC_BITS and the locked versions (ID-1). |
 | ENV-6 | The remote test shall be **DIAG only** (no controllers), and the package README shall say which steps move valves or the compressor and what the plant must look like (for example air supply isolated) before they are run. [Q24] |
@@ -427,11 +428,13 @@ That only works if both sides build from the **same versions**.
 See `Owner_TODO.md`. Highlights: complete pinout with active levels; which plant gauges exist; I2C
 pins on production; SEN0465 warm-up time; output pull-down wiring.
 
-## 16. Open questions
+## 16. Open software questions
+
+Hardware questions are kept separately in §17 and in `Owner_TODO.md` part 1.
 
 | # | Question | Proposal / status |
 |---|---|---|
-| Q1 | High-N2 sensor on A5 = SCL | Author is finding out the physical wiring; A1/A2 may be left/right tower sensors (V5) — see PIN-10 and Appendix C |
+| Q1 | *(moved to hardware: HQ7)* | |
 | Q2 | LCD/LED libs | **Resolved:** DIY minimal, from V7 mini-libs; reuse TCP logic where good |
 | Q3 | Fixed-point ranges as V7 | Resolved: yes |
 | Q4 | Sensor fault window/sample count | Resolved: ok (0.4/4.6 V, 3 samples) |
@@ -453,7 +456,7 @@ pins on production; SEN0465 warm-up time; output pull-down wiring.
 | Q20 | Missing O2 sensor | **Resolved:** mandatory in production; inhibit all; holds POST (O2-1) |
 | Q21 | Does production run while the O2 sensor is warming up? | **Interim answer: no — tower disabled until warm (INV-10).** Question for the hardware team: HQ6 |
 | Q22 | HQ1 "N2 low and high thresholds are met" | **Resolved:** above the low minimum and below the high maximum, i.e. within operating range (O2-7) |
-| Q24 | Which BIST steps may the hardware team run on a live plant without the author (ENV-6)? What isolation or safety condition applies? | open |
+| Q24 | BIST steps run by the hardware team | **Resolved:** the hardware team decides which steps to run; the firmware guarantees BIST never creates an unsafe condition (BIST-11) |
 | Q23 | Power-on vs reset discrimination and warm-up credit | **Resolved: yes** (O2-6a/6b), enabled only after bench tests |
 
 ## 17. Questions for the hardware team (answers recorded 2026-10-02)
@@ -465,6 +468,8 @@ pins on production; SEN0465 warm-up time; output pull-down wiring.
 | HQ3 | Do the valve/SSR drivers default OFF in reset or with a floating pin? | **Assume yes (safe)** during reset. More important to set the outputs as early as possible in startup (→ RST-2, RST-8). |
 | HQ4 | Which plant gauges are readable? | **TBD** (author will check; INP-8). |
 | HQ5 | SEN0465 warm-up time? | **5 minutes** (→ O2-6). The owner believes it shares the Arduino's supply; to be confirmed with the hardware team. |
+| HQ7 | **Which analog pin is the high-pressure N2 sensor really wired to?** V6/V7 say A5, which is the I2C clock line; `BoardPins.h` carries A1 as a placeholder (PIN-10). | open |
+| HQ8 | The BIST SSR step toggles the compressor SSR at ~2 Hz (V6). Is that acceptable for the compressor, or should it be one short pulse (e.g. 1–2 s)? | open |
 | HQ6 | **Should the plant run while the O2 sensor warms up (5 min)?** Owner's interim answer: no, the tower stays off until the sensor is warm (INV-10). Does the plant need N2 production earlier, or is the delay acceptable after every power-up? | open |
 
 ---

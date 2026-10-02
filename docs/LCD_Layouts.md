@@ -1,104 +1,72 @@
-# LCD layout proposals (20 × 4, fixed-width)
+# LCD layout proposals (20 × 4, fixed-width) — revision 2
 
-Status: **for discussion.** Requirements DSP-1…DSP-9 apply. Whatever is chosen becomes the golden
-screens in the M3 host tests.
+Revised after the owner's review (2026-10-02). Requirements DSP-1…DSP-9 apply. The chosen layout becomes the
+golden screens in the host tests; changing it later means editing one table and the expected text.
 
-## What must be shown
+## Owner's decisions applied
+1. Show the **O2 warm-up time remaining**, **in place of N2%** while warming.
+2. **N2-low and N2-high on the same line**, with the compressor (SSR) state on that line if possible.
+3. **AIR** has a physical gauge, so it is **first to go** if space is needed.
+4. **LRFS stacked vertically**: the letters above the four bits.
+5. **No TBS on the LCD.**
+6. **N2% only**, no O2%.
+7. Faults: **toggle** between the normal screen and a full-screen fault display every 3–4 s.
 
-| Item | Example | Source / note |
-|---|---|---|
-| Air supply pressure | `123.4` | PSI, 1 decimal |
-| N2 low pressure | `12.34` | PSI, 2 decimals |
-| N2 high pressure | `123.4` | PSI, 1 decimal |
-| N2 purity | `99.99` | % (100 − O2%); `--.--` when invalid |
-| TBS | `ON` / `OF` | 2 characters (owner) |
-| Tower state | `OF L LB R RB` | V6/V7 |
-| Compressor state | `OF ON LO HI` | V6/V7 |
-| O2 state | `?? F S W E OF` | V6/V7; `W` also used for "waiting" so warm-up needs its own indication |
-| Output states | `LRFS 1001` | the four *actual* driven outputs: Left valve, Right valve, Flush valve, SSR |
-| Fault text | `F03 N2H SENSOR RANGE` | DSP-5, shown only when a fault is active |
-
-The `LRFS` bits are redundant with the controller states *in normal operation*, but they show what
-the OutputDriver really drove (minimum-hold deferrals, invariant overrides), so they are kept.
-
-## Reference: the V6/V7 layout (no TBS)
+## Option 1 — clear labels (recommended for readability)
 
 ```
   0         1
   01234567890123456789
-  AIR 123.4  TWR  LB
-  N2L 12.34  CMP  ON
-  N2H 123.4  O2   S
-  N2% 99.99  LRFS 1001
+  N2% 99.99  O2 S
+  N2L 12.34 N2H 123.4
+  CMP ON  TWR LB  LRFS
+  AIR 123.4       1001
 ```
-There is no free room for a labelled TBS field, which is why a new layout is proposed.
+- Row 0: purity and the O2 state. Row 1: both N2 pressures with full labels. Row 2: compressor and tower
+  states, and the **`LRFS` letters**. Row 3: AIR, and the **four bits under their letters** (L over 1, R over 0, F over 0, S over 1).
+- Compressor state is **not** on the pressure line (no room with full labels); it is one row below.
+- Dropping AIR leaves row 3 as just the bits.
 
-## Option A — grouped by function (everything fits, nothing dropped)
+## Option 2 — compressor on the pressure line (what the owner asked for)
 
 ```
   0         1
   01234567890123456789
-  TBS ON TWR LB CMP ON
-  AIR 123.4 N2L 12.34
-  N2H 123.4 N2% 99.99
-  O2 S      LRFS 1001
+  N2% 99.99  O2 S
+  L12.34 H123.4 CMP:ON
+  TWR LB          LRFS
+  AIR 123.4       1001
 ```
-Pro: pressures together, nothing shortened. Con: furthest from V6/V7, so least familiar; the O2
-state sits alone on the last row.
+- Row 1 carries **N2-low (`L`), N2-high (`H`) and the compressor state** on one line; the shortened `L`/`H` labels
+  are the price. (`CMP:LO` / `CMP:HI` also say *why* the compressor is stopped.)
+- Row 2 holds the tower state; AIR and the bits share row 3.
 
-## Option B — status bar + V7's bottom row  **(recommended)**
+## Both options in other states
 
+O2 warming up (countdown replaces N2%; the label becomes `WRM`; the tower is held off, INV-10):
+```
+  WRM  4:32  O2 WM
+  L12.34 H123.4 CMP:ON
+  TWR OF          LRFS
+  AIR 123.4       0000
+```
+N2% not valid (first cycle, O2 error, or stale): `N2% --.--`. Everything disabled: states read `OF`, the bits `0000`.
+
+### Fault display — full 20×4, alternating with the normal screen
+Shown for 4 s, then the normal screen for 4 s, and so on (`LCD_FAULT_CYCLE_MS`). With two faults the sequence is
+fault 1, normal, fault 2, normal.
 ```
   0         1
   01234567890123456789
-  TBS ON  CMP ON O2 S 
-  AIR 123.4  TWR LB
-  N2L 12.34 N2H 123.4
-  N2% 99.99  LRFS 1001
-```
-- Row 0 is a **status bar**: system switch, compressor, O2 state. All 2-character values (`ON`/`OF`).
-- Rows 1–3 keep V7's AIR line and the **unchanged bottom row** (`N2%` and `LRFS`), so the familiar
-  parts stay where they were; the two N2 pressures share one row.
-- Everything required is shown.
-
-Field map (all fixed positions, so a changed field is a single write, DSP-2):
-
-| Row | Cols | Content | Width |
-|---|---|---|---|
-| 0 | 0–2 / 4–5 | `TBS` / `ON`·`OF` | 3 + 2 |
-| 0 | 8–10 / 12–13 | `CMP` / `ON`·`OF`·`LO`·`HI` | 3 + 2 |
-| 0 | 15–16 / 18–19 | `O2` / `??`·`F `·`S `·`W `·`E `·`OF` | 2 + 2 |
-| 1 | 0–2 / 4–8 | `AIR` / value | 3 + 5 |
-| 1 | 11–13 / 15–16 | `TWR` / `OF`·`L `·`LB`·`R `·`RB` | 3 + 2 |
-| 2 | 0–2 / 4–8 | `N2L` / value | 3 + 5 |
-| 2 | 10–12 / 14–18 | `N2H` / value | 3 + 5 |
-| 3 | 0–2 / 4–8 | `N2%` / value (`--.--` if invalid) | 3 + 5 |
-| 3 | 11–14 / 16–19 | `LRFS` / four bits | 4 + 4 |
-
-### Option B in other states
-
-TBS off (everything disabled; N2% invalid):
-```
-  TBS OF  CMP OF O2 OF
-  AIR 123.4  TWR OF
-  N2L 12.34 N2H 123.4
-  N2% --.--  LRFS 0000
-```
-O2 sensor warming up (5 min; tower held off, INV-10): the N2% label changes to `WRM` and shows the countdown
-```
-  TBS ON  CMP ON O2 W 
-  AIR 123.4  TWR OF
-  N2L 12.34 N2H 123.4
-  WRM  4:32  LRFS 0000
-```
-A fault (row 0 alternates with the status bar every 2 s; the other rows stay live, DSP-5):
-```
+  FAULT 1 OF 2  INHIBIT
   F03 N2H SENSOR RANGE
-  AIR 123.4  TWR LB
-  N2L 12.34 N2H 123.4
-  N2% 99.99  LRFS 1001
+  RAW 12  0.06V  <0.40V
+  TOWER+SSR HELD OFF
 ```
-Startup banner (DSP-8, about 1 s):
+(rows: header with severity; code and short name; the measured value against its limit; what the system is doing about it.)
+A warning-level fault uses `WARNING` in the header. The LED shows `F03`.
+
+### Startup banner (about 1 s)
 ```
   N2V8 0.1.0-m2
   UNO R4 Minima
@@ -106,31 +74,20 @@ Startup banner (DSP-8, about 1 s):
   POST ...
 ```
 
-## Option C — outputs spelled out
+## Field map (Option 1; fixed positions, so a changed field is one write)
 
-```
-  0         1
-  01234567890123456789
-  AIR 123.4 N2% 99.99
-  N2L 12.34 N2H 123.4
-  L ON R OF F OF S ON
-  TBS ON TWR LB O2 S
-```
-Pro: valves readable without decoding `1001`. Con: **drops the compressor state** (`LO`/`HI` tell you
-*why* the SSR is off) and the tower state is half redundant; most different from V6/V7.
+| Row | Cols | Content |
+|---|---|---|
+| 0 | 0–2, 4–8 | `N2%`, value (`--.--`, or `WRM` and `m:ss`) |
+| 0 | 11–12, 14–15 | `O2`, state `??` `WM` `F ` `S ` `W ` `E ` `OF` |
+| 1 | 0–2, 4–8 | `N2L`, value |
+| 1 | 10–12, 14–18 | `N2H`, value |
+| 2 | 0–2, 4–5 | `CMP`, `ON` `OF` `LO` `HI` |
+| 2 | 8–10, 12–13 | `TWR`, `OF` `L ` `LB` `R ` `RB` |
+| 2 | 16–19 | `LRFS` |
+| 3 | 0–2, 4–8 | `AIR`, value (first to drop) |
+| 3 | 16–19 | the four actual output bits |
 
-## Comparison
-
-| | A | **B** | C |
-|---|---|---|---|
-| Everything required shown | yes | **yes** | no (CMP state) |
-| Keeps V7's bottom row | no | **yes** | no |
-| TBS ON/OF prominent | yes | **yes** (row 0) | yes |
-| Valve states as 0/1 bits | yes | **yes** | spelled out |
-| Fault line room | row 0 | **row 0** | row 3 |
-
-## Questions
-
-1. **O2% or N2%?** V6/V7 show only N2% (= 100 − O2%). Show N2% (as proposed), O2% instead, or both (the console and BIST show raw O2% in any case)?
-2. Is `WRM mm:ss` in the N2% position acceptable during warm-up, or should the O2 state letter `W` plus a separate countdown be used?
-3. Should the fault alternate with the status bar (proposed) or take over the whole screen?
+## Remaining questions (software)
+1. Option 1 (clear labels, compressor one row down) or Option 2 (compressor on the pressure line, labels shortened to `L`/`H`)?
+2. Fault cycle: 3 s or 4 s?

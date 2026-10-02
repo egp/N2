@@ -1,53 +1,47 @@
 # Owner TODO list
 
-Things only you can do or decide. Tick them off as you go. IDs link to `Requirements.md`.
+Things only you can do or decide, kept in two separate parts. IDs link to `Requirements.md`.
 
-**Priority note:** the pinout table and the high-N2 sensor location are of **critical importance but
-low urgency**. `BoardPins.h` is a single table, so wrong values can be corrected at any time and do
-not block development; they must be right before the first hardware visit (DIAG).
+**Priority note:** the pinout and the high-N2 sensor location are of **critical importance but low urgency**.
+`BoardPins.h` is one table, so wrong values can be corrected at any time and do not block development;
+they must be right before the first hardware visit (DIAG).
 
-## A. Open items
+# Part 1 — HARDWARE (plant, wiring, bench)
 
-1. [ ] **Find out which analog pin the high-N2 sensor is really on.** V6/V7 say A5, but **A4/A5 are the I2C lines**, so `BoardPins.h` carries **A1 as a provisional placeholder** (V5 is ignored). Edit that one table row when you know. (PIN-10, Q1)
-2. [ ] **Confirm the I2C pins on production**: A4/A5 (core pins 18/19) on the Minima. You reported D18/D19 on the WiFi; the core lists both boards as 18/19 = A4/A5. (PIN-11)
-3. [ ] **Verify the pinout and active levels against the real plant.** V6 and V7 agree on all pins, levels and addresses (adopted); V5 differs for TBS, flush valve and N2-high, and calls the outputs `Relay_1…4` (are they relay modules, and is the active level as in V6/V7?). Flush valve D11 (V6/V7) or D12 (V5)? (PIN-7, Appendix C)
-4. [ ] **Identify the plant gauges** you can read by eye (HQ4: TBD). (INP-8)
-5. [ ] **Pressure and timing thresholds are all `TODO: tune` in V6.** Decide which values are final before field use. (§7)
-6. [ ] **Consider an independent hardware over-pressure safeguard.** The hardware team says there is none, so the firmware is the only protection (GOAL-11). This is a plant decision, not a software one.
-7. [ ] **Hardware team: HQ6** — should the plant run while the O2 sensor warms up (5 min)? Interim answer: no, tower held off (INV-10). Also HQ5: does the O2 sensor share the Arduino's supply?
-8. [ ] Does the O2 sensor share the Arduino's power supply? (HQ5, needed for O2-6a)
-9. [ ] Review `Requirements.md` v2.3 and say what to change.
-10. [ ] Bring a laptop with the IDE, core 1.6.0 and the libraries, plus the known-good firmware, on the field trip.
+## 1A. Open
+1. [ ] **HQ7 — which analog pin carries the high-N2 sensor?** V6/V7 say A5, but A4/A5 are the I2C lines; `BoardPins.h` has **A1 as a placeholder**. Edit that one row when known. (PIN-10)
+2. [ ] **Confirm the I2C pins on production**: A4/A5 (core pins 18/19) on the Minima. You reported D18/D19 on the WiFi; the core lists both as 18/19. (PIN-11)
+3. [ ] **Verify pins and active levels against the plant.** V6 and V7 agree (adopted): TBS D0 and TOB D1 pull-up, active LOW; LEFT D4, RIGHT D7, FLUSH D11, SSR D8 active HIGH; AIR A0, N2-low A3. (PIN-7)
+4. [ ] **HQ4 — which plant gauges can be read by eye?** Needed only in the diagnostic phase to check the sensors. (INP-8)
+5. [ ] **HQ5 — does the O2 sensor share the Arduino's supply?** (O2-6a)
+6. [ ] **HQ6 — should the plant run while the O2 sensor warms up (5 min)?** Interim answer: no, tower held off (INV-10).
+7. [ ] **HQ8 — is a 2 Hz toggle of the compressor SSR acceptable** in the BIST, or one short pulse?
+8. [ ] **Consider an independent hardware over-pressure safeguard** (HQ2: none exists, so the firmware is the only protection, GOAL-11). A plant decision.
+9. [ ] Pressure and timing thresholds were all `TODO: tune` in V6. Decide which are final before field use. (§7)
+10. [ ] Measure the **reset-to-outputs-safe window** (RST-2) with a scope, or get the hardware team's confirmation that outputs default OFF in reset (HQ3).
 
-11a. [ ] **Choose an LCD layout** from `docs/LCD_Layouts.md` (recommended: B) and answer its three questions (O2% vs N2%, warm-up display, fault display).
-11b. [ ] **Hardware team package (ENV-6, Q24):** which BIST steps may the hardware team run on the live plant without you, and under what safety conditions?
+## 1B. At the bench (R4 WiFi, LCD + LED; rig a TBS/TOB switch if needed)
+11. [ ] **Run the reset probe** (`experiments/reset_probe/README.md`, T1–T9) and paste the output into `docs/results/`. Repeat on the Minima. (O2-6a/6b, CON-3)
+12. [ ] I2C scan: confirm 0x24 (LED) and 0x27 (LCD). Optional early experiment: scan, `analogRead(A5)`, scan again. (PIN-10)
 
-## B. Decided (kept for reference)
+## 1C. On site (DIAG visit, Windows laptop with the Arduino IDE)
+13. [ ] Run the BIST with the console attached; answer p/f/r/s/q; copy the Serial Monitor text to a file.
+14. [ ] Read the plant gauges next to BIST step 5 and note them.
+15. [ ] With the system disabled, disconnect one sensor and record the raw values to calibrate the fault window. (INP-4)
+16. [ ] Bring: the zip package, the same board-package version (core 1.6.0), the known-good firmware.
 
-- [x] Active levels, pins, addresses: use V6/V7 (they agree); verify on site.
-- [x] Output hold: 1000 ms; BIST has a 2 Hz exception (OUT-1).
-- [x] LCD shows TBS `ON`/`OFF` if there is room (DSP-9).
-- [x] F04 (N2-low above N2-high) is an INHIBIT fault (INV-8).
-- [x] O2 sensor is **mandatory in production**; missing means all outputs off and POST holds (INV-9, O2-1).
-- [x] O2 warm-up is 5 minutes (O2-6); output wiring assumed safe (OFF) during reset (HQ3).
-- [x] HQ1: O2 cycle may run when towers are idle if the N2 thresholds are met (O2-7).
-- [x] BIST keys: `p` pass, `f` fail, `r` rerun, `s` skip, `q` quit (BIST-3).
-- [x] Capture: copy/paste from the IDE Serial Monitor (LOG-3).
-- [x] R4 compiler: Rosetta installed; N2V7 builds for both boards (Project_Plan §5).
-- [x] Git: branch `v8` on `egp/N2` over SSH (Project_Plan §9).
-- [x] Design priorities: testability, readability, maintainability (GOAL-10).
+# Part 2 — SOFTWARE
 
-## C. At the bench (home, R4 WiFi)
+## 2A. Open
+1. [ ] **LCD layout:** Option 1 (clear labels) or Option 2 (compressor on the pressure line, `L`/`H` labels)? Fault cycle 3 s or 4 s? (`LCD_Layouts.md`)
+2. [ ] Review `Requirements.md` v2.5 and say what to change.
 
-0. [ ] **Run the reset probe** (`experiments/reset_probe/README.md`): plug in the R4 WiFi, upload the sketch (IDE, or ask Claude to flash it), open the Serial Monitor, work through T1–T9, paste the output into `docs/results/reset-probe-wifi-YYYYMMDD.txt`. Repeat on the Minima when you can. (O2-6a/6b, CON-3)
-
-11. [ ] Optional early experiment: with only the LCD and LED attached, run an I2C scan, `analogRead(A5)`, scan again, to see whether A5 and I2C coexist. (PIN-10)
-12. [ ] Confirm the LCD and LED I2C addresses (0x27, 0x24) with a scan.
-13. [ ] **Measure the reset-to-outputs-safe window** (RST-2): the core initializes and starts USB before `setup()`. A scope or logic analyzer on one output pin, or the hardware team's confirmation that outputs default OFF in reset (HQ3), settles whether the gap matters.
-14. [ ] Check reset-cause visibility: read `RSTSR0` after power-on vs the reset button, and `.noinit` RAM retention (O2-6a).
-
-## D. On site (DIAG visit)
-
-15. [ ] Run BIST with the console attached; answer p/f/r/s/q for each step; copy the Serial Monitor text to a file.
-16. [ ] Read the plant gauges next to BIST step 5 and note them.
-17. [ ] Disconnect one sensor (with the system disabled) and record the raw values, to calibrate the fault window. (INP-4)
+## 2B. Decided
+- [x] V6/V7 are the source where they agree (GOAL-12); the non-blocking deadline scheduler and the per-loop watchdog (4 s, reduced later) are kept.
+- [x] BIST keys `p f r s q`; BIST never creates an unsafe condition (BIST-11); the hardware team decides which steps to run.
+- [x] Capture by copy/paste from the Serial Monitor. Receiving laptop is Windows + Arduino IDE; **no scripts assumed there** (ENV-2).
+- [x] O2 sensor mandatory in production; warm-up 5 min with belt-and-suspenders credit, enabled only after testing (O2-6a/6b).
+- [x] Tower held off until the O2 sensor is warm (interim, INV-10).
+- [x] F04 inhibits (INV-8); output hold 1000 ms with a BIST 2 Hz exception (OUT-1).
+- [x] LCD: no TBS, N2% only, warm-up countdown replaces N2%, vertical LRFS, fault screen alternates (DSP-4/5/9).
+- [x] Priorities: testability, readability, maintainability (GOAL-10). Host tests first, then the R4 WiFi.
