@@ -31,6 +31,11 @@ constexpr AdcWindow adcWindow(uint8_t bits) {
           rawFromMillivolts(bits, kSensorFaultLowMillivolts), rawFromMillivolts(bits, kSensorFaultHighMillivolts)};
 }
 
+// Voltage at the ADC pin for a raw count, in millivolts (diagnostics only).
+constexpr uint16_t millivoltsFromRaw(uint16_t raw, uint8_t bits) {
+  return static_cast<uint16_t>((static_cast<uint32_t>(raw) * kAdcRefMillivolts + adcMaxRaw(bits) / 2u) / adcMaxRaw(bits));
+}
+
 enum class RawStatus : uint8_t { kOk, kBelowWindow, kAboveWindow };
 
 // Single-sample plausibility. (Requiring several consecutive bad samples

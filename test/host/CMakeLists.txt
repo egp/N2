@@ -17,21 +17,22 @@ list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
 
 set(N2_SRC ${CMAKE_CURRENT_SOURCE_DIR}/../../src)
 
-# Everything under src/ that does not need the Arduino core. HalArduino.cpp is
-# guarded by #ifdef ARDUINO and is deliberately not built here.
-add_library(n2_core STATIC ${N2_SRC}/board/BoardSetup.cpp)
+# Everything under src/. HalArduino.cpp is guarded by #ifdef ARDUINO, so it compiles to nothing here.
+file(GLOB_RECURSE N2_SOURCES CONFIGURE_DEPENDS ${N2_SRC}/*.cpp)
+add_library(n2_core STATIC ${N2_SOURCES})
 target_include_directories(n2_core PUBLIC ${N2_SRC})
 target_compile_definitions(n2_core PUBLIC N2_BUILD_HOST)
 target_compile_options(n2_core PUBLIC -Wall -Wextra -Wpedantic -Werror)
 
-add_executable(n2_tests
-  test_board_pins.cpp
-  test_board_setup.cpp
-  test_scaling.cpp
-  test_timing.cpp)
+file(GLOB N2_TESTS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/test_*.cpp)
+add_executable(n2_tests ${N2_TESTS})
 target_include_directories(n2_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(n2_tests PRIVATE n2_core Catch2::Catch2WithMain)
 
 include(CTest)
 include(Catch)
 catch_discover_tests(n2_tests)
+
+# Prints the screens for review: build/host/render_screens
+add_executable(render_screens render_screens.cpp)
+target_link_libraries(render_screens PRIVATE n2_core)
