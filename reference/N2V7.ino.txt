@@ -1,0 +1,842 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// N2V7.ino — PSA nitrogen generator controller
+//
+// Monolithic sketch. Target: Arduino UNO R4 Minima / UNO R4 WiFi.
+// ─────────────────────────────────────────────────────────────────────────────
+#include <Wire.h>
+#include "DFRobot_MultiGasSensor.h"  // https://github.com/DFRobot/DFRobot_MultiGasSensor
+
+const bool runBIST = true;
+
+// ── Digital inputs ────────────────────────────────────────────────────────
+const uint8_t TBS_PIN = 0;
+const uint8_t TOB_PIN = 1;
+
+// ── Digital outputs ───────────────────────────────────────────────────────
+const uint8_t LEFT_TOWER_VALVE_PIN = 4;
+const uint8_t RIGHT_TOWER_VALVE_PIN = 7;
+const uint8_t O2_FLUSH_VALVE_PIN = 11;
+const uint8_t SSR_PIN = 8;
+
+// ── Analog inputs ─────────────────────────────────────────────────────────
+const uint8_t SUPPLY_PRESSURE_PIN = A0;
+const uint8_t LOW_N2_PIN = A3;
+const uint8_t HIGH_N2_PIN = A5;
+
+// ── I2C addresses ─────────────────────────────────────────────────────────
+const uint8_t I2C_ADDR_DISP4 = 0x24;
+const uint8_t I2C_ADDR_LCD = 0x27;
+const uint8_t I2C_ADDR_O2 = 0x74;
+
+// ── Pressure scaling ──────────────────────────────────────────────────────
+const uint16_t RAW_MIN = 102;
+const uint16_t RAW_MAX = 921;
+const uint16_t AIR_FULLSCALE_X10 = 1500;
+const uint16_t N2LOW_FULLSCALE_X100 = 3000;
+const uint16_t N2HIGH_FULLSCALE_X10 = 1500;
+
+// ── Controller params ─────────────────────────────────────────────────────
+const uint16_t airLowOff = 900;         // PSI x10
+const uint16_t airLowOn = 1200;         // PSI x10
+const uint32_t towerFillTime = 59250;   // ms
+const uint32_t towerOverlapTime = 750;  // ms
+
+const uint16_t n2LowOff = 1000;   // PSI x100
+const uint16_t n2LowOn = 2000;    // PSI x100
+const uint16_t n2HighOn = 1000;   // PSI x10
+const uint16_t n2HighOff = 1200;  // PSI x10
+
+const uint32_t O2SampleInterval = 60000;  // ms
+const uint32_t O2FlushTime = 2000;        // ms
+const uint32_t O2SampleTime = 250;        // ms
+const uint8_t O2SampleCount = 10;
+const uint32_t O2CommRetryMs = 1000;
+
+// TM1650 mini-library
+const uint8_t SEG[16] = { 0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07,
+                          0x7F, 0x6F, 0x77, 0x7C, 0x39, 0x5E, 0x79, 0x71 };
+struct TM1650 {
+  uint8_t digitCache[4] = { 0xFF, 0xFF, 0xFF, 0xFF };
+
+  void writeByte(uint8_t addr, uint8_t value) {
+    Wire.beginTransmission(addr);
+    Wire.write(value);
+    Wire.endTransmission();
+  }
+
+  void begin() {
+    delay(50);
+    on();
+  }
+
+  void on() {
+    writeByte(I2C_ADDR_DISP4, 0x11);
+  }
+  void off() {
+    writeByte(I2C_ADDR_DISP4, 0x10);
+  }
+
+  void writeDigit(uint8_t digit, uint8_t segments) {
+    if (digitCache[digit] != segments) {
+      digitCache[digit] = segments;
+      writeByte(0x34 + digit, segments);
+    }
+  }
+
+  void show(uint16_t value, int8_t dotDigit = -1) {
+    for (int8_t i = 3; i >= 0; --i, value /= 10)
+      writeDigit(i, SEG[value % 10] | (i == dotDigit ? 0x80 : 0));
+  }
+
+  void showHex(uint16_t value) {
+    for (int8_t i = 3; i >= 0; --i, value >>= 4) writeDigit(i, SEG[value & 15]);
+  }
+
+  void blank() {
+    for (uint8_t i = 0; i < 4; i++) writeDigit(i, 0);
+  }
+
+  void dashes(int8_t dotDigit = -1) {
+    for (uint8_t i = 0; i < 4; i++) writeDigit(i, 0x40 | (i == (uint8_t)dotDigit ? 0x80 : 0));
+  }
+};
+
+// LCD20x4 mini-library
+struct LCD20x4 {
+  uint8_t backlight = 0x08;
+
+  void writeI2C(uint8_t value) {
+    Wire.beginTransmission(I2C_ADDR_LCD);
+    Wire.write(value);
+    Wire.endTransmission();
+  }
+
+  void pulseNibble(uint8_t value) {
+    value |= backlight;
+    writeI2C(value | 0x04);
+    delayMicroseconds(1);
+    writeI2C(value & ~0x04);
+  }
+
+  void sendByte(uint8_t value, uint8_t rs) {
+    pulseNibble((value & 0xF0) | rs);
+    pulseNibble(((value << 4) & 0xF0) | rs);
+  }
+
+  void command(uint8_t value) {
+    sendByte(value, 0);
+  }
+
+  void begin() {
+    delay(50);
+    pulseNibble(0x30);
+    delay(5);
+    pulseNibble(0x30);
+    delay(5);
+    pulseNibble(0x30);
+    delay(1);
+    pulseNibble(0x20);
+    command(0x28);
+    command(0x0C);
+    command(0x06);
+    clear();
+  }
+
+  void clear() {
+    command(0x01);
+    delay(2);
+  }
+
+  void setCursor(uint8_t row, uint8_t col) {
+    static const uint8_t ROW_ADDR[4] = { 0x00, 0x40, 0x14, 0x54 };
+    command(0x80 | (ROW_ADDR[row & 3] + col));
+  }
+
+  void print(uint8_t row, uint8_t col, const char* text) {
+    setCursor(row, col);
+    while (*text) sendByte((uint8_t)*text++, 0x01);
+  }
+
+  void on() {
+    command(0x0C);
+  }
+  void off() {
+    command(0x08);
+  }
+  void backlightOn() {
+    backlight = 0x08;
+    writeI2C(backlight);
+  }
+  void backlightOff() {
+    backlight = 0x00;
+    writeI2C(backlight);
+  }
+};
+
+TM1650 led;
+LCD20x4 lcd;
+DFRobot_GAS_I2C gasO2(&Wire, I2C_ADDR_O2);
+
+// Snapshots
+struct InputSnapshot {
+  uint32_t ms = 0;
+  uint16_t airX10 = 0;
+  uint16_t n2LowX100 = 0;
+  uint16_t n2HighX10 = 0;
+  bool tbs = false, tob = false;
+} inputs;
+
+struct OutputSnapshot {
+  uint32_t ms = 0;
+  bool left = false, right = false, flush = false, ssr = false;
+  uint16_t n2pctX100 = 0;
+  bool n2Valid = false;
+} outputs;
+
+void driveOutput(uint8_t pin, bool on, bool& snapshotField) {
+  digitalWrite(pin, on ? HIGH : LOW);
+  snapshotField = on;
+  outputs.ms = millis();
+}
+
+static uint16_t scalePressure(int raw, uint16_t fullScale) {
+  const int clamped = constrain(raw, RAW_MIN, RAW_MAX);
+  return static_cast<uint16_t>(map(clamped, RAW_MIN, RAW_MAX, 0, static_cast<int>(fullScale)));
+}
+
+static bool deadlineReached(uint32_t now, uint32_t deadline) {
+  return (int32_t)(now - deadline) >= 0;
+}
+
+// Transition log
+const char* const CONTROLLER_NAME[3] = { "TWR", "CMP", "O2" };
+uint32_t lastLogMs[3] = { 0, 0, 0 };
+
+void logTransition(uint8_t id, const char* fromState, const char* toState, uint32_t deadline) {
+  uint32_t now = inputs.ms;
+  Serial.print(now);
+  Serial.print("+");
+  Serial.print(now - lastLogMs[id]);
+  lastLogMs[id] = now;
+  Serial.print(' ');
+  Serial.print(CONTROLLER_NAME[id]);
+  Serial.print(' ');
+  Serial.print(fromState);
+  Serial.print("->");
+  Serial.print(toState);
+  Serial.print(" next:");
+  if (deadline) Serial.println(deadline);
+  else Serial.println('-');
+}
+
+enum Controller : uint8_t { TWR = 0,
+                            CMP = 1,
+                            O2C = 2 };
+
+// Tower controller
+namespace Tower {
+enum State : uint8_t { DISABLED,
+                       LEFT,
+                       LEFT_BOTH,
+                       RIGHT,
+                       RIGHT_BOTH };
+const char* const STATE_NAME[] = { "OFF", "L", "LB", "R", "RB" };
+
+State state = DISABLED;
+uint32_t deadline = 0;
+
+void valves(bool leftOpen, bool rightOpen) {
+  driveOutput(LEFT_TOWER_VALVE_PIN, leftOpen, outputs.left);
+  driveOutput(RIGHT_TOWER_VALVE_PIN, rightOpen, outputs.right);
+}
+
+void transition(State newState, uint32_t newDeadline) {
+  logTransition(TWR, STATE_NAME[state], STATE_NAME[newState], newDeadline);
+  state = newState;
+  deadline = newDeadline;
+}
+
+void setup() {
+  valves(false, false);
+}
+void disable() {
+  valves(false, false);
+  if (state != DISABLED) transition(DISABLED, 0);
+}
+void enable() {}
+
+void update() {
+  const uint32_t now = inputs.ms;
+  if (state != DISABLED && (inputs.airX10 < airLowOff || inputs.n2HighX10 > n2HighOff)) {
+    valves(false, false);
+    transition(DISABLED, 0);
+    return;
+  }
+  switch (state) {
+    case DISABLED:
+      if (inputs.tbs && inputs.airX10 > airLowOn && inputs.n2HighX10 < n2HighOn) {
+        valves(true, false);
+        transition(LEFT, now + towerFillTime);
+      }
+      break;
+    case LEFT:
+      if (deadlineReached(now, deadline)) {
+        driveOutput(RIGHT_TOWER_VALVE_PIN, true, outputs.right);
+        transition(LEFT_BOTH, now + towerOverlapTime);
+      }
+      break;
+    case LEFT_BOTH:
+      if (deadlineReached(now, deadline)) {
+        driveOutput(LEFT_TOWER_VALVE_PIN, false, outputs.left);
+        transition(RIGHT, now + towerFillTime);
+      }
+      break;
+    case RIGHT:
+      if (deadlineReached(now, deadline)) {
+        driveOutput(LEFT_TOWER_VALVE_PIN, true, outputs.left);
+        transition(RIGHT_BOTH, now + towerOverlapTime);
+      }
+      break;
+    case RIGHT_BOTH:
+      if (deadlineReached(now, deadline)) {
+        driveOutput(RIGHT_TOWER_VALVE_PIN, false, outputs.right);
+        transition(LEFT, now + towerFillTime);
+      }
+      break;
+  }
+}
+}
+
+// Compressor controller
+namespace Compressor {
+enum State : uint8_t { DISABLED,
+                       RUNNING,
+                       STOPPED_LOW,
+                       STOPPED_HIGH };
+const char* const STATE_NAME[] = { "OFF", "ON", "LO", "HI" };
+
+State state = DISABLED;
+
+void ssr(bool on) {
+  driveOutput(SSR_PIN, on, outputs.ssr);
+}
+
+void transition(State newState) {
+  logTransition(CMP, STATE_NAME[state], STATE_NAME[newState], 0);
+  state = newState;
+}
+
+void setup() {
+  ssr(false);
+}
+void disable() {
+  ssr(false);
+  if (state != DISABLED) transition(DISABLED);
+}
+void enable() {
+  transition(STOPPED_LOW);
+}
+
+void update() {
+  switch (state) {
+    case RUNNING:
+      if (inputs.n2LowX100 < n2LowOff) {
+        ssr(false);
+        transition(STOPPED_LOW);
+      } else if (inputs.n2HighX10 > n2HighOff) {
+        ssr(false);
+        transition(STOPPED_HIGH);
+      }
+      break;
+    case STOPPED_LOW:
+      if (inputs.n2LowX100 > n2LowOn) {
+        ssr(true);
+        transition(RUNNING);
+      }
+      break;
+    case STOPPED_HIGH:
+      if (inputs.n2HighX10 < n2HighOn) {
+        ssr(true);
+        transition(RUNNING);
+      }
+      break;
+    case DISABLED: break;
+  }
+}
+}
+
+// O2 controller
+namespace O2 {
+enum State : uint8_t { UNKNOWN,
+                       FLUSHING,
+                       SAMPLING,
+                       WAITING,
+                       ERROR,
+                       DISABLED };
+const char* const STATE_NAME[] = { "??", "F", "S", "W", "E", "OFF" };
+
+State state = DISABLED;
+uint32_t deadline = 0;
+uint32_t cycleStart = 0;
+uint32_t sampleSum = 0;
+uint8_t sampleNum = 0;
+bool commOk = false;
+
+void flushValve(bool open) {
+  driveOutput(O2_FLUSH_VALVE_PIN, open, outputs.flush);
+}
+
+void transition(State newState, uint32_t newDeadline) {
+  logTransition(O2C, STATE_NAME[state], STATE_NAME[newState], newDeadline);
+  state = newState;
+  deadline = newDeadline;
+}
+
+bool sensorPresent() {
+  Wire.beginTransmission(I2C_ADDR_O2);
+  return Wire.endTransmission() == 0;
+}
+
+bool readO2PercentX100(uint16_t& value) {
+  if (!sensorPresent()) return false;
+  float pct = gasO2.readGasConcentrationPPM();
+  if (pct < 0) pct = 0;
+  value = (uint16_t)(pct * 100.0f + 0.5f);
+  return true;
+}
+
+void fail() {
+  Serial.print('[');
+  Serial.print(inputs.ms);
+  Serial.println("] O2 sensor communication FAILURE");
+  flushValve(false);
+  transition(ERROR, 0);
+  commOk = false;
+}
+
+void beginSampleCycle(uint32_t now) {
+  flushValve(true);
+  cycleStart = now;
+  transition(FLUSHING, now + O2FlushTime);
+}
+
+void setup() {
+  flushValve(false);
+  commOk = false;
+}
+void disable() {
+  flushValve(false);
+  if (state != DISABLED) transition(DISABLED, 0);
+  outputs.n2Valid = false;
+  commOk = false;
+}
+void enable() {
+  transition(UNKNOWN, inputs.ms);
+}
+
+void update() {
+  const uint32_t now = inputs.ms;
+  switch (state) {
+    case UNKNOWN:
+      if (deadlineReached(now, deadline)) {
+        if (sensorPresent() && gasO2.begin()) {
+          gasO2.changeAcquireMode(gasO2.PASSIVITY);
+          commOk = true;
+          beginSampleCycle(now);
+        } else {
+          deadline = now + O2CommRetryMs;
+        }
+      }
+      break;
+    case FLUSHING:
+      if (deadlineReached(now, deadline)) {
+        flushValve(false);
+        uint16_t value;
+        if (!readO2PercentX100(value)) {
+          fail();
+          break;
+        }
+        sampleSum = value;
+        sampleNum = 1;
+        transition(SAMPLING, now + O2SampleTime);
+      }
+      break;
+    case SAMPLING:
+      if (deadlineReached(now, deadline)) {
+        uint16_t value;
+        if (!readO2PercentX100(value)) {
+          fail();
+          break;
+        }
+        sampleSum += value;
+        if (++sampleNum >= O2SampleCount) {
+          uint16_t avg = (uint16_t)((sampleSum + sampleNum / 2) / sampleNum);
+          uint16_t n2 = (avg >= 10000) ? 0 : (uint16_t)(10000 - avg);
+          if (n2 > 9999) n2 = 9999;
+          outputs.n2pctX100 = n2;
+          outputs.n2Valid = true;
+          outputs.ms = now;
+          transition(WAITING, cycleStart + O2SampleInterval);
+        } else {
+          deadline = now + O2SampleTime;
+        }
+      }
+      break;
+    case WAITING:
+      if (deadlineReached(now, deadline)) beginSampleCycle(now);
+      break;
+    case ERROR:
+    case DISABLED: break;
+  }
+}
+}
+
+// Displays
+struct LcdFieldCache {
+  char air[6], n2Low[6], n2High[6], n2Pct[6];
+  char tower[5], compressor[5], o2[5], bits[5];
+} lcdCache;
+
+void lcdWriteField(uint8_t row, uint8_t col, const char* text, char* cache) {
+  if (strcmp(text, cache) != 0) {
+    strcpy(cache, text);
+    lcd.print(row, col, text);
+  }
+}
+
+void formatX10(char* buf, uint16_t value) {
+  snprintf(buf, 6, "%3u.%u", value / 10, value % 10);
+}
+void formatX100(char* buf, uint16_t value) {
+  snprintf(buf, 6, "%2u.%02u", value / 100, value % 100);
+}
+
+void lcdLabels() {
+  lcd.print(0, 0, "AIR");
+  lcd.print(0, 11, "TWR");
+  lcd.print(1, 0, "N2L");
+  lcd.print(1, 11, "CMP");
+  lcd.print(2, 0, "N2H");
+  lcd.print(2, 11, "O2");
+  lcd.print(3, 0, "N2%");
+  lcd.print(3, 11, "LRFS");
+}
+
+void updateDisplays() {
+  char buf[8];
+  formatX10(buf, inputs.airX10);
+  lcdWriteField(0, 4, buf, lcdCache.air);
+  formatX100(buf, inputs.n2LowX100);
+  lcdWriteField(1, 4, buf, lcdCache.n2Low);
+  formatX10(buf, inputs.n2HighX10);
+  lcdWriteField(2, 4, buf, lcdCache.n2High);
+  if (outputs.n2Valid) formatX100(buf, outputs.n2pctX100);
+  else strcpy(buf, "--.--");
+  lcdWriteField(3, 4, buf, lcdCache.n2Pct);
+
+  snprintf(buf, 5, "%-4s", Tower::STATE_NAME[Tower::state]);
+  lcdWriteField(0, 16, buf, lcdCache.tower);
+  snprintf(buf, 5, "%-4s", Compressor::STATE_NAME[Compressor::state]);
+  lcdWriteField(1, 16, buf, lcdCache.compressor);
+  snprintf(buf, 5, "%-4s", O2::STATE_NAME[O2::state]);
+  lcdWriteField(2, 16, buf, lcdCache.o2);
+
+  buf[0] = '0' + outputs.left;
+  buf[1] = '0' + outputs.right;
+  buf[2] = '0' + outputs.flush;
+  buf[3] = '0' + outputs.ssr;
+  buf[4] = 0;
+  lcdWriteField(3, 16, buf, lcdCache.bits);
+
+  if (!inputs.tbs) led.blank();
+  else if (outputs.n2Valid) led.show(outputs.n2pctX100, 1);
+  else led.dashes(1);
+}
+
+// BIST
+bool tobPressed() {
+  return digitalRead(TOB_PIN) == LOW;
+}
+void tobWaitRelease() {
+  while (tobPressed()) {}
+  delay(30);
+}
+void waitForTob() {
+  while (!tobPressed()) {}
+  tobWaitRelease();
+}
+
+bool delayPoll(uint32_t ms) {
+  uint32_t start = millis();
+  while (millis() - start < ms) {
+    if (tobPressed()) {
+      tobWaitRelease();
+      return true;
+    }
+    delay(5);
+  }
+  return false;
+}
+
+void bistBanner(uint8_t step, const char* name, bool onLed = true, bool onLcd = true) {
+  Serial.print("BIST ");
+  Serial.print(step, HEX);
+  Serial.print(": ");
+  Serial.println(name);
+  if (onLed) led.showHex(step);
+  if (onLcd) {
+    lcd.clear();
+    char buf[21];
+    snprintf(buf, 21, "BIST %X %s", step, name);
+    lcd.print(0, 0, buf);
+  }
+}
+
+void bistOutputTest(uint8_t step, const char* name, uint8_t pin) {
+  bistBanner(step, name);
+  bool on = false;
+  for (;;) {
+    on = !on;
+    digitalWrite(pin, on ? HIGH : LOW);
+    Serial.print(name);
+    Serial.println(on ? " ON" : " OFF");
+    lcd.print(1, 0, on ? "ON " : "OFF");
+    if (delayPoll(250)) break;
+  }
+  digitalWrite(pin, LOW);
+}
+
+void bist() {
+  Serial.println("Each BIST step terminates when TOB is pressed...\n");
+  bistBanner(0, "press TOB");
+  waitForTob();
+
+  // BIST 1 TBS
+  bistBanner(1, "TBS test");
+  {
+    bool previous = !(digitalRead(TBS_PIN) == LOW);
+    for (;;) {
+      bool tbsOn = (digitalRead(TBS_PIN) == LOW);
+      if (tbsOn != previous) {
+        previous = tbsOn;
+        Serial.println(tbsOn ? "TBS ON" : "TBS OFF");
+        lcd.print(1, 0, tbsOn ? "TBS ON " : "TBS OFF");
+      }
+      if (tobPressed()) {
+        tobWaitRelease();
+        break;
+      }
+    }
+  }
+
+  // BIST 2 I2C
+  bistBanner(2, "I2C scan");
+  Serial.println("responders:");
+  uint16_t addrFound = 0;
+  for (uint8_t addr = 8; addr < 0x78; addr++) {
+    Serial.print(".");
+    Serial.flush();
+    Wire.beginTransmission(addr);
+    if (Wire.endTransmission() == 0) {
+      Serial.print(" 0x");
+      Serial.print(addr, HEX);
+      Serial.flush();
+      addrFound++;
+    }
+  }
+  Serial.print("\nScan found ");
+  Serial.print(addrFound);
+  Serial.println(" device(s). Waiting for TOB...");
+  waitForTob();
+
+  // BIST 3 LED
+  bistBanner(3, "LED test", false, true);
+  for (;;) {
+    bool quit = false;
+    for (uint16_t d = 0; d <= 9 && !quit; d++) {
+      led.show(d * 1111);
+      quit = delayPoll(200);
+    }
+    for (int8_t p = 0; p < 4 && !quit; p++) {
+      led.show(8888, p);
+      quit = delayPoll(350);
+    }
+    if (!quit) {
+      led.off();
+      quit = delayPoll(400);
+      led.on();
+    }
+    if (quit) break;
+  }
+  led.on();
+
+  // BIST 4 — LCD test
+  led.showHex(4);
+  Serial.println("BIST 4: LCD test");
+  for (;;) {
+    bool quit = false;
+    lcd.backlightOff();
+    quit = delayPoll(500);
+    if (!quit) {
+      lcd.backlightOn();
+      quit = delayPoll(500);
+    }
+    if (!quit) {
+      lcd.off();
+      quit = delayPoll(500);
+    }
+    if (!quit) { lcd.on(); }
+    if (!quit) {
+      char row[21];
+      memset(row, '#', 20);
+      row[20] = 0;
+      for (uint8_t r = 0; r < 4; r++) lcd.print(r, 0, row);
+      quit = delayPoll(1500);
+    }
+    if (!quit) {
+      lcd.clear();
+      quit = delayPoll(500);
+    }
+    if (quit) break;
+  }
+  lcd.backlightOn();
+  lcd.on();
+
+  // BIST 5 — PSI inputs
+  bistBanner(5, "PSI inputs");
+  {
+    uint16_t prevAir = 0xFFFF, prevLow = 0xFFFF, prevHigh = 0xFFFF;
+    for (;;) {
+      uint16_t air = scalePressure(analogRead(SUPPLY_PRESSURE_PIN), AIR_FULLSCALE_X10);
+      uint16_t low = scalePressure(analogRead(LOW_N2_PIN), N2LOW_FULLSCALE_X100);
+      uint16_t high = scalePressure(analogRead(HIGH_N2_PIN), N2HIGH_FULLSCALE_X10);
+      char buf[21];
+      if (air != prevAir) {
+        prevAir = air;
+        snprintf(buf, 21, "AIR %3u.%u", air / 10, air % 10);
+        lcd.print(1, 0, buf);
+        Serial.println(buf);
+      }
+      if (low != prevLow) {
+        prevLow = low;
+        snprintf(buf, 21, "N2L %2u.%02u", low / 100, low % 100);
+        lcd.print(2, 0, buf);
+        Serial.println(buf);
+      }
+      if (high != prevHigh) {
+        prevHigh = high;
+        snprintf(buf, 21, "N2H %3u.%u", high / 10, high % 10);
+        lcd.print(3, 0, buf);
+        Serial.println(buf);
+      }
+      if (delayPoll(200)) break;
+    }
+  }
+
+  // BIST 6 — O2 sensor
+  bistBanner(6, "O2 sensor");
+  {
+    bool gasOk = gasO2.begin();
+    if (gasOk) gasO2.changeAcquireMode(gasO2.PASSIVITY);
+    Serial.println(gasOk ? "SEN0465 begin OK" : "SEN0465 begin FAILED");
+    uint16_t previous = 0xFFFF;
+    for (;;) {
+      char buf[21];
+      if (gasOk) {
+        uint16_t o2 = (uint16_t)(gasO2.readGasConcentrationPPM() * 100.0f + 0.5f);
+        if (o2 != previous) {
+          previous = o2;
+          snprintf(buf, 21, "O2 %2u.%02u", o2 / 100, o2 % 100);
+          lcd.print(1, 0, buf);
+          Serial.println(buf);
+        }
+      } else if (previous != 0) {
+        previous = 0;
+        strcpy(buf, "O2: no response");
+        lcd.print(1, 0, buf);
+        Serial.println(buf);
+      }
+      if (delayPoll(500)) break;
+    }
+  }
+
+  // BIST 7..A — outputs
+  bistOutputTest(0x7, "LEFT valve", LEFT_TOWER_VALVE_PIN);
+  bistOutputTest(0x8, "RIGHT valve", RIGHT_TOWER_VALVE_PIN);
+  bistOutputTest(0x9, "Flush valve", O2_FLUSH_VALVE_PIN);
+  bistOutputTest(0xA, "SSR", SSR_PIN);
+
+  // Post-BIST reset
+  Tower::setup();
+  Compressor::setup();
+  O2::setup();
+  Serial.println("BIST complete");
+}
+
+// Global
+bool previousTbs = false;
+
+void setup() {
+  pinMode(TBS_PIN, INPUT_PULLUP);
+  pinMode(TOB_PIN, INPUT_PULLUP);
+  pinMode(SUPPLY_PRESSURE_PIN, INPUT);
+  pinMode(LOW_N2_PIN, INPUT);
+  pinMode(HIGH_N2_PIN, INPUT);
+
+  pinMode(LEFT_TOWER_VALVE_PIN, OUTPUT);
+  pinMode(RIGHT_TOWER_VALVE_PIN, OUTPUT);
+  pinMode(O2_FLUSH_VALVE_PIN, OUTPUT);
+  pinMode(SSR_PIN, OUTPUT);
+
+  Serial.begin(115200);
+  Wire.begin();
+
+  led.begin();
+  lcd.begin();
+
+  Tower::setup();
+  Compressor::setup();
+  O2::setup();
+
+  if (runBIST) bist();
+
+  lcd.clear();
+  lcdLabels();
+  previousTbs = false;
+}
+
+void loop() {
+
+  inputs.ms = millis();
+  inputs.tbs = (digitalRead(TBS_PIN) == LOW);
+  inputs.tob = (digitalRead(TOB_PIN) == LOW);
+  inputs.airX10 = scalePressure(analogRead(SUPPLY_PRESSURE_PIN), AIR_FULLSCALE_X10);
+  inputs.n2LowX100 = scalePressure(analogRead(LOW_N2_PIN), N2LOW_FULLSCALE_X100);
+  inputs.n2HighX10 = scalePressure(analogRead(HIGH_N2_PIN), N2HIGH_FULLSCALE_X10);
+
+  if (inputs.airX10 > AIR_FULLSCALE_X10 * 1.1 || inputs.n2HighX10 > N2HIGH_FULLSCALE_X10 * 1.1) {
+    Serial.println("Pressure sensor plausibility warning");
+  }
+
+  if (inputs.tbs != previousTbs) {
+    Serial.print('[');
+    Serial.print(inputs.ms);
+    Serial.println(inputs.tbs ? "] TBS OFF->ON" : "] TBS ON->OFF");
+    if (inputs.tbs) {
+      Tower::enable();
+      Compressor::enable();
+      O2::enable();
+    } else {
+      Tower::disable();
+      Compressor::disable();
+      O2::disable();
+    }
+    previousTbs = inputs.tbs;
+  }
+
+  Tower::update();
+  Compressor::update();
+  O2::update();
+
+  updateDisplays();
+}

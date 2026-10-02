@@ -63,3 +63,10 @@ coverage/
 # - extras/host_test/
 # - *.ino
 # - Makefile
+
+##################################################
+# N2V8 additions
+##################################################
+/logs/
+/test/host/build*/
+.claude/
