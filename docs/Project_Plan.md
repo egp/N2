@@ -23,7 +23,7 @@ No firmware code exists yet.
 | P4 | Pinout file | **Approved:** header `BoardPins.h` (PIN-1). |
 | P5 | Display drivers | **DIY minimal**, starting from the V7 mini-libs, behind an I2C transport interface, tested heavily; TCP libs consulted. |
 | P6 | Build modes | `HOST`, `BENCH`, `DIAG`, `FIELD` (Requirements §2). |
-| P7 | Log capture | A host-side script around `pyserial` writing a timestamped text file (LOG-3). |
+| P7 | Log capture | **Copy/paste from the IDE Serial Monitor** is the baseline (LOG-3). An optional `pyserial` script may come later for long sessions. |
 
 ## 3. Repository layout (branch `v8`; the repo root *is* the sketch folder `N2V8/`)
 
@@ -74,17 +74,24 @@ commit that removes them from the tree.
 | `arduino-cli` 1.5.1, core `arduino:renesas_uno` 1.6.0 (latest) | installed |
 | `cmake`, `clang++` | installed |
 | DFRobot_MultiGasSensor | local 3.0.0 = upstream master (latest) |
-| **Compiling for the R4 on this Mac** | **BLOCKED.** The core's compiler (`arm-none-eabi-gcc 7-2017q4`) is an **x86_64** binary; this Mac is arm64 (macOS 27.2) and **Rosetta is not installed** (`Bad CPU type in executable`). The Arduino IDE needs the same compiler, so the IDE cannot build for the R4 either until this is fixed. |
+| **Compiling for the R4 on this Mac** | **Resolved 2026-10-02.** The core's compiler is an x86_64 binary and needs Rosetta; it was missing (`Bad CPU type in executable`). Rosetta 2 was installed by the owner; `arduino-cli` now builds for both boards. CI (GitHub Actions, Ubuntu) is still planned as an independent check. |
 
-Options (your call, see `Owner_TODO.md`): (a) install Rosetta (`softwareupdate --install-rosetta --agree-to-license`, needs admin rights); (b) install a native arm64 `arm-none-eabi-gcc` and point the build at it (unsupported by the core; needs testing); (c) use **GitHub Actions on Ubuntu** (x86_64) for board compiles and size numbers and keep this Mac for host tests and editing. (c) is useful in any case; (a) is needed anyway to flash from the IDE.
+**Baseline: `N2V7.ino` compiled with `arduino-cli` 1.5.1, core 1.6.0, DFRobot 3.0.0:**
+
+| Board | Flash | RAM (globals) |
+|---|---|---|
+| UNO R4 Minima | 67 288 B of 262 144 (25 %) | 5 648 B of 32 768 (17 %) |
+| UNO R4 WiFi | 70 816 B of 262 144 (27 %) | 9 180 B of 32 768 (28 %) |
+
+Both build without errors; the only warnings are inside the Arduino core itself. Plenty of headroom against the 60 % budget (NFR-2).
 
 ## 6. Milestones (renumbered; the old M3 is split into M3 and M4)
 
 ### M0 — Baseline and repository
 - Verify toolchain and library versions (done above); resolve the R4 compiler issue (§5).
-- **Baseline compile of `N2V7.ino` for both boards** — local if Rosetta/native compiler is available, otherwise in CI after M2. Record flash/RAM.
+- **Baseline compile of `N2V7.ino` for both boards — DONE** (§5: Minima 25 % flash / 17 % RAM; WiFi 27 % / 28 %).
 - Create branch `v8` in `egp/N2` with the `N2V8/` tree (§9); copy `reference/`.
-- **Exit:** branch pushed (with your approval); baseline sizes recorded or CI-pending.
+- **Exit: MET.** Branch `v8` pushed to `egp/N2` (2026-10-02); baseline sizes recorded.
 
 ### M1 — Requirements sign-off and pinout verification
 - Iterate `Requirements.md` until the open questions are closed or deferred.
@@ -128,7 +135,7 @@ Results go to `docs/results/bench-YYYYMMDD.md`:
 - **Exit:** all bench-verifiable requirements ticked; the rest go to the field checklist.
 
 ### M7 — Field kit
-- `docs/field_checklist.md` (§7); printed `BoardPins.h` signal table; the known-good binary; `tools/n2log`; laptop with IDE, same core and libraries.
+- `docs/field_checklist.md` (§7); printed `BoardPins.h` signal table; the known-good binary; laptop with IDE, same core and libraries.
 - **First field artifact is the DIAG build.**
 - **Exit:** dry run of the checklist on the bench.
 
@@ -144,7 +151,7 @@ Results go to `docs/results/bench-YYYYMMDD.md`:
 ## 7. Field checklist (outline; expand in M7)
 
 1. Photograph wiring; TBS OFF; note which firmware is installed.
-2. Connect the laptop; start `tools/n2log` (or Serial Monitor); keep the capture file.
+2. Connect the laptop; open the Arduino IDE Serial Monitor (timestamps on); you will copy its contents into a text file at the end of each session.
 3. Flash **DIAG**; boot; read POST.
 4. Run BIST steps 0–B with TBS OFF, confirming each y/n; record gauge readings against BIST step 5.
 5. Verify each output by sound; each input by toggling; each I2C device by echo.
@@ -156,24 +163,24 @@ Results go to `docs/results/bench-YYYYMMDD.md`:
 
 ## 8. Closed-loop feedback
 
-The Arduino has no storage, so the **laptop** is the recorder. `tools/n2log` opens the USB port,
-prefixes host wall-clock time, writes `logs/n2-YYYYMMDD-HHMMSS.txt`, and forwards typed commands.
-The firmware prints a `==== N2 REPORT ====` block on request, a boot banner with build identity,
-and machine-readable log lines (LOG-1…2), so a captured file is self-contained. You then give the
-file to Claude to analyze. Note: only one program can hold the port; close the Serial Monitor while
-capturing, and stop the capture before uploading.
+The Arduino has no storage, so the **laptop** is the recorder. Baseline procedure: run the session
+in the Arduino IDE Serial Monitor, then **select all, copy, and paste into a text file**
+(`docs/results/…`), and give that file to Claude. The firmware makes this sufficient: every file
+starts with a build-identity banner, log lines are machine-readable (`ms level tag …`), and the
+`report` command prints one delimited block (LOG-1…3). The Monitor keeps a limited scrollback, so
+run `report` at the end of a long session. If long unattended captures are ever needed, a small
+`pyserial` script can be added later; it would replace the Serial Monitor while it holds the port.
 
-## 9. Git plan (to do together; nothing pushed until you agree)
+## 9. Git plan
 
-Current state: `N2V8/` has two files and is not a repository; `egp/N2` has one branch `main`
-(the V5 layout, last push 2026-06-07).
+**Done (2026-10-02, with the owner's approval):**
+1. `N2V8/` initialized as a repository; remote `origin` = `git@github.com:egp/N2.git` (SSH).
+2. Local branch `v8` created from `origin/main` (shared history), V5 moved under `reference/`.
+3. First commit `a9248e8` pushed: `origin/v8`. `main` is untouched (`eb3093d`).
 
-1. In `N2V8/`: `git init`, add `origin` = `https://github.com/egp/N2` (or the SSH remote, since your SSH key exists), `git fetch origin`.
-2. Create local branch `v8` **based on `origin/main`** without changing the working tree (so the branches share history and can merge cleanly), then stage the new tree: the V5 files are removed, the V8 docs and `reference/` added.
-3. Add `.gitignore` (build outputs, `logs/`, `.DS_Store`), `LICENSE` kept from `main`.
-4. First commit on `v8`; show you `git status` and the diff summary.
-5. **With your approval:** `git push -u origin v8`. `main` stays untouched.
-6. At M9: merge `v8` into `main` (clean because of the shared base), or replace `main`'s tree, as you prefer.
+**Still to do:**
+4. Work on `v8`; each milestone ends in a commit; pushes are confirmed with the owner.
+5. At M9: merge `v8` into `main` (clean because of the shared base) or replace `main`'s tree, as the owner prefers.
 
 Commit messages end with the attribution line shown in the session settings.
 
@@ -192,7 +199,7 @@ Commit messages end with the attribution line shown in the session settings.
 
 | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|
-| **No R4 compiler on this Mac (no Rosetta)** | Certain (now) | High | Install Rosetta, or CI compile (§5) |
+| ~~No R4 compiler on this Mac (no Rosetta)~~ | Resolved | — | Rosetta installed 2026-10-02 |
 | A5/SCL conflict makes current wiring unworkable | High | High | Owner resolves pinout (M1); PIN-4 compile-time check |
 | Minima pin behavior differs from WiFi | Medium | Medium | DIAG on site proves it before any logic runs |
 | `Serial` blocks or a Serial Monitor connection upsets the board | Unknown | High | CON-2/3 tests on bench and on site |

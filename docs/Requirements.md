@@ -303,7 +303,7 @@ text; commands are one line.
 |---|---|
 | LOG-1 | The Arduino has no storage. Capture is by the laptop: the console shall be written so that a captured text file is self-contained and machine-readable. Every log line shall start with `ms-since-boot`, a level and a tag (e.g. `123456 I TWR OFF->L next:182706`). |
 | LOG-2 | A `report` command shall print one delimited block (`==== N2 REPORT BEGIN ====` … `==== N2 REPORT END ====`) with: build identity, uptime, reset cause, POST results, config, inputs (raw/volts/scaled), controller states, outputs, active faults, loop-time statistics, and the display model. |
-| LOG-3 | A host-side capture tool (`tools/n2log`, a small script around `pyserial` or `arduino-cli monitor`) shall save the console to a timestamped file and also forward typed commands. It is outside the firmware. Because only one program can hold the port, capture replaces the IDE's Serial Monitor while in use. [Q19] |
+| LOG-3 | **Baseline capture is copy/paste from the Arduino IDE Serial Monitor** into a text file; the output format (LOG-1, LOG-2) shall make that sufficient: short sessions (a BIST run, a `report`) fit in the Monitor's buffer, and every file starts with a build-identity header. The Monitor's own timestamp option may be turned on. An optional host-side capture tool (`tools/n2log`) is a later convenience for long sessions, because only one program can hold the port at a time. [Q19 resolved] |
 | LOG-4 | The `time <iso>` command (optional) may set a wall-clock reference stored in RAM only; the capture tool also prefixes host wall-clock time, so captured files are datable without it. |
 
 | Command | Builds | Purpose |
@@ -342,7 +342,15 @@ most important feature during Debug. It **requires an attached console**.
 |---|---|
 | BIST-1 | BIST runs **only on request**: TOB held during reset/power-up, or `bist` on the console with TBS OFF. It shall refuse to start without an attached console (LCD shows `BIST: NO CONSOLE`). [CHG] V6/V7 run BIST on every boot and block, which hangs an unattended unit. |
 | BIST-2 | BIST disables normal operation (RST-7). Steps are numbered in HEX; the LED shows the step (except in the LED test), the LCD shows the step (except in the LCD test), the console logs every step and observation. |
-| BIST-3 | **Operator confirmation.** Each step ends with a prompt on the console: `y` (pass), `n` (fail, optional note), `r` (repeat), `s` (skip), `q` (quit BIST). Pressing **TOB = `y`**. The result is printed as one line per step and a final table, all in the captured log; nothing is stored on the board. |
+| BIST-3 | **Operator confirmation.** Each step ends with a prompt on the console; the operator types one letter and Enter (or presses **TOB = `y`**). The result is printed as one line per step and a final table, all in the captured log; nothing is stored on the board. |
+
+| Key | Meaning | Effect |
+|---|---|---|
+| `y` | **Yes — pass.** What I saw, heard or read matched the console's expectation. | Step recorded PASS; next step. |
+| `n` | **No — fail.** Optional note follows, e.g. `n LCD row 2 blank`. | Step recorded FAIL with the note; next step (BIST does not stop; the final table shows all failures). |
+| `r` | **Repeat.** I missed it or want another look. | Step runs again from the start; nothing recorded. |
+| `s` | **Skip.** Not applicable here (e.g. the O2 sensor is not connected on the bench). | Step recorded SKIPPED; next step. |
+| `q` | **Quit.** Stop the BIST now. | Outputs forced OFF; the table so far is printed; normal operation resumes (BIST-7). |
 | BIST-4 | **Display steps echo the expectation to the console** (DRV-3): e.g. `EXPECT LCD  row0 "0123456789ABCDEFGHIJ"` and `EXPECT LED  "8.8.8.8."`, so the operator compares console and display and then confirms. |
 | BIST-5 | **Output steps** run only with TBS OFF; each toggles at ~2 Hz for 10 s or until confirmation (the valves are loud enough to confirm audibly) and leaves the output OFF on exit, timeout or any abort (INV-5). Output steps print which signal, which pin, and the active level. |
 | BIST-6 | The watchdog (if enabled) is kicked from every BIST wait loop. |
@@ -384,7 +392,7 @@ most important feature during Debug. It **requires an attached console**.
 | WDT-4 | Whether `Wire` can hang on a stuck bus shall be tested at the bench; `Wire.setWireTimeout` or an equivalent shall be used; the watchdog is the backstop. |
 | WDT-5 | Debug builds allow the watchdog to be disabled by a macro. |
 | NFR-1 | **Loop timing.** The firmware shall measure and report loop time: min, mean, **median** and max (median from a fixed-bucket histogram, no dynamic allocation), via `loop` and in `report`. Goal: **max `loop()` < 1 s** (and normally ≪ that); display writes may be spread across passes to meet it. The watchdog timeout is chosen from this data. |
-| NFR-2 | Flash and RAM shall be reported at every build for both boards; initial budget **60 %** of each, raised if necessary. |
+| NFR-2 | Flash and RAM shall be reported at every build for both boards; initial budget **60 %** of each, raised if necessary. **Baseline (N2V7, core 1.6.0, 2026-10-02):** Minima 67 288 B flash (25 %), 5 648 B RAM (17 %); WiFi 70 816 B flash (27 %), 9 180 B RAM (28 %). |
 | NFR-3 | The current production sketch shall be kept as a known-good fallback for the field trip. |
 | FUT-1 | **Reserved for a later version:** changing pressure thresholds from the console (`cfg set`). The runtime `Config` struct (§7) shall make this a small change. |
 
@@ -414,7 +422,7 @@ pins on production; SEN0465 warm-up time; output pull-down wiring.
 | Q16 | (reserved) | |
 | Q17 | How does TBS affect LCD/LED beyond the LED blanking? | TBD |
 | Q18 | Should F04 (N2 low > N2 high) inhibit outputs, or warn only? | WARN until field data |
-| Q19 | Capture tool: Python `pyserial` script vs `arduino-cli monitor | tee` | Propose pyserial script (adds timestamps, forwards commands) |
+| Q19 | Capture tool | **Resolved:** copy/paste from the IDE Serial Monitor is the baseline (LOG-3); an optional script comes later |
 | Q20 | Should a missing O2 sensor alone hold POST until TOB? | Propose: only INHIBIT-severity faults hang a headless unit |
 
 ## 17. Questions for the hardware team

@@ -2,6 +2,10 @@
 
 Things only you can do or decide. Tick them off as you go. IDs link to `Requirements.md`.
 
+**Priority note:** the pinout table and the A5/SCL move are of **critical importance but low urgency**.
+`BoardPins.h` is a single table, so wrong values can be corrected at any time and do not block
+development; they must be right before the first hardware visit (DIAG).
+
 ## A. Before any firmware code (M1)
 
 1. [ ] **Complete the pinout table** for production (Minima) and bench (WiFi), for **every** signal: pin, direction, pull (none / pull-up), **active level (high or low)**, wiring note. (PIN-1, PIN-6, PIN-7)
@@ -25,9 +29,9 @@ Things only you can do or decide. Tick them off as you go. IDs link to `Requirem
 
 ## C. Environment
 
-16. [ ] **R4 compiler on this Mac**: Rosetta is not installed, so neither `arduino-cli` nor the Arduino IDE can build for the R4. Choose: install Rosetta (`softwareupdate --install-rosetta --agree-to-license`, needs admin rights), or rely on GitHub Actions for board builds. (Project_Plan §5)
-17. [ ] **Approve the git plan**: branch `v8` in `egp/N2`, and the first push. (Project_Plan §9)
-18. [ ] Decide which capture tool you prefer (Python `pyserial` script recommended). (Q19)
+16. [x] **R4 compiler on this Mac**: Rosetta installed 2026-10-02; `arduino-cli` builds N2V7 for both boards. (Project_Plan §5)
+17. [x] **Git plan approved**: branch `v8` pushed to `egp/N2` over SSH. (Project_Plan §9)
+18. [x] Capture tool: copy/paste from the IDE Serial Monitor is the baseline. (Q19)
 19. [ ] Bring a laptop with the IDE, the same core version (1.6.0) and the libraries, plus the known-good firmware, on the field trip.
 
 ## D. At the bench (home, R4 WiFi)
