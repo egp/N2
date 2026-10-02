@@ -19,6 +19,9 @@ not block development; they must be right before the first hardware visit (DIAG)
 9. [ ] Review `Requirements.md` v2.3 and say what to change.
 10. [ ] Bring a laptop with the IDE, core 1.6.0 and the libraries, plus the known-good firmware, on the field trip.
 
+11a. [ ] **Choose an LCD layout** from `docs/LCD_Layouts.md` (recommended: B) and answer its three questions (O2% vs N2%, warm-up display, fault display).
+11b. [ ] **Hardware team package (ENV-6, Q24):** which BIST steps may the hardware team run on the live plant without you, and under what safety conditions?
+
 ## B. Decided (kept for reference)
 
 - [x] Active levels, pins, addresses: use V6/V7 (they agree); verify on site.
@@ -35,6 +38,8 @@ not block development; they must be right before the first hardware visit (DIAG)
 - [x] Design priorities: testability, readability, maintainability (GOAL-10).
 
 ## C. At the bench (home, R4 WiFi)
+
+0. [ ] **Run the reset probe** (`experiments/reset_probe/README.md`): plug in the R4 WiFi, upload the sketch (IDE, or ask Claude to flash it), open the Serial Monitor, work through T1–T9, paste the output into `docs/results/reset-probe-wifi-YYYYMMDD.txt`. Repeat on the Minima when you can. (O2-6a/6b, CON-3)
 
 11. [ ] Optional early experiment: with only the LCD and LED attached, run an I2C scan, `analogRead(A5)`, scan again, to see whether A5 and I2C coexist. (PIN-10)
 12. [ ] Confirm the LCD and LED I2C addresses (0x27, 0x24) with a scan.

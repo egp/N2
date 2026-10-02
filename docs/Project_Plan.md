@@ -100,7 +100,7 @@ Both build without errors; the only warnings are inside the Arduino core itself.
 - **You** verify and complete the pinout, including **direction, pull, active level, and I2C pins for both boards**, and resolve the A5/SCL conflict (Owner_TODO 1–4). Their result goes into `BoardPins.h` as data.
 - **Exit:** requirements APPROVED; signal table complete.
 
-### M2 — HAL, pinout, host skeleton, CI  — **DONE locally 2026-10-02; CI run pending first push**
+### M2 — HAL, pinout, host skeleton, CI  — **DONE 2026-10-02 (CI green: github.com/egp/N2/actions/runs/37041781290)**
 - `src/BoardPins.h`: single signal table (pin, direction, active level, note), board definitions for Minima / WiFi / host, compile-time `checkBoard()` (PIN-2, PIN-4, PIN-6), logical on/off ↔ physical level helpers.
 - `src/hal/Hal.h` (thin interface), `HalArduino` (real, device builds only), `test/host/FakeHal.h` (recording, scriptable).
 - `src/board/BoardSetup.*`: table-driven `configurePins`, `driveOutputsSafe`, `beginHardware` (PIN-3, RST-2, INP-2).
@@ -110,12 +110,18 @@ Both build without errors; the only warnings are inside the Arduino core itself.
 - `N2V8.ino`: skeleton (pins, ADC bits, I2C start, banner if a console is attached). **Not yet flashed to any board.**
 - **Results:** host tests 30/30 pass; sketch compiles for both boards with no warnings from our code. Skeleton size: Minima 45 744 B flash (17 %) / 5 096 B RAM (15 %); WiFi 58 632 B (22 %) / 8 992 B (27 %) — most of that is the Arduino core itself.
 - **Findings during M2:** (1) the core's `initVariant()` is not overridable and USB starts before `setup()`, so RST-2 is now "first action in `setup()`" (Requirements RST-2); the reset-to-first-write window is a bench measurement. (2) The macros `ARDUINO_UNOR4_MINIMA` / `ARDUINO_UNOR4_WIFI` are confirmed on both targets. (3) N2-high is a **provisional A1** because V6/V7's A5 is the I2C SCL line (PIN-10); the test suite proves the V6/V7 value would be rejected.
-- **Remaining for the exit criterion:** CI green on GitHub (needs a push).
+- **Exit criterion met:** `ctest` green locally and in CI; both boards compile in CI.
+
+### E1 — Reset probe experiment (now, before M3)  *(owner asked 2026-10-02)*
+`experiments/reset_probe/` — a read-only sketch (no output pins, no devices) that reports the reset-cause flags, keeps a `.noinit` RAM record, and prints when a console attaches. Run the matrix in its README on the **R4 WiFi** (reset button, power cycle, software reset, watchdog reset, Serial Monitor close/reopen), later on the Minima. It settles O2-6a/6b (can PORF + RAM record tell reset from power-on, and can the flags be cleared) and CON-3 (does opening the monitor reset the board). Results go to `docs/results/`.
 
 ### M3 — DIAG build: console, drivers, POST, BIST  *(new — diagnostics first)*
 - Console (non-blocking both ways, attach detection, command parser, log format, `report`), build identity, loop-time statistics (min/mean/median/max).
 - LCD and LED drivers behind a transport interface with exhaustive golden-byte tests; display model and the `display` echo.
 - POST (hands-off; hangs only on fault; TOB releases) and BIST (console required; operator confirms p/f/r/s/q; pass/fail table).
+- Console TX checks free buffer space before every write (CON-2 finding) and exposes `consoleAttached()` (CON-4); the HAL gains console, watchdog (refresh each loop, 4 s) and reset-cause calls.
+- LCD layout chosen from `LCD_Layouts.md` and turned into golden screens (DSP-4, DSP-9).
+- **Environment and remote package:** `env.lock`, `tools/check_env`, `tools/make_package` (ENV-1…7), so the hardware team can run DIAG from a zip or a `git pull`.
 - No controllers: `DIAG` keeps all outputs OFF except inside BIST.
 - **Exit:** host tests green; DIAG compiles for both boards in CI; golden screens for every BIST step.
 

@@ -1,6 +1,6 @@
-# Nitrogen Generator Controller — Requirements (v2.3 DRAFT)
+# Nitrogen Generator Controller — Requirements (v2.4 DRAFT)
 
-**Status:** DRAFT for iteration — no code written yet. v2.3 folds in the author's reviews of v2.0–v2.2. M2 (HAL, pinout, host tests, CI) is the first code.
+**Status:** DRAFT for iteration — no code written yet. v2.3 folds in the author's reviews of v2.0–v2.2. M2 (HAL, pinout, host tests, CI) is the first code and is complete (CI green).
 **Supersedes:** `N2V6/N2V6_Requirements.md` v1.1 (2026-06-10)
 **Behavioral reference:** `N2V7/N2V7.ino` (2026-07-13). Where V6 text and V7 code disagree, V7 is
 treated as the more recent intent and the difference is called out. Code from V5–V7 that meets a
@@ -26,6 +26,7 @@ requirement shall be reused rather than rewritten (GOAL-8).
 | GOAL-8 | **Reuse over rewrite.** Working code from earlier iterations (V5 controllers and tests, V6/V7 state machines, V7 mini-libraries) shall be used where it meets these requirements, after it has host tests. Earlier iterations worked in parts but never all at once. |
 | GOAL-9 | **Diagnostics first.** The first firmware taken to the field shall be the diagnostic-only build (§2, DIAG) that exercises all hardware and **guarantees the pinouts** before any production logic runs. |
 | GOAL-10 | **Design priorities, in this order: testability, readability, maintainability.** Where requirements or designs conflict, this order decides. Concretely: small single-purpose modules; pure functions where possible; names that say what a thing is; one place for each fact (pins, constants, text); no clever code; every behavior reachable from a host test. |
+| GOAL-12 | **Follow V6/V7 where they agree.** Where V6 and V7 agree, V8 does the same unless a requirement here says otherwise; every deviation is recorded in Appendix A/B. Examples the owner values: the **non-blocking timed state machine with unsigned-subtraction deadlines** (ARC-6) and the **watchdog refreshed once per `loop()` with a 4-second timeout, reduced once real loop times are known** (WDT-1/2, NFR-1). |
 | GOAL-11 | **The firmware is the only protection.** The plant has no independent hardware safeguard against over-pressure or similar faults (hardware-team answer HQ2: none). The invariants (§6) are therefore safety-critical: they shall be independently reviewed before the first hardware visit and again before production use. |
 
 ## 2. Phases and build configurations
@@ -65,7 +66,7 @@ requirement shall be reused rather than rewritten (GOAL-8).
 | ARC-3 | Controllers, scaling, invariants, faults, display formatting, console parsing, POST and BIST sequencing shall depend only on the HAL interface, never on Arduino headers. |
 | ARC-4 | The HAL shall be as thin as practical: no policy, no timing logic, no state machines. |
 | ARC-5 | Device drivers (LCD, LED, O2) shall sit behind small interfaces so each has a fake. |
-| ARC-6 | Controllers shall use the V6/V7 **timed state machine** (state, deadline, `setup()`, `update()`, `enable()`, `disable()`). It has worked well; it shall be kept **robust and resilient**: rollover-safe deadline math, no state reachable without a defined transition, every `switch` handles every state, unknown states recover to DISABLED and log. |
+| ARC-6 | Controllers shall use the V6/V7 **timed state machine** (state, deadline, `setup()`, `update()`, `enable()`, `disable()`). It has worked well (owner) and is kept **robust and resilient**: rollover-safe deadline math, no state reachable without a defined transition, every `switch` handles every state, unknown states recover to DISABLED and log. |
 | ARC-7 | Every controller state transition shall log one line: timestamp, delta since that controller's previous transition, controller name, old→new (short names), next deadline or `-`. |
 | ARC-8 | **Output driver.** All digital outputs shall pass through a single `OutputDriver` that applies the active level from `BoardPins.h` (no code outside it uses `HIGH`/`LOW` for an output) and enforces `OUTPUT_MIN_HOLD_MS` (OUT-1). |
 
@@ -243,7 +244,7 @@ N2% ×100 = 10000 − O2% ×100, clamped to 9999 (and 0 if O2 ≥ 100%).
 | DSP-1 | Displays render from the output snapshot and fault state only, after controllers update. |
 | DSP-2 | Writes to LCD/LED occur only when a rendered field has changed (fixed per-field positions, V6 Layout C). |
 | DSP-3 | **LED:** TBS on and N2% valid → `nn.nn`; TBS on and invalid → `--.--`; TBS off → blank. |
-| DSP-4 | **LCD normal layout (Layout C):** |
+| DSP-4 | **LCD layout is open for discussion**: candidates and a recommendation (B, a status bar plus V7's bottom row) are in `LCD_Layouts.md`. It must show: AIR, N2-low, N2-high, N2%, TBS (`ON`/`OF`), tower, compressor and O2 states, and the four output bits `LRFS`. The V6/V7 layout ("Layout C") is kept below as the reference. |
 
 ```
 ....5....0....5....0
@@ -255,7 +256,7 @@ N2% 99.99  LRFS 1001
 
 | ID | Requirement |
 |---|---|
-| DSP-5 | **Fault line.** In Production, with a fault of severity ≥ WARN active, **one LCD line (proposed: row 3) shall be co-opted** to show `Fnn <text>` (≤ 20 chars), alternating with its normal content every 2 s (so N2%/LRFS stay available). With several faults they rotate. The LED shows `Fnn` of the first active fault. This is the fault channel when no console is attached. [Q9] |
+| DSP-5 | **Fault line.** In Production, with a fault of severity ≥ WARN active, **one LCD line (proposed: row 0, the status bar, in layout B) shall be co-opted** to show `Fnn <text>` (≤ 20 chars), alternating with its normal content every 2 s (so N2%/LRFS stay available). With several faults they rotate. The LED shows `Fnn` of the first active fault. This is the fault channel when no console is attached. [Q9] |
 | DSP-6 | A display failure (no ACK) shall never stop the control loop; it raises an INFO fault logged to the console. |
 | DSP-7 | LCD and LED initialization shall tolerate an absent or slow device and re-initialize when a later probe finds it. |
 | DSP-9 | **TBS state on the LCD** as a 2-character field, `ON` or `OF`, so the real estate stays consistent. Its position in Layout C is fixed with the golden-screen tests in M3. |
@@ -292,9 +293,9 @@ text; commands are one line.
 | ID | Requirement |
 |---|---|
 | CON-1 | Baud 115200 (ignored by USB CDC). Newline-terminated, case-insensitive commands; `help` lists the commands of this build. |
-| CON-2 | **Output shall never block the loop and shall never inhibit input.** TX is non-blocking; when it cannot keep up, lines are dropped and counted (F40). The console receive path is polled on every pass, independent of TX state, so IDE→Arduino commands always get through. |
+| CON-2 | **Output shall never block the loop and shall never inhibit input.** TX is non-blocking; when it cannot keep up, lines are dropped and counted (F40). The console receive path is polled on every pass, independent of TX state, so IDE→Arduino commands always get through. *Platform finding (core 1.6.0, `SerialUSB.cpp`):* `Serial.write()` returns 0 immediately when no host has the port open, **but when a host has it open and is not reading, the core's write loop spins until the buffer drains** — a frozen terminal would stall `loop()`. The console layer shall therefore check free buffer space (`availableForWrite()`) before each write and drop output instead of waiting, and the watchdog is the backstop. To be verified on the bench. |
 | CON-3 | Connecting or disconnecting the Serial Monitor while running **shall not affect operation**, other than enabling logging and commands. This shall be verified on both boards (including whether the board resets on connect; never open the port at 1200 baud, which triggers the bootloader). |
-| CON-4 | **Attach detection.** The firmware shall detect whether a console is attached (via the core's `Serial` state/DTR) and expose it as `console.attached()`. BIST requires an attached console; POST does not. |
+| CON-4 | **Attach detection.** The firmware shall detect whether a console is attached and expose it as `console.attached()`. On the R4 core, `if (Serial)` is true only while a host has the USB port open (the CDC DTR line, via `tud_cdc_connected()`); it is false after the cable is removed or the port is closed. **Never call `Serial.dtr()`**: in this core it permanently forces the connected state, after which writes spin with no host. BIST requires an attached console; POST does not. The HAL shall provide `consoleAttached()` and `consoleWriteSpace()`. |
 | CON-5 | Log levels `ERR, WARN, INFO, DEBUG`; default DEBUG in Debug, INFO in Production; `log <level>`. |
 | CON-6 | The line reader is a non-blocking accumulator with a bounded line length; over-long lines are discarded with an error. |
 | CON-7 | In the `FIELD` build no console command shall drive an output directly. Outputs are exercised only through BIST. [Q12] |
@@ -365,6 +366,7 @@ most important feature during Debug. It **requires an attached console**.
 | BIST-6 | The watchdog (if enabled) is kicked from every BIST wait loop. |
 | BIST-7 | After BIST, normal operation resumes without a reset after re-running RST-2/RST-3. |
 | BIST-8 | BIST sequencing and formatting shall be host-testable; only HAL calls touch hardware. |
+| BIST-10 | **Usable by a second person.** The BIST prompts shall be self-explanatory (what to look at, what the right answer looks like, which key to press) so that a colleague who is not the author can run it from a written package (ENV-3) and email back the captured text. |
 | BIST-9 | The sensor step shall show raw ADC, volts, scaled PSI and the in-window flag, and ask the operator to enter (or confirm) the **plant gauge reading** for the gauges that exist (INP-8). |
 
 | Step | Test | Operator confirms |
@@ -405,6 +407,22 @@ most important feature during Debug. It **requires an attached console**.
 | NFR-3 | The current production sketch shall be kept as a known-good fallback for the field trip. |
 | FUT-1 | **Reserved for a later version:** changing pressure thresholds from the console (`cfg set`). The runtime `Config` struct (§7) shall make this a small change. |
 
+## 14a. Reproducible environment and remote testing [NEW]
+
+Goal: some tests can be run by the hardware team on the plant from a package sent by email or fetched
+with `git pull`, so the author need not travel for every test (the author attends for debugging).
+That only works if both sides build from the **same versions**.
+
+| ID | Requirement |
+|---|---|
+| ENV-1 | The exact environment shall be recorded in a committed file `env.lock`: Arduino core (`arduino:renesas_uno`, now 1.6.0), `arduino-cli` and IDE versions, DFRobot_MultiGasSensor (now 3.0.0), and any other library. |
+| ENV-2 | A script `tools/check_env` shall compare the installed environment with `env.lock` and print any difference. Both laptops run it before any test; a mismatch is reported in the returned log header. |
+| ENV-3 | A script `tools/make_package` shall build a **test package** (`.zip`): the sketch (DIAG build), a copy of every third-party library at the locked version, `env.lock`, a step-by-step README for the hardware team (install, flash, run, what to answer, what to copy back, which BIST steps are safe on a live plant), an example of the expected output, and a checksum. The package shall run without network access once its contents are installed. |
+| ENV-4 | `git pull` of a tagged commit is an equivalent transport; the tag names the exact package. |
+| ENV-5 | The firmware banner and `ver` shall print enough to trace a returned log to its package: firmware version, build date/time, git commit (supplied by `make_package`), board, ADC_BITS and the locked versions (ID-1). |
+| ENV-6 | The remote test shall be **DIAG only** (no controllers), and the package README shall say which steps move valves or the compressor and what the plant must look like (for example air supply isolated) before they are run. [Q24] |
+| ENV-7 | *Option to verify:* an `arduino-cli` **sketch profile** (`sketch.yaml`) can pin the core and libraries; DFRobot_MultiGasSensor is **not** in the Library Manager index (searched 2026-10-02), so it would have to be supplied as a local directory or git URL. Whether the profile mechanism accepts that shall be checked before relying on it. |
+
 ## 15. Owner-supplied facts still to confirm
 See `Owner_TODO.md`. Highlights: complete pinout with active levels; which plant gauges exist; I2C
 pins on production; SEN0465 warm-up time; output pull-down wiring.
@@ -435,6 +453,7 @@ pins on production; SEN0465 warm-up time; output pull-down wiring.
 | Q20 | Missing O2 sensor | **Resolved:** mandatory in production; inhibit all; holds POST (O2-1) |
 | Q21 | Does production run while the O2 sensor is warming up? | **Interim answer: no — tower disabled until warm (INV-10).** Question for the hardware team: HQ6 |
 | Q22 | HQ1 "N2 low and high thresholds are met" | **Resolved:** above the low minimum and below the high maximum, i.e. within operating range (O2-7) |
+| Q24 | Which BIST steps may the hardware team run on a live plant without the author (ENV-6)? What isolation or safety condition applies? | open |
 | Q23 | Power-on vs reset discrimination and warm-up credit | **Resolved: yes** (O2-6a/6b), enabled only after bench tests |
 
 ## 17. Questions for the hardware team (answers recorded 2026-10-02)
