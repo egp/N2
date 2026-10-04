@@ -12,7 +12,7 @@
 // system proves the pinouts and runs no production logic (Requirements GOAL-9).
 #pragma once
 
-#define N2_VERSION "0.1.0-m2"
+#define N2_VERSION "8.1.0-m2"
 
 #if !defined(N2_BUILD_HOST) && !defined(N2_BUILD_BENCH) && \
     !defined(N2_BUILD_DIAG) && !defined(N2_BUILD_FIELD)

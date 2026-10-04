@@ -4,7 +4,8 @@
 reset button, (2) whether a RAM record survives reset but not power loss, (3) whether opening the
 Serial Monitor resets the board. These decide Requirements O2-6a/6b and CON-3.
 
-**Safe:** the sketch touches no output pins and starts no devices. Nothing needs to be wired.
+**Safe and bare:** the sketch touches no pins and starts no devices (no LCD, no LED, no I2C). All you need is the Arduino and
+its USB cable. Nothing needs to be wired.
 Run it on the **UNO R4 WiFi** first; repeat on the Minima when convenient.
 
 ## Upload
@@ -27,6 +28,11 @@ Arduino IDE: open `experiments/reset_probe/reset_probe.ino`, board *Arduino UNO 
 
 Also note: do the "flags after clearing" values read 0? If not, the flags cannot be cleared this way and
 the design must change (PORF would stay set until power-off).
+
+## If the Serial Monitor goes quiet
+Pressing reset or replugging the USB cable disconnects the port for a moment. If the IDE shows the monitor as disconnected,
+re-select the board's port (or close and reopen the Serial Monitor); the report prints again each time the monitor attaches.
+Typing `r` + Enter reprints the last boot report at any time.
 
 ## Return the results
 Select all in the Serial Monitor, copy, paste into `docs/results/reset-probe-wifi-YYYYMMDD.txt`,

@@ -62,7 +62,7 @@ int main() {
   show("watchdog reset (warning)", renderFault(wd, 0));
 
   std::printf("=========== BANNER ===========\n\n");
-  show("startup", renderBanner("0.1.0-m2", "UNO R4 Minima", "Oct  2 2026 14:05"));
+  show("startup", renderBanner("8.1.0-m2", "UNO R4 Minima", "Oct  2 2026 14:05"));
 
   std::printf("=========== LED ===========\n");
   DisplayData e = normal();

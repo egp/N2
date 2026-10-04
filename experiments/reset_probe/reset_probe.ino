@@ -31,7 +31,7 @@ static uint32_t checksum(const Record& r) {
 static void seal() { rec.check = checksum(rec); }
 
 // ---- captured at boot ----
-static uint8_t rst0, rst1lo, rst2, rst0After, rst1After;
+static uint8_t rst0, rst2, rst0After, rst1After;
 static uint16_t rst1;
 static bool recordWasValid;
 static uint32_t baseRunMs, setupStartMs, creditMs;
@@ -60,7 +60,7 @@ static void clearFlags() {
 
 static void printReport() {
   Serial.println();
-  Serial.println(F("==== RESET PROBE REPORT ===="));
+  Serial.println(F("==== RESET PROBE REPORT (reset_probe v1, UNO R4 WiFi) ===="));
   Serial.print(F("built ")); Serial.print(__DATE__); Serial.print(' '); Serial.println(__TIME__);
   Serial.print(F("boot #")); Serial.print(rec.boots);
   Serial.print(F("   RAM record valid at boot: ")); Serial.println(recordWasValid ? F("YES") : F("NO"));

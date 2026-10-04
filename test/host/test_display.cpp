@@ -181,8 +181,8 @@ TEST_CASE("every fault in the table renders a screen that fits 20 columns") {
 }
 
 TEST_CASE("DSP-8: startup banner") {
-  expectScreen(renderBanner("0.1.0-m2", "UNO R4 Minima", "Oct  2 2026 14:05"),
-               "N2V8 0.1.0-m2       ", "UNO R4 Minima       ", "Oct  2 2026 14:05   ", "POST ...            ");
+  expectScreen(renderBanner("8.1.0-m2", "UNO R4 Minima", "Oct  2 2026 14:05"),
+               "N2V8 8.1.0-m2       ", "UNO R4 Minima       ", "Oct  2 2026 14:05   ", "POST ...            ");
 }
 
 TEST_CASE("DSP-3: LED text") {

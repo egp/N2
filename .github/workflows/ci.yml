@@ -17,7 +17,14 @@ jobs:
       - name: Build
         run: cmake --build build/host -j
       - name: Test
-        run: ctest --test-dir build/host --output-on-failure
+        run: |
+          ctest --test-dir build/host --output-on-failure > ctest.log 2>&1 || {
+            cat ctest.log
+            # Also publish the failing lines as annotations so they can be read without downloading logs.
+            grep -E "FAILED|with expansion|Failed|\\*\\*\\*|^  " ctest.log | head -40 | while IFS= read -r line; do echo "::error::$line"; done
+            exit 1
+          }
+          cat ctest.log | tail -5
 
   compile:
     runs-on: ubuntu-latest

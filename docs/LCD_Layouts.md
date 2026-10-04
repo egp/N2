@@ -68,7 +68,7 @@ A warning-level fault uses `WARNING` in the header. The LED shows `F03`.
 
 ### Startup banner (about 1 s)
 ```
-  N2V8 0.1.0-m2
+  N2V8 8.1.0-m2
   UNO R4 Minima
   Oct  2 2026 14:05
   POST ...
@@ -222,7 +222,7 @@ watchdog reset (warning)
 startup
    0         1
    01234567890123456789
-  |N2V8 0.1.0-m2       |
+  |N2V8 8.1.0-m2       |
   |UNO R4 Minima       |
   |Oct  2 2026 14:05   |
   |POST ...            |
