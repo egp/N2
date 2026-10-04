@@ -19,12 +19,14 @@ jobs:
       - name: Test
         run: |
           ctest --test-dir build/host --output-on-failure > ctest.log 2>&1 || {
-            cat ctest.log
-            # Also publish the failing lines as annotations so they can be read without downloading logs.
-            grep -E "FAILED|with expansion|Failed|\\*\\*\\*|^  " ctest.log | head -40 | while IFS= read -r line; do echo "::error::$line"; done
+            tail -5 ctest.log
+            # Rerun only the failures and publish them as ONE annotation (readable without downloading logs).
+            msg=$(ctest --test-dir build/host --rerun-failed --output-on-failure 2>&1 | grep -vE "^ *[0-9]+/[0-9]+ Test|Start " | head -45)
+            msg="${msg//'%'/'%25'}"; msg="${msg//$'\n'/'%0A'}"
+            echo "::error title=host test failure::${msg}"
             exit 1
           }
-          cat ctest.log | tail -5
+          tail -5 ctest.log
 
   compile:
     runs-on: ubuntu-latest
