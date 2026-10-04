@@ -12,14 +12,17 @@ namespace {
 
 struct Rig {
   Generator gen;
+  bool booted;  // the generator must be rebooted BEFORE anything takes a reference to its System
   DisplayManager display;
   BuildInfo info{"0.0.0-test", "Jan  1 2026", "12:00:00", "host (fake)", "HOST", 10};
   Post post;
 
   explicit Rig(ControlConfig cfg = kDefaultControl, ResetInfo reset = ResetInfo(), PostOptions opt = PostOptions())
       : gen(cfg),
+        booted((gen.reboot(reset), true)),  // (members are initialised in declaration order, so this comes first)
         display(gen.hal, kHostBoard, LcdLayout::kClearLabels),
-        post((gen.reboot(reset), gen.hal), kHostBoard, gen.sys(), display, gen.log, info, reset, opt) {
+        post(gen.hal, kHostBoard, gen.sys(), display, gen.log, info, reset, opt) {
+    (void)booted;
     gen.hal.i2cPresent = {0x24, 0x34, 0x35, 0x36, 0x37, 0x27, 0x74};  // everything fitted
     gen.hal.nowMs = 0;
   }
