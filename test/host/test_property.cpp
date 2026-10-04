@@ -1,6 +1,6 @@
 // Randomized property tests: INV-1..INV-4, INV-8..INV-10, INV-6, OUT-1 (Requirements INV-7).
 //
-// Random sensors, switch, O2 faults and time steps are driven through the whole gen. After EVERY
+// Random sensors, switch, O2 faults and time steps are driven through the whole system. After EVERY
 // step the ACTUAL pin states are checked against the safety rules, which are restated here
 // independently from the requirements (not by calling checkInvariants()).
 #include <catch2/catch_test_macros.hpp>

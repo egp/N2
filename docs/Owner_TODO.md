@@ -6,7 +6,7 @@ Things only you can do or decide, kept in two separate parts. IDs link to `Requi
 `BoardPins.h` is one table, so wrong values can be corrected at any time and do not block development;
 they must be right before the first hardware visit (DIAG).
 
-# Part 1 — HARDWARE (gen, wiring, bench)
+# Part 1 — HARDWARE (production, wiring, bench)
 
 ## 1A. Open
 1. [ ] **HQ7 — which analog pin carries the high-N2 sensor?** V6/V7 say A5, but A4/A5 are the I2C lines; `BoardPins.h` has **A1 as a placeholder**. Edit that one row when known. (PIN-10)
@@ -21,7 +21,7 @@ they must be right before the first hardware visit (DIAG).
 10. [ ] Measure the **reset-to-outputs-safe window** (RST-2) with a scope, or get the hardware team's confirmation that outputs default OFF in reset (HQ3).
 
 ## 1B. At the bench (R4 WiFi, LCD + LED; rig a TBS/TOB switch if needed)
-10a. [ ] **Flash the DIAG build** (Arduino IDE: open `N2V8.ino`, board *UNO R4 WiFi*, Upload; the default build is DIAG, which runs no controllers). Expect: LCD banner, POST (the O2 sensor and pressure sensors will be missing, so POST will report faults and **hold until you press TOB**), then normal screens. Open the Serial Monitor and type `help`, `status`, `report`, `bist`. Copy the output into `docs/results/`.
+10a. [ ] **Flash the DIAG build** (Arduino IDE: open `N2V8/N2V8.ino`, board *UNO R4 WiFi*, Upload; the default build is DIAG, which runs no controllers). Expect: LCD banner, POST (the O2 sensor and pressure sensors will be missing, so POST will report faults and **hold until you press TOB**), then normal screens. Open the Serial Monitor and type `help`, `status`, `report`, `bist`. Copy the output into `docs/results/`.
 10b. [ ] Install the DFRobot library in the IDE's sketchbook (it is already in `Documents/Zephyr/Arduino/libraries`); without it the O2 sensor reads as absent.
 11. [ ] **Run the reset probe** (`experiments/reset_probe/README.md`, T1–T9) and paste the output into `docs/results/`. Repeat on the Minima. (O2-6a/6b, CON-3)
 12. [ ] I2C scan: confirm 0x24 (LED) and 0x27 (LCD). Optional early experiment: scan, `analogRead(A5)`, scan again. (PIN-10)
