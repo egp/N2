@@ -60,7 +60,8 @@ bool Screen::operator==(const Screen& o) const {
 void formatX10(char* out, uint16_t value) { snprintf(out, 8, "%3u.%u", static_cast<unsigned>(value / 10), static_cast<unsigned>(value % 10)); }
 void formatX100(char* out, uint16_t value) { snprintf(out, 8, "%2u.%02u", static_cast<unsigned>(value / 100), static_cast<unsigned>(value % 100)); }
 void formatCountdown(char* out, uint32_t ms) {
-  const uint32_t secs = (ms + 999u) / 1000u;  // round up: never shows 0:00 until warm
+  uint32_t secs = (ms + 999u) / 1000u;  // round up: never shows 0:00 until warm
+  if (secs > 99u * 60u + 59u) secs = 99u * 60u + 59u;  // the field holds "99:59" at most
   snprintf(out, 8, "%2u:%02u", static_cast<unsigned>(secs / 60u), static_cast<unsigned>(secs % 60u));
 }
 
