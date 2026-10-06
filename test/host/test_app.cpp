@@ -24,7 +24,7 @@ struct AppRig {
 
   explicit AppRig(ControlConfig c = quickWarmConfig(), AppOptions o = AppOptions(), bool consoleAttached = true) : cfg(c), opt(o) {
     hal.consoleIsAttached = consoleAttached;
-    hal.i2cPresent = {0x24, 0x34, 0x35, 0x36, 0x37, 0x27, 0x74};
+    hal.i2cPresent = {0x24, 0x34, 0x35, 0x36, 0x37, 0x27, 0x74, 0x68};
     healthy();
     tbs(false);
     tob(false);
@@ -409,4 +409,40 @@ TEST_CASE("CON-4: where the host CAN be detected (Minima) the banner is printed 
   size_t banners = 0, pos = 0;
   while ((pos = r.out.find("N2V8 0.0.0-test  built", pos)) != std::string::npos) { ++banners; pos += 5; }
   CHECK(banners == 1);
+}
+
+// ============================================================================ RTC in the application (RTC-3, RTC-5)
+TEST_CASE("RTC-5: the banner and `report` carry the RTC date/time when it is fitted and set") {
+  AppRig r;
+  r.boot();
+  Rtc3231 clock(r.hal, 0x68);
+  REQUIRE(clock.set({2026, 10, 6, 10, 31, 2}));
+  r.hal.canDetectHost = false;
+  r.run(1000);
+  r.type("report");
+  r.run(3000);
+  CHECK(r.has("RTC 2026-10-06 10:31:02 (trusted)"));
+}
+
+TEST_CASE("RTC-5: F13 appears in RUN when the RTC is missing, never stops the system, and clears when it returns") {
+  AppRig r;
+  r.hal.i2cPresent.erase(0x68);
+  r.tbs(true);
+  r.boot();
+  r.run(12000);
+  CHECK(r.app->system().faults().active(FaultId::kRtc));
+  CHECK(r.outputOn(Signal::kSsr));  // control is unaffected
+  r.hal.i2cPresent.insert(0x68);
+  r.run(30000);
+  CHECK_FALSE(r.app->system().faults().active(FaultId::kRtc));
+}
+
+TEST_CASE("RTC-3: `time set` works through the whole application console") {
+  AppRig r;
+  r.boot();
+  r.run(3500);
+  r.type("time set 2026-10-06 10:31:00");
+  CHECK(r.has("RTC set to 2026-10-06 10:31:00"));
+  r.type("time");
+  CHECK(r.has("RTC 2026-10-06 10:31:00 (trusted)"));
 }

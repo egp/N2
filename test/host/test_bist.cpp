@@ -32,7 +32,7 @@ struct Rig {
         commands(ctx),
         bist(gen.hal, kHostBoard, gen.sys(), display, console, gen.o2, info, bc) {
     gen.hal.consoleIsAttached = true;
-    gen.hal.i2cPresent = {0x24, 0x34, 0x35, 0x36, 0x37, 0x27, 0x74};
+    gen.hal.i2cPresent = {0x24, 0x34, 0x35, 0x36, 0x37, 0x27, 0x74, 0x68};
     display.begin(0);
   }
 
@@ -214,7 +214,7 @@ TEST_CASE("BIST step 1: TBS and TOB changes are printed; TOB does NOT answer the
 
 TEST_CASE("BIST step 2: the I2C scan lists responders with labels and reports missing expected devices") {
   Rig r;
-  r.gen.hal.i2cPresent = {0x24, 0x34, 0x35, 0x36, 0x37, 0x27, 0x50};  // O2 missing, a stranger present
+  r.gen.hal.i2cPresent = {0x24, 0x34, 0x35, 0x36, 0x37, 0x27, 0x50, 0x68, 0x57};  // O2 missing, a stranger and the RTC (+ its EEPROM) present
   REQUIRE(r.start() == Bist::Start::kOk);
   r.goTo(BistStep::kI2c);
   r.run(500);
@@ -222,7 +222,9 @@ TEST_CASE("BIST step 2: the I2C scan lists responders with labels and reports mi
   CHECK(r.has("0x27  LCD"));
   CHECK(r.has("0x50  UNEXPECTED"));
   CHECK(r.has("0x74  O2 sensor  MISSING"));
-  CHECK(r.has("7 device(s) found, 1 expected device(s) missing"));
+  CHECK(r.has("0x68  RTC"));
+  CHECK(r.has("0x57  EEPROM on the RTC module (unused)"));
+  CHECK(r.has("9 device(s) found, 1 expected device(s) missing"));
 }
 
 TEST_CASE("BIST step 3/DRV-3: the LED test states what to expect and runs the patterns by time") {

@@ -12,6 +12,7 @@ const FaultInfo kTable[kFaultCount] = {
     {10, "LCD NO ACK", Severity::kInfo, false, "LOG ONLY"},
     {11, "LED NO ACK", Severity::kInfo, false, "LOG ONLY"},
     {12, "O2 SENSOR FAILED", Severity::kInhibit, false, "ALL OUTPUTS OFF"},
+    {13, "RTC UNAVAILABLE", Severity::kInfo, false, "LOG ONLY"},
     {20, "INVARIANT BROKEN", Severity::kInhibit, true, "FORCED SAFE STATE"},
     {30, "WATCHDOG RESET", Severity::kWarn, false, "RESET WAS LOGGED"},
     {31, "BROWN-OUT RESET", Severity::kWarn, false, "RESET WAS LOGGED"},

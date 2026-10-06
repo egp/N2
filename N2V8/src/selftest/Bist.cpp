@@ -339,12 +339,13 @@ void Bist::tickI2c(uint32_t now) {
     struct Known { uint8_t addr; const char* name; };
     const Known known[] = {{board_.addrLed, "LED control"}, {static_cast<uint8_t>(board_.addrLedDigits), "LED digit 0"},
                            {static_cast<uint8_t>(board_.addrLedDigits + 1), "LED digit 1"}, {static_cast<uint8_t>(board_.addrLedDigits + 2), "LED digit 2"},
-                           {static_cast<uint8_t>(board_.addrLedDigits + 3), "LED digit 3"}, {board_.addrLcd, "LCD"}, {board_.addrO2, "O2 sensor"}};
+                           {static_cast<uint8_t>(board_.addrLedDigits + 3), "LED digit 3"}, {board_.addrLcd, "LCD"}, {board_.addrO2, "O2 sensor"},
+                           {board_.addrRtc, "RTC"}};
     uint8_t count = 0;
     for (uint8_t a = 0x08; a < 0x78; ++a) {
       if (!(found_[a / 8] & (1u << (a % 8)))) continue;
       ++count;
-      const char* label = "UNEXPECTED";
+      const char* label = a == 0x57 ? "EEPROM on the RTC module (unused)" : "UNEXPECTED";
       for (const Known& k : known) if (k.addr == a) label = k.name;
       say("  0x%02X  %s", static_cast<unsigned>(a), label);
     }

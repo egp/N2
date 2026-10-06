@@ -121,12 +121,14 @@ struct Rig {
   Generator gen;  // booted in the constructor; do NOT call gen.reboot() later (it replaces the System)
   Console console;
   LoopStats loop;
+  Rtc3231 rtc;
   ConsoleContext ctx;
   Commands commands;
 
   Rig()
       : console(gen.hal, LogLevel::kInfo),
-        ctx{(gen.reboot(), &gen.sys()), &console, &loop, &gen.hal, BuildInfo{"0.0.0-test", "Jan  1 2026", "12:00:00", "host (fake)", "HOST", 10}, LcdLayout::kClearLabels},
+        rtc(gen.hal),
+        ctx{(gen.reboot(), &gen.sys()), &console, &loop, &gen.hal, BuildInfo{"0.0.0-test", "Jan  1 2026", "12:00:00", "host (fake)", "HOST", 10}, LcdLayout::kClearLabels, nullptr, &rtc},
         commands(ctx) {
     gen.hal.consoleIsAttached = true;
   }
@@ -358,9 +360,10 @@ TEST_CASE("NFR-1: loop shows the statistics, and 'loop reset' clears them") {
 
 TEST_CASE("BIST step 2/§10: scan lists responders, labels them, and reports missing expected devices") {
   Rig r;
-  r.gen.hal.i2cPresent = {0x24, 0x34, 0x35, 0x36, 0x37, 0x27, 0x50};
+  r.gen.hal.i2cPresent = {0x24, 0x34, 0x35, 0x36, 0x37, 0x27, 0x50, 0x68};
   const std::string s = r.ask("scan");
-  CHECK(contains(s, "7 device(s)"));
+  CHECK(contains(s, "8 device(s)"));
+  CHECK(contains(s, "0x68 RTC"));
   CHECK(contains(s, "0x24 LED control"));
   CHECK(contains(s, "0x37 LED digit 3"));
   CHECK(contains(s, "0x27 LCD"));
@@ -398,4 +401,62 @@ TEST_CASE("LOG-2: the report survives a slow host (small TX buffer) with every l
   CHECK(contains(all, "==== N2 REPORT BEGIN ===="));
   CHECK(contains(all, "==== N2 REPORT END ===="));
   CHECK(r.console.dropped() == 0);
+}
+
+// ============================================================================ time commands (RTC-3)
+TEST_CASE("RTC-3: `time` shows the RTC date and time, whether it can be trusted, and its temperature") {
+  Rig r;
+  r.gen.hal.i2cPresent.insert(0x68);
+  REQUIRE(r.rtc.set({2026, 10, 6, 10, 31, 2}));
+  r.gen.hal.i2cRegs[0x68][0x11] = 0x19;
+  r.gen.hal.i2cRegs[0x68][0x12] = 0x80;  // 25.50 C
+  const std::string t = r.ask("time");
+  CHECK(contains(t, "RTC 2026-10-06 10:31:02 (trusted)"));
+  CHECK(contains(t, "RTC chip temperature 25.50 C"));
+}
+
+TEST_CASE("RTC-3: `time` says when the clock lost power (oscillator-stop flag)") {
+  Rig r;
+  r.gen.hal.i2cPresent.insert(0x68);
+  REQUIRE(r.rtc.set({2026, 10, 6, 10, 31, 2}));
+  r.gen.hal.i2cRegs[0x68][0x0F] = 0x80;
+  CHECK(contains(r.ask("time"), "NOT trusted"));
+}
+
+TEST_CASE("RTC-3: `time` with no chip answering reports it plainly") {
+  Rig r;
+  CHECK(contains(r.ask("time"), "RTC: no valid answer from the clock chip"));
+}
+
+TEST_CASE("RTC-3: `time set YYYY-MM-DD HH:MM:SS` sets the clock and reads it back") {
+  Rig r;
+  r.gen.hal.i2cPresent.insert(0x68);
+  CHECK(contains(r.ask("time set 2026-10-06 10:31:00"), "RTC set to 2026-10-06 10:31:00"));
+  DateTime t{};
+  REQUIRE(r.rtc.read(t));
+  CHECK(t.year == 2026);
+  CHECK(t.hour == 10);
+  CHECK(t.minute == 31);
+}
+
+TEST_CASE("RTC-3: `time set` with bad input is rejected and the chip is not touched") {
+  Rig r;
+  r.gen.hal.i2cPresent.insert(0x68);
+  const size_t writes = r.gen.hal.i2cWrites.size();
+  CHECK(contains(r.ask("time set 2026-02-30 10:00:00"), "usage: time set YYYY-MM-DD HH:MM:SS"));
+  CHECK(contains(r.ask("time set tomorrow"), "usage: time set"));
+  CHECK(contains(r.ask("time bogus"), "usage: time set"));
+  CHECK(r.gen.hal.i2cWrites.size() == writes);
+}
+
+TEST_CASE("RTC-3: `time set` with the chip absent says so") {
+  Rig r;  // 0x68 does not acknowledge
+  CHECK(contains(r.ask("time set 2026-10-06 10:31:00"), "could not write the RTC"));
+}
+
+TEST_CASE("RTC-3: help describes the time command on one line") {
+  Rig r;
+  CHECK(contains(r.ask("help"), "time [set ...]"));
+  CHECK(parseCommand("TIME set 2026-10-06 10:31:00").id == CommandId::kTime);
+  CHECK(parseCommand("time").id == CommandId::kTime);
 }

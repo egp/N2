@@ -9,7 +9,7 @@
 namespace n2 {
 
 Commands::Commands(const ConsoleContext& ctx)
-    : c_(ctx), ver_(c_), status_(c_), faults_(c_), cfg_(c_), display_(c_), loop_(c_), scan_(c_), report_(*this) {}
+    : c_(ctx), ver_(c_), time_(c_), status_(c_), faults_(c_), cfg_(c_), display_(c_), loop_(c_), scan_(c_), report_(*this) {}
 
 Responder* Commands::handle(const Command& cmd) {
   switch (cmd.id) {
@@ -20,6 +20,26 @@ Responder* Commands::handle(const Command& cmd) {
     case CommandId::kFaults:  return &faults_;
     case CommandId::kCfg:     return &cfg_;
     case CommandId::kDisplay: return &display_;
+    case CommandId::kTime: {
+      if (cmd.argc == 0) return &time_;
+      if (c_.rtc == nullptr) {
+        message_.set("no real-time clock in this build");
+        return &message_;
+      }
+      DateTime t;
+      if (cmd.argc == 3 && strcmp(cmd.arg[0], "set") == 0 && parseDateTime(cmd.arg[1], cmd.arg[2], t)) {
+        if (c_.rtc->set(t)) {
+          char buf[24];
+          formatDateTime(buf, t);
+          message_.set("RTC set to %s", buf);
+        } else {
+          message_.set("could not write the RTC (no answer on the I2C bus)");
+        }
+      } else {
+        message_.set("usage: time set YYYY-MM-DD HH:MM:SS   (24-hour clock)");
+      }
+      return &message_;
+    }
     case CommandId::kScan:    return &scan_;
     case CommandId::kReport:  return &report_;
     case CommandId::kLoop:
@@ -82,6 +102,7 @@ bool Commands::Help::line(uint8_t i, char* b, size_t n) {
       "  faults             active faults",
       "  cfg                thresholds and timings",
       "  display            what the LCD and LED should show",
+      "  time [set ...]     real-time clock: show it, or: time set YYYY-MM-DD HH:MM:SS",
       "  loop [reset]       loop() timing: min, mean, median, max",
       "  log <level>        error | warn | info | debug",
       "  scan               I2C scan",
@@ -111,6 +132,36 @@ void sensorLine(char* b, size_t n, const char* name, uint16_t raw, uint8_t bits,
            ok ? "ok" : "FAULT");
 }
 }  // namespace
+
+bool Commands::Time::line(uint8_t i, char* b, size_t n) {
+  Rtc3231* rtc = c_.rtc;
+  if (rtc == nullptr) {
+    if (i != 0) return false;
+    snprintf(b, n, "RTC: none in this build");
+    return true;
+  }
+  if (i == 0) {
+    DateTime t;
+    bool valid = false;
+    char when[24];
+    if (!rtc->read(t)) {
+      snprintf(b, n, "RTC: no valid answer from the clock chip (missing, or it holds no valid time)");
+    } else {
+      formatDateTime(when, t);
+      const bool known = rtc->timeValid(valid);
+      snprintf(b, n, "RTC %s (%s)", when, !known ? "trust unknown" : (valid ? "trusted" : "NOT trusted: it lost power; set it with: time set ..."));
+    }
+    return true;
+  }
+  if (i == 1) {
+    int16_t c;
+    if (!rtc->temperatureX100(c)) return false;
+    const int a = c < 0 ? -c : c;
+    snprintf(b, n, "RTC chip temperature %s%d.%02d C", c < 0 ? "-" : "", a / 100, a % 100);
+    return true;
+  }
+  return false;
+}
 
 bool Commands::Status::line(uint8_t i, char* b, size_t n) {
   const System& s = *c_.sys;
@@ -253,14 +304,14 @@ bool Commands::Scan::line(uint8_t i, char* b, size_t n) {
   }
   // Responding addresses first, then expected-but-missing ones.
   struct Known { uint8_t addr; const char* name; };
-  const Known known[7] = {{kBoard.addrLed, "LED control"},          {static_cast<uint8_t>(kBoard.addrLedDigits + 0), "LED digit 0"},
+  const Known known[8] = {{kBoard.addrLed, "LED control"},          {static_cast<uint8_t>(kBoard.addrLedDigits + 0), "LED digit 0"},
                           {static_cast<uint8_t>(kBoard.addrLedDigits + 1), "LED digit 1"}, {static_cast<uint8_t>(kBoard.addrLedDigits + 2), "LED digit 2"},
-                          {static_cast<uint8_t>(kBoard.addrLedDigits + 3), "LED digit 3"}, {kBoard.addrLcd, "LCD"}, {kBoard.addrO2, "O2 sensor"}};
+                          {static_cast<uint8_t>(kBoard.addrLedDigits + 3), "LED digit 3"}, {kBoard.addrLcd, "LCD"}, {kBoard.addrO2, "O2 sensor"}, {kBoard.addrRtc, "RTC"}};
   uint8_t idx = static_cast<uint8_t>(i - 1);
   for (uint8_t a = 0x08; a < 0x78; ++a) {
     if (!(found_[a / 8] & (1u << (a % 8)))) continue;
     if (idx-- == 0) {
-      const char* label = "unexpected";
+      const char* label = a == 0x57 ? "EEPROM on the RTC module (unused)" : "unexpected";
       for (const Known& k : known) if (k.addr == a) label = k.name;
       snprintf(b, n, "  0x%02X %s", static_cast<unsigned>(a), label);
       return true;
@@ -278,7 +329,7 @@ bool Commands::Scan::line(uint8_t i, char* b, size_t n) {
 
 // One block with everything, for pasting back to the author (LOG-2).
 bool Commands::Report::line(uint8_t i, char* b, size_t n) {
-  Responder* parts[] = {&o_.ver_, &o_.status_, &o_.faults_, &o_.cfg_, &o_.loop_, &o_.display_};
+  Responder* parts[] = {&o_.ver_, &o_.time_, &o_.status_, &o_.faults_, &o_.cfg_, &o_.loop_, &o_.display_};
   if (i == 0) { snprintf(b, n, "==== N2 REPORT BEGIN ===="); return true; }
   uint8_t idx = static_cast<uint8_t>(i - 1);
   for (Responder* p : parts) {

@@ -1,5 +1,5 @@
 // ===========================================================================================
-// rtc_test  VERSION 1.0   (2026-10-06)      <-- if you do not see this line, the IDE has an older copy
+// rtc_test  VERSION 1.1   (2026-10-06)      <-- if you do not see this line, the IDE has an older copy
 //                                               (minor versions are written in HEX: 1.A = 1.10)
 //
 // Tests the REAL firmware DS3231 real-time-clock driver (N2V8/src/drivers/Rtc3231.cpp, reached through the `src` symbolic
@@ -14,8 +14,8 @@
 //   0    probe address 0x68 (and scan the bus)                                       1 = the chip answers, 0 = no answer
 //   1    read the time once a second and print it                                    the SECONDS digit of the RTC, live
 //   2    read the oscillator-stop flag: has the clock ever lost power since set?      1 = time can be trusted, 0 = lost power
-//   3    set the RTC to the sketch BUILD time, but only if the time is NOT trusted    1 = set, 0 = left alone, F = failed
-//        (use the console command T to set it exactly: see below)
+//   3    say whether the time looks trustworthy; NEVER changes the clock               1 = trusted, 0 = not trusted, F = failed
+//        (set the clock only with the console command T: see below)
 //   4    drift check: does the RTC advance exactly as fast as millis() over 5 s?      1 = within 1 s, 0 = off
 //   5    read the DS3231's temperature sensor                                         1 = plausible (0..60 C), 0 = not
 //   6    speed/reliability: 200 reads in a row, counts failures, prints microseconds   1 = no failures, 0 = failures
@@ -26,11 +26,13 @@
 //                             T YYYY-MM-DD HH:MM:SS = set the RTC to exactly that time, e.g.  T 2026-10-06 10:31:00
 //
 // Change log
+//   1.1  the sketch NEVER changes the clock on its own any more: step 3 only reports what it would do. The clock is set only by
+//        the console command  T YYYY-MM-DD HH:MM:SS  (so the first run is a pure READ of whatever the RTC holds)
 //   1.0  first version
 // ===========================================================================================
-#define TEST_VERSION "1.0"
+#define TEST_VERSION "1.1"
 #define TEST_MAJOR 1
-#define TEST_MINOR 0
+#define TEST_MINOR 1
 
 #include <Arduino.h>
 #include <Wire.h>
@@ -119,19 +121,6 @@ static bool printTime(const char* prefix) {
   return false;
 }
 
-// Build time from the compiler's __DATE__ ("Oct  6 2026") and __TIME__ ("10:31:02").
-static bool buildTime(n2::DateTime& out) {
-  static const char* kMonths = "JanFebMarAprMayJunJulAugSepOctNovDec";
-  const char* d = __DATE__;
-  uint8_t month = 0;
-  for (uint8_t m = 0; m < 12; ++m)
-    if (d[0] == kMonths[m * 3] && d[1] == kMonths[m * 3 + 1] && d[2] == kMonths[m * 3 + 2]) month = static_cast<uint8_t>(m + 1);
-  char date[11], time[9];
-  snprintf(date, sizeof date, "%.4s-%02u-%02u", d + 7, static_cast<unsigned>(month), static_cast<unsigned>(atoi(d + 4)));
-  snprintf(time, sizeof time, "%s", __TIME__);
-  return n2::parseDateTime(date, time, out);
-}
-
 static void enterStep(uint8_t s, uint32_t now) {
   step = s;
   stepStart = now;
@@ -164,20 +153,12 @@ static void enterStep(uint8_t s, uint32_t now) {
       break;
     }
     case 3: {
-      Serial.println("set the time if it is not trusted");
+      Serial.println("is the time trustworthy? (read-only: the clock is never changed here)");
       bool valid = false;
       if (!rtc.timeValid(valid)) { Serial.println("  could not read the status register"); result = 0xF; break; }
-      if (valid) { Serial.println("  time is trusted: left alone (use the T command to set it exactly)"); result = 0; break; }
-      n2::DateTime t;
-      char buf[24];
-      if (buildTime(t) && rtc.set(t)) {
-        n2::formatDateTime(buf, t);
-        Serial.print("  set to the sketch BUILD time "); Serial.print(buf); Serial.println(" (approximate: use T to set it exactly)");
-        result = 1;
-      } else {
-        Serial.println("  SET FAILED");
-        result = 0xF;
-      }
+      Serial.println(valid ? "  trusted. To correct it, send:  T YYYY-MM-DD HH:MM:SS"
+                           : "  NOT trusted (the clock lost power). To set it, send:  T YYYY-MM-DD HH:MM:SS");
+      result = valid ? 1 : 0;
       break;
     }
     case 4: {

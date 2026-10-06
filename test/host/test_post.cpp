@@ -23,7 +23,7 @@ struct Rig {
         display(gen.hal, kHostBoard, LcdLayout::kClearLabels),
         post(gen.hal, kHostBoard, gen.sys(), display, gen.log, info, reset, opt) {
     (void)booted;
-    gen.hal.i2cPresent = {0x24, 0x34, 0x35, 0x36, 0x37, 0x27, 0x74};  // everything fitted
+    gen.hal.i2cPresent = {0x24, 0x34, 0x35, 0x36, 0x37, 0x27, 0x74, 0x68};  // everything fitted
     gen.hal.nowMs = 0;
   }
 
@@ -259,4 +259,33 @@ TEST_CASE("POST-1: after POST the system starts normally") {
   r.gen.run(5000);
   CHECK(r.gen.sys().o2().commOk());
   CHECK(r.gen.ssr());
+}
+
+// ============================================================================ RTC in POST (RTC-5)
+TEST_CASE("RTC-5: a missing RTC is only an INFO fault (F13): logged, no hold, POST WARN") {
+  Rig r;
+  r.gen.hal.i2cPresent.erase(0x68);
+  const int64_t t = r.runToEnd();
+  REQUIRE(t >= 0);
+  CHECK(r.gen.sys().faults().active(FaultId::kRtc));
+  CHECK(r.post.level() == PostLevel::kWarn);
+  CHECK_FALSE(r.post.holding());
+  CHECK(has(r, "RTC MISSING"));
+}
+
+TEST_CASE("RTC-5: an RTC that lost power (time not trusted) is reported as 'NOT SET', INFO only") {
+  Rig r;
+  r.gen.hal.i2cRegs[0x68].assign(256, 0);
+  r.gen.hal.i2cRegs[0x68][0x0F] = 0x80;   // oscillator-stop flag set
+  REQUIRE(r.runToEnd() >= 0);
+  CHECK(has(r, "RTC NOT SET"));
+  CHECK(r.gen.sys().faults().active(FaultId::kRtc));
+  CHECK_FALSE(r.post.holding());
+}
+
+TEST_CASE("RTC-5: a healthy RTC adds nothing to the POST result") {
+  Rig r;
+  REQUIRE(r.runToEnd() >= 0);
+  CHECK(has(r, "RTC ok"));
+  CHECK(r.post.level() == PostLevel::kPass);
 }

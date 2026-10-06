@@ -12,9 +12,10 @@ App::App(Hal& hal, const BoardDef& board, const ControlConfig& cfg, O2Reader& o2
       info_(info),
       opt_(options),
       console_(hal, options.logLevel),
+      rtc_(hal, board.addrRtc),
       sys_(hal, board_, cfg_, o2, console_, kAdcBits),
       display_(hal, board_, options.layout, options.faultCycleMs),
-      ctx_{&sys_, &console_, &loopStats_, &hal_, info_, options.layout, this},
+      ctx_{&sys_, &console_, &loopStats_, &hal_, info_, options.layout, this, &rtc_},
       commands_(ctx_),
       post_(hal, board_, sys_, display_, console_, info_, ResetInfo(), options.post),
       bist_(hal, board_, sys_, display_, console_, o2, info_, options.bist),
@@ -62,6 +63,17 @@ void App::printBanner() {
   snprintf(line, sizeof line, "N2V8 %s  built %s %s  board %s  mode %s  adc %u bits", info_.version, info_.date, info_.time, info_.board,
            info_.mode, static_cast<unsigned>(info_.adcBits));
   console_.tryPrint(line);
+  DateTime clock;
+  bool clockValid = false;
+  if (rtc_.read(clock)) {
+    char when[24];
+    formatDateTime(when, clock);
+    rtc_.timeValid(clockValid);
+    snprintf(line, sizeof line, "RTC %s%s", when, clockValid ? "" : "  (NOT trusted: set it with: time set YYYY-MM-DD HH:MM:SS)");
+  } else {
+    snprintf(line, sizeof line, "RTC: unavailable");
+  }
+  console_.tryPrint(line);
   snprintf(line, sizeof line, "up %lu s, state %s. Type help.", static_cast<unsigned long>(hal_.millis() / 1000u),
            mode_ == Mode::kPost ? "POST" : (mode_ == Mode::kBist ? "BIST" : "RUN"));
   console_.tryPrint(line);
@@ -92,6 +104,14 @@ void App::runPass(uint32_t now) {
   const bool dropping = console_.dropped() != lastDropped_;
   lastDropped_ = console_.dropped();
   f.report(FaultId::kConsoleDrop, dropping, now, cfg_.faultHoldMs);
+
+  // The real-time clock is optional and informational: check it now and then (F13, INFO, never affects control).
+  if (static_cast<int32_t>(now - nextRtcCheck_) >= 0) {
+    nextRtcCheck_ = now + 10000;
+    bool valid = false;
+    const bool ok = rtc_.present() && rtc_.timeValid(valid);
+    f.report(FaultId::kRtc, !ok || !valid, now, cfg_.faultHoldMs);
+  }
 
   // Keep the warm-up record current; a sensor failure means it may have lost power (O2-6a).
   const bool o2Error = sys_.o2().state() == O2Controller::State::kError;

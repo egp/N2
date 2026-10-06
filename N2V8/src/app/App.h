@@ -18,6 +18,7 @@
 #include "../core/O2Reader.h"
 #include "../core/System.h"
 #include "../core/WarmCredit.h"
+#include "../drivers/Rtc3231.h"
 #include "../hal/Hal.h"
 #include "../selftest/Bist.h"
 #include "../selftest/Post.h"
@@ -77,6 +78,7 @@ class App : public CommandLauncher {
   AppOptions opt_;
 
   Console console_;
+  Rtc3231 rtc_;
   System sys_;
   DisplayManager display_;
   LoopStats loopStats_;
@@ -93,6 +95,7 @@ class App : public CommandLauncher {
   bool postRequested_ = false;
   bool bistRequested_ = false;
   bool consoleWasAttached_ = false;
+  uint32_t nextRtcCheck_ = 0;    // the RTC is checked every 10 s while running (F13)
   uint32_t nextBanner_ = 10000;  // R4 WiFi: repeat the banner until a PC has been heard from
   uint32_t lastDropped_ = 0;
   uint32_t lastCreditTick_ = 0;

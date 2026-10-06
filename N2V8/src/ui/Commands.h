@@ -8,6 +8,7 @@
 
 #include "../core/LoopStats.h"
 #include "../core/System.h"
+#include "../drivers/Rtc3231.h"
 #include "../hal/Hal.h"
 #include "BuildInfo.h"
 #include "Console.h"
@@ -32,6 +33,7 @@ struct ConsoleContext {
   BuildInfo info;
   LcdLayout layout;
   CommandLauncher* launcher = nullptr;
+  Rtc3231* rtc = nullptr;  // the real-time clock, if the build has one
 };
 
 class Commands : public CommandHandler {
@@ -42,6 +44,7 @@ class Commands : public CommandHandler {
   // Individual answers, public so tests (and the BIST) can reuse them.
   Responder& help() { return help_; }
   Responder& ver() { return ver_; }
+  Responder& time() { return time_; }
   Responder& status() { return status_; }
   Responder& faults() { return faults_; }
   Responder& cfg() { return cfg_; }
@@ -55,6 +58,13 @@ class Commands : public CommandHandler {
   class Ver : public Responder {
    public:
     explicit Ver(const ConsoleContext& c) : c_(c) {}
+    bool line(uint8_t i, char* b, size_t n) override;
+   private:
+    const ConsoleContext& c_;
+  };
+  class Time : public Responder {
+   public:
+    explicit Time(const ConsoleContext& c) : c_(c) {}
     bool line(uint8_t i, char* b, size_t n) override;
    private:
     const ConsoleContext& c_;
@@ -121,6 +131,7 @@ class Commands : public CommandHandler {
   ConsoleContext c_;
   Help help_;
   Ver ver_;
+  Time time_;
   Status status_;
   Faults faults_;
   Cfg cfg_;

@@ -67,6 +67,7 @@ struct BoardDef {
   uint8_t addrLedDigits;  // TM1650: first digit register address (digits 0..3 are consecutive)
   uint8_t addrLcd;  // 20x4 LCD, PCF8574 backpack
   uint8_t addrO2;   // DFRobot SEN0465 (SEL dip switch = 0)
+  uint8_t addrRtc;  // DS3231 real-time clock (the usual module also carries an EEPROM at 0x57, which we do not use)
 };
 
 // ---- Logical <-> physical level helpers (PIN-6) --------------------------------
@@ -97,11 +98,11 @@ inline constexpr SignalDef kSignals[kSignalCount] = {
 // I2C: the core binds Wire to A4 (SDA) / A5 (SCL) on both boards.
 // The owner reports D18/D19 on the WiFi; the core lists the same pins (18/19).
 inline constexpr BoardDef kMinimaBoard = {"UNO R4 Minima", kSignals, kSignalCount,
-                                          pin::kA4, pin::kA5, 0x24, 0x34, 0x27, 0x74};
+                                          pin::kA4, pin::kA5, 0x24, 0x34, 0x27, 0x74, 0x68};
 inline constexpr BoardDef kWifiBoard = {"UNO R4 WiFi", kSignals, kSignalCount,
-                                        pin::kA4, pin::kA5, 0x24, 0x34, 0x27, 0x74};
+                                        pin::kA4, pin::kA5, 0x24, 0x34, 0x27, 0x74, 0x68};
 inline constexpr BoardDef kHostBoard = {"host (fake)", kSignals, kSignalCount,
-                                        pin::kA4, pin::kA5, 0x24, 0x34, 0x27, 0x74};
+                                        pin::kA4, pin::kA5, 0x24, 0x34, 0x27, 0x74, 0x68};
 
 #if defined(N2_BOARD_MINIMA)
 inline constexpr const BoardDef& kBoard = kMinimaBoard;
@@ -146,9 +147,9 @@ constexpr BoardCheck checkBoard(const BoardDef& b) {
       if (b.signals[j].pin == d.pin) return BoardCheck::kDuplicatePin;
   }
   // Addresses in use: LED control, LED digits (4 consecutive), LCD, O2. None may overlap.
-  const uint8_t addrs[] = {b.addrLed, b.addrLcd, b.addrO2};
-  for (uint8_t i = 0; i < 3; ++i)
-    for (uint8_t j = static_cast<uint8_t>(i + 1); j < 3; ++j)
+  const uint8_t addrs[] = {b.addrLed, b.addrLcd, b.addrO2, b.addrRtc};
+  for (uint8_t i = 0; i < 4; ++i)
+    for (uint8_t j = static_cast<uint8_t>(i + 1); j < 4; ++j)
       if (addrs[i] == addrs[j]) return BoardCheck::kDuplicateI2cAddress;
   for (uint8_t a : addrs)
     if (a >= b.addrLedDigits && a < b.addrLedDigits + 4) return BoardCheck::kDuplicateI2cAddress;

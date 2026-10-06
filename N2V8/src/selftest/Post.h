@@ -14,6 +14,7 @@
 #include "../core/Sensors.h"
 #include "../core/System.h"
 #include "../core/TimedState.h"
+#include "../drivers/Rtc3231.h"
 #include "../hal/Hal.h"
 #include "../ui/BuildInfo.h"
 #include "../ui/DisplayManager.h"

@@ -29,6 +29,7 @@ they must be right before the first hardware visit (DIAG).
 ## 1B-bis. Bench results so far (R4 WiFi)
 - [x] Reset experiment complete: cold/warm flag + plain-RAM record verified (docs/results/reset-probe-wifi-20261006.md).
 - [x] **LCD driver validated** on hardware (docs/results/lcd-test-wifi-20261006.md).
+- [x] **RTC driver validated** on hardware (docs/results/rtc-test-wifi-20261006.md); now integrated in the firmware (`time`, `time set`, banner, F13). Check the RTC module's charging circuit before relying on a CR2032 (RTC-6).
 - [ ] **LED driver test** waits for a replacement TM1650 module (the first one was damaged). Before powering the new one: check the power pins with a meter, confirm 5 V vs 3.3 V, and test the bare Arduino first.
 - [ ] Run the same reset probe on the Minima (at Tom's, or any Minima): the probe builds for it.
 

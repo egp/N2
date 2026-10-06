@@ -51,6 +51,7 @@ TEST_CASE("PIN-7: wiring facts carried from V6/V7") {
   CHECK(b.addrLedDigits == 0x34);  // TM1650 digit registers 0x34..0x37
   CHECK(b.addrLcd == 0x27);
   CHECK(b.addrO2 == 0x74);
+  CHECK(b.addrRtc == 0x68);
 }
 
 TEST_CASE("PIN-10: N2-high is not on an I2C pin (V6/V7's A5 is SCL)") {
@@ -106,6 +107,15 @@ TEST_CASE("PIN-4: validation detects a duplicate I2C address") {
 TEST_CASE("PIN-4: validation detects an I2C address inside the LED digit range") {
   BoardDef b = kMinimaBoard;
   b.addrO2 = 0x36;  // collides with TM1650 digit 2
+  CHECK(checkBoard(b) == BoardCheck::kDuplicateI2cAddress);
+}
+
+TEST_CASE("PIN-4: validation detects the RTC sharing an address with another device") {
+  BoardDef b = kMinimaBoard;
+  b.addrRtc = b.addrLcd;
+  CHECK(checkBoard(b) == BoardCheck::kDuplicateI2cAddress);
+  b = kMinimaBoard;
+  b.addrRtc = 0x35;  // inside the TM1650 digit range
   CHECK(checkBoard(b) == BoardCheck::kDuplicateI2cAddress);
 }
 

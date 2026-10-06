@@ -108,5 +108,7 @@ TEST_CASE("FLT-4: the fault table is complete, with unique codes and screen-size
   CHECK(faultInfo(FaultId::kO2Comm).code == 12);
   CHECK(faultInfo(FaultId::kInvariant).latching);
   CHECK(faultInfo(FaultId::kO2Comm).severity == Severity::kInhibit);
+  CHECK(faultInfo(FaultId::kRtc).code == 13);
+  CHECK(faultInfo(FaultId::kRtc).severity == Severity::kInfo);  // the clock must never affect control
   CHECK(faultInfo(FaultId::kSensorOrder).severity == Severity::kInhibit);
 }

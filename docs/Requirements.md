@@ -532,3 +532,5 @@ ignored** (owner, 2026-10-02): V8 uses the standard hardware `Wire` on SDA/SCL.
 The one V6/V7 value that cannot be used as-is is the high-pressure N2 sensor on **A5** (the I2C SCL
 line); see PIN-10. Still to confirm in production: which analog pin that sensor is really on, and that
 the output modules' active level is as V6/V7 assume.
+
+**RTC status:** RTC-1…RTC-5 implemented and host-tested (350 tests, Clang and GCC); RTC-1/2/4 and the battery backup validated on the R4 WiFi bench (`docs/results/rtc-test-wifi-20261006.md`). Firmware integration not yet flashed to hardware. RTC-6 is a hardware action for the owner.

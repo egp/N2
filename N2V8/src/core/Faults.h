@@ -17,6 +17,7 @@ enum class FaultId : uint8_t {
   kLcd,             // F10
   kLed,             // F11
   kO2Comm,          // F12
+  kRtc,             // F13
   kInvariant,       // F20
   kWatchdogReset,   // F30
   kBrownoutReset,   // F31
