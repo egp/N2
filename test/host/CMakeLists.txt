@@ -28,6 +28,7 @@ file(GLOB N2_TESTS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/test_*.cpp)
 add_executable(n2_tests ${N2_TESTS})
 target_include_directories(n2_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(n2_tests PRIVATE n2_core Catch2::Catch2WithMain)
+target_compile_definitions(n2_tests PRIVATE N2_DOCS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../../docs")
 
 include(CTest)
 include(Catch)

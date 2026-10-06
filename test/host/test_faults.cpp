@@ -1,5 +1,8 @@
 // Tests for Faults: FLT-1..FLT-4.
 #include <catch2/catch_test_macros.hpp>
+#include <fstream>
+#include <sstream>
+#include <string>
 #include <cstring>
 #include <set>
 
@@ -111,4 +114,27 @@ TEST_CASE("FLT-4: the fault table is complete, with unique codes and screen-size
   CHECK(faultInfo(FaultId::kRtc).code == 13);
   CHECK(faultInfo(FaultId::kRtc).severity == Severity::kInfo);  // the clock must never affect control
   CHECK(faultInfo(FaultId::kSensorOrder).severity == Severity::kInhibit);
+}
+
+// ============================================================================ docs/Fault_List.md stays in step with the table (FLT-4)
+TEST_CASE("FLT-4: every fault in the table is listed in docs/Fault_List.md with the same code, text and effect") {
+  std::ifstream in(std::string(N2_DOCS_DIR) + "/Fault_List.md");
+  REQUIRE(in.good());
+  std::stringstream buffer;
+  buffer << in.rdbuf();
+  const std::string doc = buffer.str();
+  for (uint8_t i = 0; i < kFaultCount; ++i) {
+    const FaultInfo& f = faultInfo(static_cast<FaultId>(i));
+    char code[8];
+    snprintf(code, sizeof code, "| F%02u |", static_cast<unsigned>(f.code));
+    const size_t at = doc.find(code);
+    INFO("fault F" << static_cast<unsigned>(f.code) << " is missing from docs/Fault_List.md");
+    REQUIRE(at != std::string::npos);
+    const std::string row = doc.substr(at, doc.find('\n', at) - at);
+    CHECK(row.find(std::string("| ") + f.text + " |") != std::string::npos);
+    CHECK(row.find(std::string("| ") + f.effect + " |") != std::string::npos);
+    const char* severity = f.severity == Severity::kInhibit ? "INHIBIT" : (f.severity == Severity::kWarn ? "WARN" : "INFO");
+    CHECK(row.find(std::string("| ") + severity + " |") != std::string::npos);
+    CHECK(row.find(f.latching ? "| **yes** |" : "| no |") != std::string::npos);
+  }
 }

@@ -127,7 +127,7 @@ TEST_CASE("§7.3: N2% is clamped to 99.99 and floored at 0") {
   {
     Rig r;
     r.warmup.begin(0, r.cfg.o2WarmupMs);
-    r.reader.o2x100 = 0;
+    r.reader.o2x100 = 1;  // 0.01 % O2: the smallest real reading (exactly 0 is a fault, O2-3a)
     r.o2.enable(0);
     REQUIRE(r.until([&] { return r.o2.n2Valid(); }, 20000));
     CHECK(r.o2.n2PercentX100() == 9999);
@@ -277,4 +277,27 @@ TEST_CASE("ARC-7: O2 transitions are logged with names and deadlines") {
   r.tick(0);
   CHECK(r.log.has("O2 \?\?->WM"));
   CHECK(r.log.lines.front() == "0+0 O2 OF->?? next:0");
+}
+
+TEST_CASE("O2-3a: a reading of exactly zero is a fault, not a perfect nitrogen supply") {
+  Rig r;
+  r.warmup.begin(0, r.cfg.o2WarmupMs);
+  r.reader.o2x100 = 0;
+  r.o2.enable(0);
+  REQUIRE(r.until([&] { return r.o2.state() == Rig::S::kError; }, 20000));
+  CHECK_FALSE(r.o2.commOk());
+  CHECK_FALSE(r.o2.n2Valid());
+}
+
+TEST_CASE("O2-3a: a zero in the middle of a run of good samples also fails the cycle, and the sensor recovers when it reads again") {
+  Rig r;
+  r.warmup.begin(0, r.cfg.o2WarmupMs);
+  r.reader.o2x100 = 150;
+  r.o2.enable(0);
+  REQUIRE(r.until([&] { return r.o2.state() == Rig::S::kSampling; }, 20000));
+  r.reader.o2x100 = 0;
+  REQUIRE(r.until([&] { return r.o2.state() == Rig::S::kError; }, 2000));
+  r.reader.o2x100 = 150;
+  REQUIRE(r.until([&] { return r.o2.n2Valid(); }, 900000));  // error retry, then a fresh warm-up
+  CHECK(r.o2.n2PercentX100() == 9850);  // 1.50 % O2 -> 98.50 % N2
 }

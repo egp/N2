@@ -90,7 +90,7 @@ void O2Controller::update(const Inputs& in) {
     case State::kFlushing:
       if (deadline_.reached(now)) {
         uint16_t value;
-        if (!reader_.readO2PercentX100(value)) {
+        if (!reader_.readO2PercentX100(value) || value == 0) {  // O2-3a: exactly 0.00 % O2 is not a real reading
           fail(now);
           break;
         }
@@ -103,7 +103,7 @@ void O2Controller::update(const Inputs& in) {
     case State::kSampling:
       if (deadline_.reached(now)) {
         uint16_t value;
-        if (!reader_.readO2PercentX100(value)) {
+        if (!reader_.readO2PercentX100(value) || value == 0) {  // O2-3a: exactly 0.00 % O2 is not a real reading
           fail(now);
           break;
         }
