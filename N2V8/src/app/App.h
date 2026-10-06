@@ -33,6 +33,7 @@ struct AppOptions {
   bool watchdogEnabled = true;       // WDT-1; a macro in the sketch can turn it off while debugging (WDT-5)
   uint32_t watchdogMs = 4000;        // reduced once real loop times are known (NFR-1)
   LcdLayout layout = LcdLayout::kClearLabels;
+  uint32_t lcdStartMs = kDefaultLcdStartMs;  // the LCD is left alone this long after boot (see DisplayManager::begin)
   uint32_t faultCycleMs = kDefaultFaultCycleMs;
   bool controllersEnabled = true;    // false in the DIAG build
   bool warmCreditEnabled = false;    // O2-6b: false until the reset probe has proven the credit logic on both boards

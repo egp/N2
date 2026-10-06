@@ -2,8 +2,9 @@
 
 namespace n2 {
 
-void DisplayManager::begin(uint32_t now) {
-  lcd_.begin(now);
+void DisplayManager::begin(uint32_t now, uint32_t lcdStartMs) {
+  if (lcdStartMs == 0) lcd_.begin(now);
+  else lcdStart_.arm(now, lcdStartMs);
   led_.begin(now);
 }
 
@@ -25,6 +26,10 @@ void DisplayManager::showNormal(const DisplayData& data, uint32_t now) {
 }
 
 void DisplayManager::service(uint32_t now) {
+  if (lcdStart_.reached(now)) {
+    lcd_.begin(now);
+    lcdStart_.clear();
+  }
   lcd_.service(now);
   led_.service(now);
 }

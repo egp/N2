@@ -342,7 +342,7 @@ TEST_CASE("DRV-3: display prints what the LCD and LED should show") {
   const std::string d = r.ask("display");
   CHECK(contains(d, "LCD normal screen:"));
   CHECK(contains(d, "|WRM  4:5"));  // production config: 5-minute warm-up countdown instead of N2%
-  CHECK(contains(d, "CMP "));
+  CHECK(contains(d, "LF --"));  // no fault raised yet; the compressor field only says CMP LO/HI when it is stopped
   CHECK(contains(d, "LED ["));
 }
 

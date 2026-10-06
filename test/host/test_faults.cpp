@@ -108,10 +108,10 @@ TEST_CASE("FLT-4: the fault table is complete, with unique codes and screen-size
   }
   CHECK(faultInfo(FaultId::kAirSensor).code == 1);
   CHECK(faultInfo(FaultId::kSensorOrder).code == 4);
-  CHECK(faultInfo(FaultId::kO2Comm).code == 12);
+  CHECK(faultInfo(FaultId::kO2Comm).code == 0x12);
   CHECK(faultInfo(FaultId::kInvariant).latching);
   CHECK(faultInfo(FaultId::kO2Comm).severity == Severity::kInhibit);
-  CHECK(faultInfo(FaultId::kRtc).code == 13);
+  CHECK(faultInfo(FaultId::kRtc).code == 0x13);  // codes are hex
   CHECK(faultInfo(FaultId::kRtc).severity == Severity::kInfo);  // the clock must never affect control
   CHECK(faultInfo(FaultId::kSensorOrder).severity == Severity::kInhibit);
 }
@@ -126,7 +126,7 @@ TEST_CASE("FLT-4: every fault in the table is listed in docs/Fault_List.md with 
   for (uint8_t i = 0; i < kFaultCount; ++i) {
     const FaultInfo& f = faultInfo(static_cast<FaultId>(i));
     char code[8];
-    snprintf(code, sizeof code, "| F%02u |", static_cast<unsigned>(f.code));
+    snprintf(code, sizeof code, "| F%02X |", static_cast<unsigned>(f.code));
     const size_t at = doc.find(code);
     INFO("fault F" << static_cast<unsigned>(f.code) << " is missing from docs/Fault_List.md");
     REQUIRE(at != std::string::npos);
@@ -136,5 +136,29 @@ TEST_CASE("FLT-4: every fault in the table is listed in docs/Fault_List.md with 
     const char* severity = f.severity == Severity::kInhibit ? "INHIBIT" : (f.severity == Severity::kWarn ? "WARN" : "INFO");
     CHECK(row.find(std::string("| ") + severity + " |") != std::string::npos);
     CHECK(row.find(f.latching ? "| **yes** |" : "| no |") != std::string::npos);
+  }
+}
+
+TEST_CASE("FLT-4: lastCode() remembers the most recently RAISED fault, even after it clears") {
+  NullLogSink log;
+  FaultSet f(log);
+  CHECK(f.lastCode() == 0);
+  f.report(FaultId::kLcd, true, 0, 1000);
+  CHECK(f.lastCode() == 0x10);
+  f.report(FaultId::kO2Comm, true, 10, 1000);
+  CHECK(f.lastCode() == 0x12);
+  f.report(FaultId::kO2Comm, false, 20, 1000);
+  f.report(FaultId::kO2Comm, false, 2000, 1000);
+  CHECK_FALSE(f.active(FaultId::kO2Comm));
+  CHECK(f.lastCode() == 0x12);  // it is a record of what happened, not of what is active now
+}
+
+TEST_CASE("FLT-4: codes are hex with the group in the high digit, all distinct, all below 0x50") {
+  uint8_t seen[kFaultCount];
+  for (uint8_t i = 0; i < kFaultCount; ++i) {
+    seen[i] = faultInfo(static_cast<FaultId>(i)).code;
+    CHECK(seen[i] != 0);
+    CHECK(seen[i] < 0x50);
+    for (uint8_t j = 0; j < i; ++j) CHECK(seen[j] != seen[i]);
   }
 }

@@ -74,10 +74,8 @@ n2::Bringup& app() {
 #if defined(N2_NO_WATCHDOG)
     o.watchdogEnabled = false;
 #endif
-#if defined(STAGE1_LCD_START_MS)  // debugging: leave the LCD alone for this long after boot, and no extra re-inits
+#if defined(STAGE1_LCD_START_MS)  // debugging: override how long the LCD is left alone after boot (default 2500 ms)
     o.lcdStartMs = STAGE1_LCD_START_MS;
-    o.lcdReinit1Ms = 0;
-    o.lcdReinit2Ms = 0;
 #endif
     return o;
   }();

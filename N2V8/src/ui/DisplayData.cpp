@@ -35,6 +35,7 @@ DisplayData makeDisplayData(const System& sys, uint8_t adcBits) {
   d.tbs = in.tbs;
 
   FaultId id;
+  d.lastFaultCode = sys.faults().lastCode();
   for (uint8_t i = 0; i < kFaultCount && sys.faults().nth(i, Severity::kWarn, id); ++i) d.faults[d.faultCount++] = id;
   return d;
 }

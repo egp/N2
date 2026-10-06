@@ -36,7 +36,7 @@ struct Rig {
   }
   // Run until POST finishes; returns the time it finished or -1.
   int64_t runToEnd(uint32_t limitMs = 20000) {
-    display.begin(0);
+    display.begin(0, 0);
     post.begin(0);
     for (uint32_t t = 0; t <= limitMs; t += 10) {
       if (pass(t)) return t;
@@ -88,7 +88,7 @@ TEST_CASE("POST-2: all seven checks log one line each, in order, then the summar
 
 TEST_CASE("DSP-8: the start-up banner (version, board, date) is on the LCD while POST runs") {
   Rig r;
-  r.display.begin(0);
+  r.display.begin(0, 0);
   r.post.begin(0);
   for (uint32_t t = 0; t < 400; t += 10) r.pass(t);
   CHECK(row(r, 0) == "N2V8 0.0.0-test     ");
@@ -98,7 +98,7 @@ TEST_CASE("DSP-8: the start-up banner (version, board, date) is on the LCD while
 
 TEST_CASE("POST-5: a clean POST ends with 'POST OK' on the LCD for about a second") {
   Rig r;
-  r.display.begin(0);
+  r.display.begin(0, 0);
   r.post.begin(0);
   bool sawOk = false;
   for (uint32_t t = 0; t < 3000; t += 10) {
@@ -205,7 +205,7 @@ TEST_CASE("POST-4: while held, the screen steps through the faults every few sec
   Rig r;
   r.gen.rawAir(0);
   r.gen.rawN2High(0);
-  r.display.begin(0);
+  r.display.begin(0, 0);
   r.post.begin(0);
   std::string firstSeen, laterSeen;
   for (uint32_t t = 0; t < 20000; t += 10) {

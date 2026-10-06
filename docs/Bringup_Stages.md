@@ -33,3 +33,9 @@ POST reports the LCD OK and the driver counts **0 I2C errors**. Findings so far:
 - Next experiments: delay the first LCD touch until 2.5 s after boot (`-DSTAGE1_LCD_START_MS=2500`), a 100 nF capacitor across the backpack's
   VCC/GND, and a longer power-up wait before the first nibble.
 Debug switches: `-DSTAGE1_NO_MATRIX`, `-DN2_I2C_HZ=30000`, `-DSTAGE1_LCD_START_MS=2500`; console `lcd`, `lcd reinit`, `lcd bus [n]`.
+
+**Resolved (2026-10-06 afternoon):** leaving the LCD untouched for the first 2.5 s after boot (`kDefaultLcdStartMs`, in `DisplayManager` and
+`Bringup`) gave **5 clean resets in 5** (RTC absent, matrix on, 100 kHz). Earlier builds that initialised the LCD within ~0.1 s of boot failed
+roughly half the time. The cause is start-up timing right after a reset, not the bus (the `lcd bus` test is clean), the RTC or the matrix.
+The extra re-initialisations and early rewrites are kept as options (`lcdReinit1Ms`, `lcdReinit2Ms`, off by default). To re-test with the RTC
+fitted: reset six times, wait 10 s each.

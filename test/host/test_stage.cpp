@@ -35,7 +35,9 @@ struct Rig {
     if (rtc) hal.i2cPresent.insert(0x68);
     const SignalDef& tob = def(kHostBoard, Signal::kTob);
     hal.inputLevel[tob.pin] = levelHigh(false, tob.active);  // TOB not pressed
-    app.reset(new Bringup(hal, kHostBoard, info, withMatrix ? &matrix : nullptr));
+    BringupOptions opt;
+    opt.lcdStartMs = 0;  // LCD at once (the real default waits 2.5 s: see the start-delay tests)
+    app.reset(new Bringup(hal, kHostBoard, info, withMatrix ? &matrix : nullptr, opt));
   }
   void setRtc(const DateTime& t) { Rtc3231 r(hal, 0x68); REQUIRE(r.set(t)); }
   void boot() { hal.nowMs = 0; app->setup(); }
@@ -505,13 +507,13 @@ TEST_CASE("DSP-7: the stage firmware rewrites the LCD every few seconds and `lcd
   CHECK(r.hal.i2cWrites.size() > writes + 60);  // a periodic full rewrite happened
   r.clearOut();
   r.type("lcd");
-  CHECK(r.has("LCD: ready, I2C errors 0, re-initialisations 2"));
+  CHECK(r.has("LCD: ready, I2C errors 0, re-initialisations 0"));
   r.clearOut();
   r.type("lcd reinit");
   CHECK(r.has("LCD controller restarting"));
   r.run(1000);
   r.type("lcd");
-  CHECK(r.has("re-initialisations 3"));
+  CHECK(r.has("re-initialisations 1"));
   CHECK(r.has("in sync"));
   r.type("lcd bogus");
   CHECK(r.has("usage: lcd [reinit | bus [rounds]]"));
@@ -532,19 +534,28 @@ TEST_CASE("DSP-7: after boot the LCD is rewritten early (250 ms, 500 ms, 1 s...)
   CHECK(perTenSeconds < 700);  // settled: about two full rewrites (plus the changing clock row) per 10 s
 }
 
-TEST_CASE("DSP-7: after boot the LCD controller is re-initialised twice more (0.3 s and 1.2 s) and then left alone") {
-  Rig r;
-  r.setRtc({2026, 10, 6, 10, 31, 2});
-  r.boot();
-  r.run(200);
-  CHECK(r.app->lcd().reinitCount() == 0);
-  r.run(300);
-  CHECK(r.app->lcd().reinitCount() == 1);
-  r.run(1000);
-  CHECK(r.app->lcd().reinitCount() == 2);
-  r.run(20000);
-  CHECK(r.app->lcd().reinitCount() == 2);
-  CHECK(r.app->lcd().inSync());
+TEST_CASE("DSP-7: optional extra LCD re-initialisations (0.3 s and 1.2 s after boot) happen when asked for, and only then") {
+  FakeHal hal;
+  hal.i2cPresent.insert(0x27);
+  RecordingMatrix matrix;
+  BuildInfo info{"8.0.0-test", "Jan  1 2026", "12:00:00", "host (fake)", "HOST", 10};
+  BringupOptions opt;
+  opt.lcdStartMs = 0;
+  opt.lcdReinit1Ms = 300;
+  opt.lcdReinit2Ms = 1200;
+  Bringup app(hal, kHostBoard, info, &matrix, opt);
+  hal.consoleIsAttached = true;
+  app.setup();
+  auto run = [&](uint32_t ms) { for (uint32_t t = 0; t < ms; t += 10) { hal.nowMs += 10; app.loop(); } };
+  run(200);
+  CHECK(app.lcd().reinitCount() == 0);
+  run(300);
+  CHECK(app.lcd().reinitCount() == 1);
+  run(1000);
+  CHECK(app.lcd().reinitCount() == 2);
+  run(20000);
+  CHECK(app.lcd().reinitCount() == 2);
+  CHECK(app.lcd().inSync());
 }
 
 TEST_CASE("DSP-7: with lcdStartMs set, nothing is sent to the LCD until that time") {
@@ -598,4 +609,21 @@ TEST_CASE("DSP-7: the bus test never pulses EN, so the LCD itself is not disturb
     for (uint8_t b : hal.i2cWrites[i].bytes) CHECK((b & 0x07) == 0);  // RS, RW, EN all low
   }
   CHECK(hal.i2cWrites.back().bytes.back() == 0x08);  // backlight on, everything else low
+}
+
+TEST_CASE("DSP-7: by default the LCD is not touched for 2.5 s after boot (bench finding), then comes up normally") {
+  FakeHal hal;
+  hal.i2cPresent.insert(0x27);
+  RecordingMatrix matrix;
+  BuildInfo info{"8.0.0-test", "Jan  1 2026", "12:00:00", "host (fake)", "HOST", 10};
+  Bringup app(hal, kHostBoard, info, &matrix);  // default options
+  hal.consoleIsAttached = true;
+  app.setup();
+  for (uint32_t t = 0; t < 2400; t += 10) { hal.nowMs += 10; app.loop(); }
+  size_t toLcd = 0;
+  for (const auto& w : hal.i2cWrites) if (w.address == 0x27) ++toLcd;
+  CHECK(toLcd == 0);
+  for (uint32_t t = 0; t < 3000; t += 10) { hal.nowMs += 10; app.loop(); }
+  CHECK(app.lcd().ready());
+  CHECK(app.lcd().inSync());
 }

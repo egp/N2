@@ -12,7 +12,7 @@ LedText renderLed(const DisplayData& d, bool showFault) {
   memcpy(t.digit, "    ", 5);
   t.dotAfter = -1;
   if (showFault && d.faultCount > 0) {
-    snprintf(t.digit, sizeof t.digit, " F%02u", static_cast<unsigned>(faultInfo(d.faults[0]).code % 100u));
+    snprintf(t.digit, sizeof t.digit, " F%02X", static_cast<unsigned>(faultInfo(d.faults[0]).code));
     return t;
   }
   if (!d.tbs) return t;

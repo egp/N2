@@ -27,7 +27,7 @@ enum class FaultId : uint8_t {
 constexpr uint8_t kFaultCount = static_cast<uint8_t>(FaultId::kCount);
 
 struct FaultInfo {
-  uint8_t code;
+  uint8_t code;        // hex, shown as Fxx (group = high digit)
   const char* text;    // at most 16 characters, so "Fnn " + text fits one 20-column LCD row
   Severity severity;
   bool latching;       // stays active until reset
@@ -46,6 +46,8 @@ class FaultSet {
   // latching faults never clear.
   void report(FaultId id, bool condition, uint32_t now, uint32_t holdMs);
 
+  // The code of the fault most recently RAISED (even if it has cleared since), or 0 if none has been raised since power-up.
+  uint8_t lastCode() const { return lastCode_; }
   bool active(FaultId id) const { return slot_[static_cast<uint8_t>(id)].active; }
   uint8_t activeCount(Severity atLeast = Severity::kInfo) const;
   bool anyAtLeast(Severity s) const { return activeCount(s) > 0; }
@@ -60,6 +62,7 @@ class FaultSet {
   };
   LogSink& log_;
   Slot slot_[kFaultCount];
+  uint8_t lastCode_ = 0;
 };
 
 }  // namespace n2

@@ -3,20 +3,21 @@
 namespace n2 {
 
 namespace {
-// Order must match enum FaultId. Text <= 20 characters.
+// Order must match enum FaultId. Codes are HEX (shown as Fxx): the high digit is the group: 0x sensors, 1x devices, 2x safety,
+// 3x resets, 4x console. One byte allows 256 codes; the unit needs about a dozen.
 const FaultInfo kTable[kFaultCount] = {
-    {1, "AIR SENSOR RANGE", Severity::kInhibit, false, "TOWERS HELD OFF"},
-    {2, "N2L SENSOR RANGE", Severity::kInhibit, false, "SSR HELD OFF"},
-    {3, "N2H SENSOR RANGE", Severity::kInhibit, false, "TOWERS+SSR OFF"},
-    {4, "N2L ABOVE N2H", Severity::kInhibit, false, "TOWERS+SSR OFF"},
-    {10, "LCD NO ACK", Severity::kInfo, false, "LOG ONLY"},
-    {11, "LED NO ACK", Severity::kInfo, false, "LOG ONLY"},
-    {12, "O2 SENSOR FAILED", Severity::kInhibit, false, "ALL OUTPUTS OFF"},
-    {13, "RTC UNAVAILABLE", Severity::kInfo, false, "LOG ONLY"},
-    {20, "INVARIANT BROKEN", Severity::kInhibit, true, "FORCED SAFE STATE"},
-    {30, "WATCHDOG RESET", Severity::kWarn, false, "RESET WAS LOGGED"},
-    {31, "BROWN-OUT RESET", Severity::kWarn, false, "RESET WAS LOGGED"},
-    {40, "CONSOLE DROPPED", Severity::kInfo, false, "LOG ONLY"},
+    {0x01, "AIR SENSOR RANGE", Severity::kInhibit, false, "TOWERS HELD OFF"},
+    {0x02, "N2L SENSOR RANGE", Severity::kInhibit, false, "SSR HELD OFF"},
+    {0x03, "N2H SENSOR RANGE", Severity::kInhibit, false, "TOWERS+SSR OFF"},
+    {0x04, "N2L ABOVE N2H", Severity::kInhibit, false, "TOWERS+SSR OFF"},
+    {0x10, "LCD NO ACK", Severity::kInfo, false, "LOG ONLY"},
+    {0x11, "LED NO ACK", Severity::kInfo, false, "LOG ONLY"},
+    {0x12, "O2 SENSOR FAILED", Severity::kInhibit, false, "ALL OUTPUTS OFF"},
+    {0x13, "RTC UNAVAILABLE", Severity::kInfo, false, "LOG ONLY"},
+    {0x20, "INVARIANT BROKEN", Severity::kInhibit, true, "FORCED SAFE STATE"},
+    {0x30, "WATCHDOG RESET", Severity::kWarn, false, "RESET WAS LOGGED"},
+    {0x31, "BROWN-OUT RESET", Severity::kWarn, false, "RESET WAS LOGGED"},
+    {0x40, "CONSOLE DROPPED", Severity::kInfo, false, "LOG ONLY"},
 };
 }  // namespace
 
@@ -29,7 +30,8 @@ void FaultSet::report(FaultId id, bool condition, uint32_t now, uint32_t holdMs)
     s.clearing = false;
     if (!s.active) {
       s.active = true;
-      logf(log_, LogLevel::kWarn, "%lu FAULT F%02u raised: %s", static_cast<unsigned long>(now), info.code, info.text);
+      lastCode_ = info.code;
+      logf(log_, LogLevel::kWarn, "%lu FAULT F%02X raised: %s", static_cast<unsigned long>(now), info.code, info.text);
     }
     return;
   }
@@ -41,7 +43,7 @@ void FaultSet::report(FaultId id, bool condition, uint32_t now, uint32_t holdMs)
   if (static_cast<uint32_t>(now - s.clearSince) >= holdMs) {
     s.active = false;
     s.clearing = false;
-    logf(log_, LogLevel::kInfo, "%lu FAULT F%02u cleared", static_cast<unsigned long>(now), info.code);
+    logf(log_, LogLevel::kInfo, "%lu FAULT F%02X cleared", static_cast<unsigned long>(now), info.code);
   }
 }
 

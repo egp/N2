@@ -4,6 +4,8 @@ Every fault the firmware can raise. **This file is checked by a host test** (`te
 `N2V8/src/core/Faults.cpp`, so the list cannot drift from the code. Where it is shown: the LCD fault screen (code, text, effect), the
 console `faults` command, and the log line `FAULT Fnn raised: <text>`.
 
+Codes are **hexadecimal** (two digits, shown `Fxx`); the high digit is the group. One byte allows 256 codes; the unit needs about a dozen.
+
 Severity: **INHIBIT** = the firmware switches outputs off (see the invariants); **WARN** = shown and logged, control continues;
 **INFO** = logged only. A fault clears after its condition has stayed false for the hold time (`faultHoldMs`), unless it is *latching*.
 

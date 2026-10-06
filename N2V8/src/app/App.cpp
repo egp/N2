@@ -47,7 +47,7 @@ void App::setup() {
   const uint32_t credit = credit_.begin(resetInfo_, now);
   sys_.begin(resetInfo_, credit);
   post_.setResetInfo(resetInfo_);
-  display_.begin(now);
+  display_.begin(now, opt_.lcdStartMs);
   tobAtBoot_ = tobPressed();  // TOB held at power-up asks for the BIST (RST-6)
 
   logf(console_, LogLevel::kInfo, "%lu BOOT N2V8 %s %s mode %s reset: %s", static_cast<unsigned long>(now), info_.version,

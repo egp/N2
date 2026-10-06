@@ -23,6 +23,7 @@
 #include "../selftest/RtcCheck.h"
 #include "../selftest/SelfTest.h"
 #include "../ui/BuildInfo.h"
+#include "../ui/DisplayManager.h"
 #include "../ui/Console.h"
 #include "../ui/MatrixFrame.h"
 #include "../ui/StageCommands.h"
@@ -37,9 +38,9 @@ struct BringupOptions {
   uint32_t bannerRepeatMs = 3000;    // WiFi board: repeat the banner until the PC has been heard
   uint32_t screenMs = 250;           // LCD and matrix refresh period
   uint32_t lcdRewriteMs = 5000;      // rewrite the whole LCD this often, to repair noise that left no I2C error
-  uint32_t lcdStartMs = 0;           // do not touch the LCD until this long after boot (0 = at once)
-  uint32_t lcdReinit1Ms = 300;       // re-initialise the LCD controller again this long after boot, and
-  uint32_t lcdReinit2Ms = 1200;      // again at this time: a controller left in a bad state by the last run needs it
+  uint32_t lcdStartMs = kDefaultLcdStartMs;  // do not touch the LCD until this long after boot (0 = at once); see DisplayManager::begin
+  uint32_t lcdReinit1Ms = 0;         // optional extra re-initialisations of the LCD controller this long after it starts, and
+  uint32_t lcdReinit2Ms = 0;         // again at this time (0 = off). Not needed once the start is delayed (bench 2026-10-06)
   uint32_t lcdFirstRewriteMs = 250;  // after a boot or re-init the first writes are the likeliest to be damaged:
                                      // rewrite after this long, then at twice the gap each time, up to lcdRewriteMs
 };

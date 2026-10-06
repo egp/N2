@@ -204,7 +204,7 @@ bool Commands::Status::line(uint8_t i, char* b, size_t n) {
         int len = snprintf(b, n, "FAULTS %u:", static_cast<unsigned>(k));
         FaultId id;
         for (uint8_t j = 0; s.faults().nth(j, Severity::kInfo, id) && len > 0 && static_cast<size_t>(len) < n; ++j)
-          len += snprintf(b + len, n - static_cast<size_t>(len), " F%02u", static_cast<unsigned>(faultInfo(id).code));
+          len += snprintf(b + len, n - static_cast<size_t>(len), " F%02X", static_cast<unsigned>(faultInfo(id).code));
       }
       return true;
     }
@@ -226,7 +226,7 @@ bool Commands::Faults::line(uint8_t i, char* b, size_t n) {
   }
   if (!f.nth(i, Severity::kInfo, id)) return false;
   const FaultInfo& info = faultInfo(id);
-  snprintf(b, n, "F%02u %-16s %-7s %s", static_cast<unsigned>(info.code), info.text,
+  snprintf(b, n, "F%02X %-16s %-7s %s", static_cast<unsigned>(info.code), info.text,
            info.severity == Severity::kInhibit ? "INHIBIT" : (info.severity == Severity::kWarn ? "WARNING" : "INFO"),
            info.effect);
   return true;

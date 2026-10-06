@@ -33,7 +33,7 @@ struct Rig {
         bist(gen.hal, kHostBoard, gen.sys(), display, console, gen.o2, info, bc) {
     gen.hal.consoleIsAttached = true;
     gen.hal.i2cPresent = {0x24, 0x34, 0x35, 0x36, 0x37, 0x27, 0x74, 0x68};
-    display.begin(0);
+    display.begin(0, 0);  // LCD at once (the real default waits 2.5 s)
   }
 
   // One pass: displays, console, BIST.

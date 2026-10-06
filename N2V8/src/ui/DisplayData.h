@@ -38,6 +38,7 @@ struct DisplayData {
 
   bool tbs = false;                 // LED only; not shown on the LCD
 
+  uint8_t lastFaultCode = 0;        // hex code of the most recently raised fault (even if cleared since); 0 = none since power-up
   uint8_t faultCount = 0;           // active faults of severity >= WARN, in table order
   FaultId faults[kFaultCount] = {};
 };

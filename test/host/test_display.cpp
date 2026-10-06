@@ -59,7 +59,7 @@ TEST_CASE("DSP-4 option 1: normal screen") {
   expectScreen(renderNormal(running(), LcdLayout::kClearLabels),
                "N2% 99.99  O2 S     ",
                "N2L 12.34 N2H  98.7 ",
-               "CMP ON  TWR LB  LRFS",
+               "LF --   TWR LB  LRFS",
                "AIR 123.4       1001");
 }
 
@@ -99,7 +99,7 @@ TEST_CASE("DSP-4/O2-6: during warm-up the countdown replaces N2% (both layouts)"
   expectScreen(renderNormal(d, LcdLayout::kClearLabels),
                "WRM  4:32  O2 WM    ",
                "N2L 12.34 N2H  98.7 ",
-               "CMP ON  TWR OF  LRFS",
+               "LF --   TWR OF  LRFS",
                "AIR 123.4       0001");
   CHECK(std::string(renderNormal(d, LcdLayout::kCompact).row[0]) == "WRM  4:32  O2 WM    ");
 }
@@ -110,7 +110,7 @@ TEST_CASE("DSP-3/DSP-4: everything disabled (TBS off): states OF, bits 0000, N2%
   expectScreen(renderNormal(d, LcdLayout::kClearLabels),
                "N2% --.--  O2 OF    ",
                "N2L 12.34 N2H  98.7 ",
-               "CMP OF  TWR OF  LRFS",
+               "LF --   TWR OF  LRFS",
                "AIR 123.4       0000");
 }
 
@@ -305,4 +305,17 @@ TEST_CASE("DSP-1: makeDisplayData reflects a running system, and the faults of s
   const Screen s = renderFault(d, 0);
   CHECK(std::string(s.row[1]) == "F03 N2H SENSOR RANGE");
   CHECK(std::string(s.row[2]) == "RAW 0  0.00V        ");
+}
+
+TEST_CASE("DSP-4: row 2 shows the last fault raised as two hex digits (LF 12), or LF -- when none, and CMP LO/HI wins when stopped") {
+  DisplayData d = running();
+  d.lastFaultCode = 0x12;
+  CHECK(std::string(renderNormal(d, LcdLayout::kClearLabels).row[2]).substr(0, 5) == "LF 12");
+  d.lastFaultCode = 0x1F;
+  CHECK(std::string(renderNormal(d, LcdLayout::kClearLabels).row[2]).substr(0, 5) == "LF 1F");
+  d.lastFaultCode = 0;
+  CHECK(std::string(renderNormal(d, LcdLayout::kClearLabels).row[2]).substr(0, 5) == "LF --");
+  d.compressor = "LO";
+  d.lastFaultCode = 0x12;
+  CHECK(std::string(renderNormal(d, LcdLayout::kClearLabels).row[2]).substr(0, 6) == "CMP LO");
 }

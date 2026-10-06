@@ -130,7 +130,7 @@ void Post::showResult(uint32_t now, uint8_t firstFault, bool holdPrompt) {
   char* bufs[2] = {r1, r2};
   for (uint8_t k = 0; k < 2; ++k) {
     if (problems_ > 0 && f.nth(static_cast<uint8_t>((firstFault + k) % problems_), Severity::kInfo, id) && (k == 0 || problems_ > 1)) {
-      snprintf(bufs[k], 24, "F%02u %s", static_cast<unsigned>(faultInfo(id).code), faultInfo(id).text);
+      snprintf(bufs[k], 24, "F%02X %s", static_cast<unsigned>(faultInfo(id).code), faultInfo(id).text);
       lines[k] = bufs[k];
     }
   }
@@ -138,7 +138,7 @@ void Post::showResult(uint32_t now, uint8_t firstFault, bool holdPrompt) {
   LedText led;
   snprintf(led.digit, sizeof led.digit, "    ");
   led.dotAfter = -1;
-  if (problems_ > 0 && f.nth(firstFault % problems_, Severity::kInfo, id)) snprintf(led.digit, sizeof led.digit, " F%02u", static_cast<unsigned>(faultInfo(id).code % 100u));
+  if (problems_ > 0 && f.nth(firstFault % problems_, Severity::kInfo, id)) snprintf(led.digit, sizeof led.digit, " F%02X", static_cast<unsigned>(faultInfo(id).code));
   display_.setOverride(s, led, now);
 }
 

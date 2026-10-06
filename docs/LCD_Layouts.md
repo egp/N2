@@ -95,9 +95,9 @@ A warning-level fault uses `WARNING` in the header. The LED shows `F03`.
 3. **TBS is not shown** on the LCD (TBS on the display was dropped; the LED/LCD simply show the state of the system).
 4. Fault screen cycle: still open, 3 s or 4 s (the code uses a constant, `LCD_FAULT_CYCLE_MS`).
 
-**Not yet done in the code:** the renders below are still the pre-decision ones (they show `CMP ON/OF`). Changing them means editing `renderNormal`
-in `LcdScreens.cpp` and the expected text in `test/host/test_display.cpp` together. Waiting for the owner to say what should use the reclaimed
-row-2 space (candidates: the O2 sample count, loop time, or the last fault code).
+**Done in the code (2026-10-06):** row 2, columns 0-5 now show `CMP LO` / `CMP HI` only while the compressor is stopped for that reason; otherwise
+the **code of the last fault raised** as two hex digits (`LF 12`), or `LF --` if none has been raised since power-up. Fault codes are hex everywhere
+(LCD, LED, console, log): `Fxx`, high digit = group (see `docs/Fault_List.md`).
 
 ## Real renders (output of `render_screens`, i.e. what the firmware's own code produces)
 
@@ -113,7 +113,7 @@ normal running
    01234567890123456789
   |N2% 99.99  O2 S     |
   |N2L 12.34 N2H  98.7 |
-  |CMP ON  TWR LB  LRFS|
+  |LF --   TWR LB  LRFS|
   |AIR 123.4       1001|
 
 O2 warming up (4:32 left), tower held off
@@ -121,7 +121,7 @@ O2 warming up (4:32 left), tower held off
    01234567890123456789
   |WRM  4:32  O2 WM    |
   |N2L 12.34 N2H  98.7 |
-  |CMP ON  TWR OF  LRFS|
+  |LF --   TWR OF  LRFS|
   |AIR 123.4       0001|
 
 TBS off (everything disabled, N2% invalid)
@@ -129,7 +129,7 @@ TBS off (everything disabled, N2% invalid)
    01234567890123456789
   |N2% --.--  O2 OF    |
   |N2L 12.34 N2H  98.7 |
-  |CMP OF  TWR OF  LRFS|
+  |LF --   TWR OF  LRFS|
   |AIR 123.4       0000|
 
 N2% stale (pressures out of range)
@@ -137,7 +137,7 @@ N2% stale (pressures out of range)
    01234567890123456789
   |N2% 99.99* O2 W     |
   |N2L 12.34 N2H  98.7 |
-  |CMP ON  TWR LB  LRFS|
+  |LF --   TWR LB  LRFS|
   |AIR 123.4       1001|
 
 compressor stopped, N2-high too high

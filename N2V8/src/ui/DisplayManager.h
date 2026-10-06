@@ -20,6 +20,7 @@
 
 namespace n2 {
 
+constexpr uint32_t kDefaultLcdStartMs = 2500;    // see DisplayManager::begin
 constexpr uint32_t kDefaultFaultCycleMs = 4000;  // LCD_FAULT_CYCLE_MS (3000..4000)
 
 class DisplayManager {
@@ -27,7 +28,9 @@ class DisplayManager {
   DisplayManager(Hal& hal, const BoardDef& board, LcdLayout layout, uint32_t faultCycleMs = kDefaultFaultCycleMs)
       : layout_(layout), lcd_(hal, board.addrLcd), led_(hal, board.addrLed, board.addrLedDigits), cycle_(faultCycleMs) {}
 
-  void begin(uint32_t now);
+  // The LCD is not touched until lcdStartMs after boot (bench finding 2026-10-06: initialising it within the first ~2 s after a
+  // reset left it showing random characters; waiting 2.5 s gave 5 clean resets in 5). The LED has no such problem.
+  void begin(uint32_t now, uint32_t lcdStartMs = kDefaultLcdStartMs);
 
   // Normal operation: call once per pass with fresh data.
   void showNormal(const DisplayData& data, uint32_t now);
@@ -52,6 +55,7 @@ class DisplayManager {
   Led1650 led_;
   ScreenCycle cycle_;
   Deadline timer_;
+  Deadline lcdStart_;
   bool override_ = false;
 };
 
