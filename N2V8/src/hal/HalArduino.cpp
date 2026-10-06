@@ -73,18 +73,24 @@ int HalArduino::consoleRead() { return Serial.available() > 0 ? Serial.read() : 
 void HalArduino::watchdogBegin(uint32_t timeoutMs) { WDT.begin(timeoutMs); }
 void HalArduino::watchdogRefresh() { WDT.refresh(); }
 
-// UNVERIFIED until the reset probe (experiments/reset_probe) has been run on both boards:
-// RSTSR0.PORF = power-on, RSTSR1.WDTRF/IWDTRF = watchdog, RSTSR0.LVD0RF = voltage monitor.
+// Reset cause, verified on the UNO R4 WiFi with experiments/reset_probe (docs/results/reset-probe-wifi-20261006.md):
+//   * RSTSR1.SWRF (0x04) = software reset, RSTSR1.WDTRF (0x02) / IWDTRF (0x01) = watchdog, nothing flagged = reset button.
+//   * RSTSR0.PORF is NOT visible (the bootloader clears it), so "was power lost?" is taken from RSTSR2.CWSF instead:
+//     it reads 0 after a power loss ("cold start") and the firmware sets it to 1 here, so every later reset that does not
+//     lose power reads 1 ("warm start").
+//   * The flags persist until cleared, so they are cleared after reading. Plain writes work (no register unlock needed).
 ResetInfo HalArduino::readResetCause() {
   const uint8_t r0 = R_SYSTEM->RSTSR0;
   const uint16_t r1 = R_SYSTEM->RSTSR1;
+  const uint8_t r2 = R_SYSTEM->RSTSR2;
   ResetInfo info;
   info.known = true;
-  info.powerOn = (r0 & 0x01) != 0;
-  info.brownout = (r0 & 0x0E) != 0;
+  info.powerOn = ((r2 & 0x01) == 0) || ((r0 & 0x01) != 0);  // cold start, or PORF if it ever shows
+  info.brownout = (r0 & 0x0E) != 0;                         // voltage-monitor resets
   info.watchdog = (r1 & 0x03) != 0;
-  R_SYSTEM->RSTSR0 = 0;  // clear so the next reset shows only its own cause
+  R_SYSTEM->RSTSR0 = 0;
   R_SYSTEM->RSTSR1 = 0;
+  R_SYSTEM->RSTSR2 = 0x01;  // from now on, a reset without power loss reads as a WARM start
   return info;
 }
 
