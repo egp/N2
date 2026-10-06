@@ -6,7 +6,12 @@
 //      software reset, but NOT a power loss?
 //   3. Does opening/closing the Serial Monitor reset the board?
 //
-// It touches NO output pins and starts no devices. Safe on a bare board.
+// It starts no devices and drives NO pin except the board's own LED (LED_BUILTIN), which blinks the result so the
+// experiment still works even if the USB serial link misbehaves:
+//   cause blinks  : 1 = power-on, 2 = reset button / external pin, 3 = watchdog, 4 = software reset, 5 = other
+//   then a pause, then ONE long blink = warm-up credit > 0 (valid RAM record AND not a power-on reset),
+//                    or ONE very short blink = no credit.   Then the pattern repeats forever.
+// Safe on a bare board.
 // Open the Serial Monitor at any speed; the report prints whenever a console attaches.
 //
 // Keys (type the letter, press Enter):
@@ -81,6 +86,34 @@ static void printReport() {
   Serial.println(F("============================"));
 }
 
+
+// ---- LED beacon (no serial needed): non-blocking blink pattern, see the header ----
+static uint8_t causeBlinks() {
+  if (rst0 & 0x01) return 1;                 // power-on
+  if (rst1 & 0x03) return 3;                 // watchdog (WDT or IWDT)
+  if (rst1 & 0x04) return 4;                 // software
+  if (rst0 & 0x0E) return 5;                 // voltage monitor
+  return 2;                                  // nothing flagged: reset pin (the reset button)
+}
+
+static void beacon(uint32_t now) {
+  // One cycle: N cause blinks (150 ms on / 250 ms off), 1.2 s pause, the credit blink, 2.5 s pause.
+  static uint32_t cycleStart = 0;
+  static bool started = false;
+  if (!started) { started = true; cycleStart = now; }
+  const uint32_t n = causeBlinks();
+  const uint32_t blinksEnd = n * 400u;
+  const uint32_t creditStart = blinksEnd + 1200u;
+  const uint32_t creditLen = creditMs > 0 ? 1000u : 60u;
+  const uint32_t cycleLen = creditStart + creditLen + 2500u;
+  uint32_t t = now - cycleStart;
+  if (t >= cycleLen) { cycleStart += cycleLen; t -= cycleLen; }
+  bool on = false;
+  if (t < blinksEnd) on = (t % 400u) < 150u;
+  else if (t >= creditStart && t < creditStart + creditLen) on = true;
+  digitalWrite(LED_BUILTIN, on ? HIGH : LOW);
+}
+
 void setup() {
   // Read the reset flags before anything else can disturb them.
   rst0 = R_SYSTEM->RSTSR0;
@@ -107,9 +140,11 @@ void setup() {
   rec.lastSeenMs = millis();
   rec.runMs = baseRunMs + millis();
   seal();
+  pinMode(LED_BUILTIN, OUTPUT);  // only after the flags are safely read
 }
 
 void loop() {
+  beacon(millis());
   rec.lastSeenMs = millis();
   rec.runMs = baseRunMs + millis();
   seal();

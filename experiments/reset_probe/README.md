@@ -4,8 +4,8 @@
 reset button, (2) whether a RAM record survives reset but not power loss, (3) whether opening the
 Serial Monitor resets the board. These decide Requirements O2-6a/6b and CON-3.
 
-**Safe and bare:** the sketch touches no pins and starts no devices (no LCD, no LED, no I2C). All you need is the Arduino and
-its USB cable. Nothing needs to be wired.
+**Safe and bare:** the sketch starts no devices (no LCD, no LED display, no I2C) and drives no pin except the board's own
+built-in LED. All you need is the Arduino and its USB cable. Nothing needs to be wired.
 Run it on the **UNO R4 WiFi** first; repeat on the Minima when convenient.
 
 ## Upload
@@ -28,6 +28,21 @@ Arduino IDE: open `experiments/reset_probe/reset_probe.ino`, board *Arduino UNO 
 
 Also note: do the "flags after clearing" values read 0? If not, the flags cannot be cleared this way and
 the design must change (PORF would stay set until power-off).
+
+## The built-in LED also reports the result (works even with no serial output)
+After every boot the on-board LED repeats this pattern forever:
+
+| Blinks first | Meaning |
+|---|---|
+| 1 | power-on reset |
+| 2 | reset button / external reset pin (nothing flagged) |
+| 3 | watchdog reset |
+| 4 | software reset |
+| 5 | voltage-monitor reset |
+
+then a pause, then **one long (1 s) blink = warm-up credit > 0** (valid RAM record and not a power-on reset) or **one very short
+blink = no credit**; then a longer pause and it starts again. For T2/T3 (reset button) expect 2 blinks then a long blink;
+for T4 (unplug/replug) 1 blink then a short blink.
 
 ## If the Serial Monitor goes quiet
 Pressing reset or replugging the USB cable disconnects the port for a moment. If the IDE shows the monitor as disconnected,
