@@ -98,6 +98,46 @@ void Lcd20x4::setDisplayOn(bool on) {
   }
 }
 
+Lcd20x4::BusTest Lcd20x4::busTest(uint16_t rounds) {
+  static const uint8_t kPatterns[] = {0x00, 0xF0, 0x50, 0xA0, 0x30, 0xC0, 0x90, 0x60};
+  BusTest t;
+  const uint32_t start = hal_.micros();
+  for (uint16_t i = 0; i < rounds; ++i) {
+    const uint8_t out = static_cast<uint8_t>(kPatterns[i % (sizeof kPatterns)] | (backlight_ ? kBl : 0));  // RS = RW = EN = 0
+    ++t.rounds;
+    if (!hal_.i2cWrite(address_, &out, 1)) { ++t.writeFailed; continue; }
+    uint8_t back = 0;
+    if (!hal_.i2cRead(address_, &back, 1)) { ++t.readFailed; continue; }
+    // Only P4..P7 (the LCD data lines) are compared: P3 drives the backlight transistor, whose base pulls the pin low, and the
+    // low three lines are the LCD's RS/RW/EN, which the backpack may load.
+    if ((back & 0xF0) != (out & 0xF0)) {
+      if (t.mismatched == 0) {
+        t.firstOut = out;
+        t.firstBack = back;
+      }
+      ++t.mismatched;
+    }
+  }
+  t.microsPerRound = rounds ? (hal_.micros() - start) / rounds : 0;
+  writeRaw(backlight_ ? kBl : 0);
+  return t;
+}
+
+void Lcd20x4::refresh() {
+  for (auto& r : shadow_) {
+    memset(r, 0x01, kLcdCols);  // no desired character is 0x01, so every cell now counts as different
+    r[kLcdCols] = '\0';
+  }
+  curRow_ = curCol_ = -1;
+}
+
+void Lcd20x4::reinit(uint32_t now) {
+  if (state_ == State::kIdle) return;  // begin() was never called
+  ++reinits_;
+  startInit(now);
+  until_ = now;  // the display has been powered all along: no power-up wait
+}
+
 bool Lcd20x4::inSync() const {
   if (state_ != State::kReady || backlightDirty_ || displayDirty_) return false;
   for (uint8_t r = 0; r < kLcdRows; ++r)

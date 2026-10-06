@@ -468,3 +468,134 @@ TEST_CASE("Stage 1: the matrix lights fully while TOB is held, and TBS ON adds a
   CHECK(r.matrix.last[0] != 0xFFFFFFFFu);
   CHECK(matrixGetPixel(r.matrix.last, 7, 9));
 }
+
+// ============================================================================ LCD recovery (DSP-7)
+TEST_CASE("DSP-7: refresh() rewrites the whole screen, reinit() restarts the controller, neither blocks") {
+  FakeHal hal;
+  hal.i2cPresent.insert(0x27);
+  Lcd20x4 lcd(hal, 0x27);
+  lcd.begin(0);
+  lcd.setScreen(makeScreen("ROW0", "ROW1", "ROW2", "ROW3"));
+  uint32_t now = 0;
+  for (int i = 0; i < 400 && !lcd.inSync(); ++i) lcd.service(now += 10);
+  REQUIRE(lcd.inSync());
+  const size_t settled = hal.i2cWrites.size();
+  for (int i = 0; i < 50; ++i) lcd.service(now += 10);
+  CHECK(hal.i2cWrites.size() == settled);  // nothing to write when nothing changed
+  lcd.refresh();
+  CHECK_FALSE(lcd.inSync());
+  for (int i = 0; i < 400 && !lcd.inSync(); ++i) lcd.service(now += 10);
+  CHECK(lcd.inSync());
+  CHECK(hal.i2cWrites.size() > settled + 70);  // all 80 cells went out again
+  const uint32_t before = lcd.reinitCount();
+  lcd.reinit(now);
+  CHECK(lcd.reinitCount() == before + 1);
+  CHECK_FALSE(lcd.ready());
+  for (int i = 0; i < 600 && !lcd.inSync(); ++i) lcd.service(now += 10);
+  CHECK(lcd.inSync());
+}
+
+TEST_CASE("DSP-7: the stage firmware rewrites the LCD every few seconds and `lcd reinit` works from the console") {
+  Rig r;
+  r.setRtc({2026, 10, 6, 10, 31, 2});
+  r.boot();
+  r.run(2000);
+  size_t writes = r.hal.i2cWrites.size();
+  r.run(6000);
+  CHECK(r.hal.i2cWrites.size() > writes + 60);  // a periodic full rewrite happened
+  r.clearOut();
+  r.type("lcd");
+  CHECK(r.has("LCD: ready, I2C errors 0, re-initialisations 2"));
+  r.clearOut();
+  r.type("lcd reinit");
+  CHECK(r.has("LCD controller restarting"));
+  r.run(1000);
+  r.type("lcd");
+  CHECK(r.has("re-initialisations 3"));
+  CHECK(r.has("in sync"));
+  r.type("lcd bogus");
+  CHECK(r.has("usage: lcd [reinit | bus [rounds]]"));
+}
+
+TEST_CASE("DSP-7: after boot the LCD is rewritten early (250 ms, 500 ms, 1 s...) and then settles to every 5 s") {
+  Rig r;
+  r.setRtc({2026, 10, 6, 10, 31, 2});
+  r.boot();
+  r.run(600);  // init and first draw settle
+  const size_t afterFirst = r.hal.i2cWrites.size();
+  r.run(1200);
+  CHECK(r.hal.i2cWrites.size() > afterFirst + 70);  // at least one early full rewrite already happened
+  r.run(30000);
+  const size_t a = r.hal.i2cWrites.size();
+  r.run(10000);
+  const size_t perTenSeconds = r.hal.i2cWrites.size() - a;
+  CHECK(perTenSeconds < 700);  // settled: about two full rewrites (plus the changing clock row) per 10 s
+}
+
+TEST_CASE("DSP-7: after boot the LCD controller is re-initialised twice more (0.3 s and 1.2 s) and then left alone") {
+  Rig r;
+  r.setRtc({2026, 10, 6, 10, 31, 2});
+  r.boot();
+  r.run(200);
+  CHECK(r.app->lcd().reinitCount() == 0);
+  r.run(300);
+  CHECK(r.app->lcd().reinitCount() == 1);
+  r.run(1000);
+  CHECK(r.app->lcd().reinitCount() == 2);
+  r.run(20000);
+  CHECK(r.app->lcd().reinitCount() == 2);
+  CHECK(r.app->lcd().inSync());
+}
+
+TEST_CASE("DSP-7: with lcdStartMs set, nothing is sent to the LCD until that time") {
+  FakeHal hal;
+  hal.i2cPresent.insert(0x27);
+  RecordingMatrix matrix;
+  BuildInfo info{"8.0.0-test", "Jan  1 2026", "12:00:00", "host (fake)", "HOST", 10};
+  BringupOptions opt;
+  opt.lcdStartMs = 2500;
+  opt.lcdReinit1Ms = 0;
+  opt.lcdReinit2Ms = 0;
+  Bringup app(hal, kHostBoard, info, &matrix, opt);
+  hal.consoleIsAttached = true;
+  app.setup();
+  for (uint32_t t = 0; t < 2400; t += 10) { hal.nowMs += 10; app.loop(); }
+  size_t toLcd = 0;
+  for (const auto& w : hal.i2cWrites) if (w.address == 0x27) ++toLcd;
+  CHECK(toLcd == 0);
+  for (uint32_t t = 0; t < 1500; t += 10) { hal.nowMs += 10; app.loop(); }
+  CHECK(app.lcd().ready());
+  CHECK(app.lcd().reinitCount() == 0);
+}
+
+TEST_CASE("DSP-7: `lcd bus` reports a clean link as all zeros and a corrupted one as mismatches") {
+  Rig r;
+  r.boot();
+  r.run(1500);
+  r.clearOut();
+  r.type("lcd bus 100");
+  CHECK(r.has("LCD bus: 100 rounds, write fail 0, read fail 0, mismatch 0"));
+  r.hal.i2cReadXor = 0x10;  // one data line reads back wrong
+  r.clearOut();
+  r.type("lcd bus 100");
+  CHECK(r.has("mismatch 100"));
+  r.hal.i2cReadXor = 0;
+  r.hal.i2cPresent.erase(0x27);
+  r.clearOut();
+  r.type("lcd bus 10");
+  CHECK(r.has("write fail 10"));
+}
+
+TEST_CASE("DSP-7: the bus test never pulses EN, so the LCD itself is not disturbed, and restores the backlight byte") {
+  FakeHal hal;
+  hal.i2cPresent.insert(0x27);
+  Lcd20x4 lcd(hal, 0x27);
+  lcd.begin(0);
+  const size_t before = hal.i2cWrites.size();
+  const Lcd20x4::BusTest t = lcd.busTest(40);
+  CHECK(t.rounds == 40);
+  for (size_t i = before; i < hal.i2cWrites.size(); ++i) {
+    for (uint8_t b : hal.i2cWrites[i].bytes) CHECK((b & 0x07) == 0);  // RS, RW, EN all low
+  }
+  CHECK(hal.i2cWrites.back().bytes.back() == 0x08);  // backlight on, everything else low
+}

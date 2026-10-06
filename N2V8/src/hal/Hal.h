@@ -37,6 +37,8 @@ class Hal {
   // Write n bytes in ONE transaction. True only if the device acknowledged every byte (DRV-1).
   virtual bool i2cWrite(uint8_t address, const uint8_t* data, size_t n) = 0;
 
+  // Read n bytes from a device that has no registers (a PCF8574 port expander returns its pin levels). False on no answer.
+  virtual bool i2cRead(uint8_t address, uint8_t* data, size_t n) = 0;
   // Read n bytes starting at a device register: write the register number, then read (repeated start). False if the device
   // does not acknowledge or returns fewer bytes (used by the RTC).
   virtual bool i2cReadReg(uint8_t address, uint8_t reg, uint8_t* data, size_t n) = 0;

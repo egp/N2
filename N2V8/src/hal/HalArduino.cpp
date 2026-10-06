@@ -26,7 +26,12 @@ bool HalArduino::digitalRead(uint8_t pin) { return ::digitalRead(pin) == HIGH; }
 void HalArduino::setAnalogResolution(uint8_t bits) { ::analogReadResolution(bits); }
 uint16_t HalArduino::analogRead(uint8_t pin) { return static_cast<uint16_t>(::analogRead(pin)); }
 
-void HalArduino::i2cBegin() { Wire.begin(); }
+void HalArduino::i2cBegin() {
+  Wire.begin();
+#if defined(N2_I2C_HZ)
+  Wire.setClock(N2_I2C_HZ);  // debugging: a slower bus is more tolerant of noise and wiring capacitance
+#endif
+}
 
 bool HalArduino::i2cProbe(uint8_t address) {
   Wire.beginTransmission(address);
@@ -37,6 +42,13 @@ bool HalArduino::i2cWrite(uint8_t address, const uint8_t* data, size_t n) {
   Wire.beginTransmission(address);
   Wire.write(data, n);
   return Wire.endTransmission() == 0;
+}
+
+bool HalArduino::i2cRead(uint8_t address, uint8_t* data, size_t n) {
+  const uint8_t want = static_cast<uint8_t>(n);
+  if (Wire.requestFrom(address, want) != want) return false;
+  for (size_t i = 0; i < n; ++i) data[i] = static_cast<uint8_t>(Wire.read());
+  return true;
 }
 
 bool HalArduino::i2cReadReg(uint8_t address, uint8_t reg, uint8_t* data, size_t n) {

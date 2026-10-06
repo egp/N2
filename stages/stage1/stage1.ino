@@ -29,7 +29,8 @@
 #include "src/ui/BuildInfo.h"
 #include "src/ui/MatrixFrame.h"
 
-#if defined(ARDUINO_UNOR4_WIFI)
+// Debugging switch: build with  -DSTAGE1_NO_MATRIX  to leave the matrix completely untouched.
+#if defined(ARDUINO_UNOR4_WIFI) && !defined(STAGE1_NO_MATRIX)
 #include <Arduino_LED_Matrix.h>
 
 // Draws on the real matrix; for the first 2 s it shows the version in hex instead.
@@ -59,7 +60,7 @@ n2::HalArduino& hal() {
   return instance;
 }
 
-#if defined(ARDUINO_UNOR4_WIFI)
+#if defined(ARDUINO_UNOR4_WIFI) && !defined(STAGE1_NO_MATRIX)
 WifiMatrix& wifiMatrix() {
   static WifiMatrix instance;
   return instance;
@@ -73,9 +74,14 @@ n2::Bringup& app() {
 #if defined(N2_NO_WATCHDOG)
     o.watchdogEnabled = false;
 #endif
+#if defined(STAGE1_LCD_START_MS)  // debugging: leave the LCD alone for this long after boot, and no extra re-inits
+    o.lcdStartMs = STAGE1_LCD_START_MS;
+    o.lcdReinit1Ms = 0;
+    o.lcdReinit2Ms = 0;
+#endif
     return o;
   }();
-#if defined(ARDUINO_UNOR4_WIFI)
+#if defined(ARDUINO_UNOR4_WIFI) && !defined(STAGE1_NO_MATRIX)
   static n2::Bringup instance(hal(), n2::kBoard, n2::makeBuildInfo(__DATE__, __TIME__), &wifiMatrix(), options);
 #else
   static n2::Bringup instance(hal(), n2::kBoard, n2::makeBuildInfo(__DATE__, __TIME__), nullptr, options);
@@ -86,7 +92,7 @@ n2::Bringup& app() {
 }  // namespace
 
 void setup() {
-#if defined(ARDUINO_UNOR4_WIFI)
+#if defined(ARDUINO_UNOR4_WIFI) && !defined(STAGE1_NO_MATRIX)
   wifiMatrix().begin();
 #endif
   app().setup();

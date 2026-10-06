@@ -92,12 +92,21 @@ class FakeHal : public Hal {
   bool i2cWrite(uint8_t address, const uint8_t* data, size_t n) override {
     const bool ack = i2cPresent.count(address) != 0;
     i2cWrites.push_back({address, std::vector<uint8_t>(data, data + n), ack});
+    if (ack && n >= 1) lastByteWritten[address] = data[n - 1];
     if (ack && n >= 2) {  // register-style device: data[0] = register pointer, the rest are stored from there
       regPointer(address);
       auto& r = i2cRegs[address];
       for (size_t i = 1; i < n; ++i) r[static_cast<uint8_t>(data[0] + i - 1)] = data[i];
     }
     return ack;
+  }
+  std::map<uint8_t, uint8_t> lastByteWritten;  // what a port expander (PCF8574) would read back
+  uint8_t i2cReadXor = 0;                      // a test can corrupt readback to simulate a bad bus
+  bool i2cRead(uint8_t address, uint8_t* data, size_t n) override {
+    ++i2cReads;
+    if (i2cPresent.count(address) == 0) return false;
+    for (size_t i = 0; i < n; ++i) data[i] = static_cast<uint8_t>(lastByteWritten[address] ^ i2cReadXor);
+    return true;
   }
   bool i2cReadReg(uint8_t address, uint8_t reg, uint8_t* data, size_t n) override {
     ++i2cReads;

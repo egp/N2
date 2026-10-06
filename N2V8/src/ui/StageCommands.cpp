@@ -1,5 +1,6 @@
 #include "StageCommands.h"
 
+#include <stdlib.h>
 #include <string.h>
 
 namespace n2 {
@@ -26,7 +27,9 @@ Responder* StageCommands::handle(const Command& cmd) {
       else out_.add("BIST cannot start now (POST is still running or held: type `go` to release it)");
       break;
     default:
-      if (strcmp(cmd.name, "go") == 0) {
+      if (strcmp(cmd.name, "lcd") == 0) {
+        lcdCommand(cmd);
+      } else if (strcmp(cmd.name, "go") == 0) {
         c_.actions.releaseHold();
         out_.add("go: POST hold released (if there was one)");
       } else {
@@ -44,6 +47,7 @@ void StageCommands::help() {
   out_.add("post              run the power-on self-test again");
   out_.add("bist              run the operator-confirmed self-test (answers: p f r s q)");
   out_.add("go                release a POST hold (same as pressing TOB)");
+  out_.add("lcd [reinit|bus]  LCD state; `lcd reinit` restarts the controller; `lcd bus [n]` tests the I2C link to the backpack");
   out_.add("scan              list every device that answers on the I2C bus");
   out_.add("time              show the RTC date/time and whether it can be trusted");
   out_.add("time set D T      set the RTC (YYYY-MM-DD HH:MM:SS) only if it is untrusted or >2 s off");
@@ -66,6 +70,8 @@ void StageCommands::status() {
     const char* word = r.level == CheckLevel::kPass ? "ok" : (r.level == CheckLevel::kInfo ? "info" : (r.level == CheckLevel::kFail ? "FAIL" : "-"));
     out_.add("  %-6s %-4s %s", c_.selfTest.checkName(i), word, r.text);
   }
+  out_.add("LCD: I2C errors %lu, re-initialisations %lu", static_cast<unsigned long>(c_.lcd.i2cErrors()),
+           static_cast<unsigned long>(c_.lcd.reinitCount()));
   char stamp[20];
   out_.add("log clock: %s", c_.wall.stamp(c_.hal.millis(), stamp) ? stamp : "not synced (no trusted RTC)");
   out_.add("console: dropped %lu log lines, received %lu bytes", static_cast<unsigned long>(c_.console.dropped()),
@@ -141,6 +147,32 @@ void StageCommands::log(const Command& cmd) {
     c_.console.setLevel(level);
   }
   out_.add("log level: %s", Console::levelName(c_.console.level()));
+}
+
+void StageCommands::lcdCommand(const Command& cmd) {
+  if (cmd.argc >= 1 && strcmp(cmd.arg[0], "bus") == 0) {
+    int n = cmd.argc >= 2 ? atoi(cmd.arg[1]) : 200;
+    if (n < 1) n = 1;
+    if (n > 500) n = 500;  // a diagnostic: about 0.6 ms per round, so at most about 0.3 s
+    const Lcd20x4::BusTest t = c_.lcd.busTest(static_cast<uint16_t>(n));
+    out_.add("LCD bus: %u rounds, write fail %u, read fail %u, mismatch %u, %lu us/round", t.rounds,
+             t.writeFailed, t.readFailed, t.mismatched, static_cast<unsigned long>(t.microsPerRound));
+    if (t.mismatched > 0) out_.add("  first mismatch: wrote 0x%02X, read back 0x%02X", static_cast<unsigned>(t.firstOut), static_cast<unsigned>(t.firstBack));
+    out_.add("  (all zero = the bytes reach the backpack intact; any other number = a bad bus: noise, pullups, wiring, speed)");
+    return;
+  }
+  if (cmd.argc >= 1) {
+    if (strcmp(cmd.arg[0], "reinit") != 0) {
+      out_.add("usage: lcd [reinit | bus [rounds]]");
+      return;
+    }
+    c_.lcd.reinit(c_.hal.millis());
+    c_.actions.lcdReinitialised();
+    out_.add("LCD controller restarting (the screen clears and redraws)");
+  }
+  out_.add("LCD: %s, I2C errors %lu, re-initialisations %lu, content %s", c_.lcd.ready() ? "ready" : "not ready",
+           static_cast<unsigned long>(c_.lcd.i2cErrors()), static_cast<unsigned long>(c_.lcd.reinitCount()),
+           c_.lcd.inSync() ? "in sync" : "being written");
 }
 
 void StageCommands::loopStats() {

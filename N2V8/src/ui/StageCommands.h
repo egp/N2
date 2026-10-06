@@ -9,6 +9,7 @@
 #include "../BoardPins.h"
 #include "../core/LoopStats.h"
 #include "../core/WallClock.h"
+#include "../drivers/Lcd20x4.h"
 #include "../drivers/Rtc3231.h"
 #include "../hal/Hal.h"
 #include "../selftest/SelfTest.h"
@@ -24,6 +25,7 @@ class StageActions {
   virtual void startPost() = 0;
   virtual bool startBist() = 0;   // false if it cannot start now
   virtual void releaseHold() = 0;
+  virtual void lcdReinitialised() = 0;  // the LCD was just restarted: its first writes are the likeliest to be damaged
 };
 
 struct StageContext {
@@ -33,6 +35,7 @@ struct StageContext {
   Console& console;
   SelfTest& selfTest;
   Rtc3231& rtc;
+  Lcd20x4& lcd;
   WallClock& wall;
   const LoopStats& loop;
   StageActions& actions;
@@ -54,6 +57,7 @@ class StageCommands : public CommandHandler {
   void time(const Command& command);
   void log(const Command& command);
   void loopStats();
+  void lcdCommand(const Command& command);
 
   StageContext c_;
   TextResponder out_;

@@ -25,12 +25,26 @@ class Lcd20x4 {
   void service(uint32_t now);
 
   void setScreen(const Screen& screen);  // desired content
+  // The display can be corrupted without any I2C error (electrical noise), and the driver only writes cells that differ from
+  // its copy of the screen. refresh() forgets that copy so the whole screen is rewritten (no flicker); reinit() restarts the
+  // controller from scratch (the display clears and redraws).
+  // Bus-integrity test (diagnostic, blocks for about n x 0.6 ms): writes bit patterns to the PCF8574 with EN, RS and RW all low
+  // (so the LCD itself ignores them), reads each back, and counts failures. Restores the backlight byte afterwards.
+  struct BusTest {
+    uint16_t rounds = 0, writeFailed = 0, readFailed = 0, mismatched = 0;
+    uint32_t microsPerRound = 0;
+    uint8_t firstOut = 0, firstBack = 0;  // the first pair that did not match (0, 0 if none)
+  };
+  BusTest busTest(uint16_t rounds);
+  void refresh();
+  void reinit(uint32_t now);
   void setBacklight(bool on);            // BIST
   void setDisplayOn(bool on);            // BIST: display on/off, content kept
 
   bool ready() const { return state_ == State::kReady; }
   bool healthy() const { return healthy_; }
   uint32_t i2cErrors() const { return errors_; }
+  uint32_t reinitCount() const { return reinits_; }
   bool inSync() const;                   // the display shows exactly the desired screen
   bool backlightOn() const { return backlight_; }
   bool displayOn() const { return displayOn_; }
@@ -54,6 +68,7 @@ class Lcd20x4 {
   uint8_t initStep_ = 0;
   bool healthy_ = true;
   uint32_t errors_ = 0;
+  uint32_t reinits_ = 0;
   bool backlight_ = true;
   bool displayOn_ = true;
   bool backlightDirty_ = false;

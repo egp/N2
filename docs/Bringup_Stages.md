@@ -22,3 +22,14 @@ Rather than debugging the whole N2V8 at once, start from what is proven on the b
 
 **What is separate from what:** Console (PC) · Lcd20x4 · Rtc3231 + WallClock · DeviceChecks + SelfTest (POST/BIST) ·
 StageCommands · FrameSink (matrix) · Bringup (wires them together; no logic of its own).
+
+## Stage 1 bench log: LCD start-up garbage (2026-10-06)
+After a **reset** (not a power-up) the LCD often shows random characters ("garbage", random cells), sometimes ending blank, even though
+POST reports the LCD OK and the driver counts **0 I2C errors**. Findings so far:
+- `lcd bus 500` (write a bit pattern to the PCF8574, read it back, EN/RS/RW held low): 1500 rounds, **0 failures, 0 mismatches** at 100 kHz
+  with the matrix running. The I2C link to the backpack is intact: the fault is on the LCD side (controller state or power).
+- Not the RTC (removed: same failures). Roughly the same with the matrix off (4 of 5 clean, small sample) and with a 30 kHz bus.
+- A second and third full re-initialisation (0.3 s, 1.2 s) and early full rewrites did not cure it.
+- Next experiments: delay the first LCD touch until 2.5 s after boot (`-DSTAGE1_LCD_START_MS=2500`), a 100 nF capacitor across the backpack's
+  VCC/GND, and a longer power-up wait before the first nibble.
+Debug switches: `-DSTAGE1_NO_MATRIX`, `-DN2_I2C_HZ=30000`, `-DSTAGE1_LCD_START_MS=2500`; console `lcd`, `lcd reinit`, `lcd bus [n]`.
