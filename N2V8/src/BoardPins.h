@@ -77,9 +77,12 @@ constexpr bool isOn(bool levelIsHigh, Active a) { return a == Active::kLow ? !le
 // The level an output takes when it is "off" (the safe state).
 constexpr bool safeLevelHigh(Active a) { return levelHigh(false, a); }
 
-// ---- The signal table (UNVERIFIED — see header comment) ---------------------------
-// Order must match enum Signal.
-inline constexpr SignalDef kSignals[kSignalCount] = {
+// ---- The signal tables: ONE PER BOARD (UNVERIFIED — see header comment) --------------------
+// Order must match enum Signal. The three boards are separate tables so the production Minima can be corrected to match the
+// real wiring without touching the bench board, and the other way round. Today they hold the same values.
+
+// UNO R4 Minima: PRODUCTION (Tom's garage). Must match the real wiring; V6/V7 agree on these rows.
+inline constexpr SignalDef kMinimaSignals[kSignalCount] = {
     // name        pin           direction          active           note
     {"TBS",       pin::kD0,  Dir::kInputPullup, Active::kLow,  "maintained; V6/V7"},
     {"TOB",       pin::kD1,  Dir::kInputPullup, Active::kLow,  "momentary; V6/V7"},
@@ -94,14 +97,36 @@ inline constexpr SignalDef kSignals[kSignalCount] = {
     {"N2HIGH",    pin::kA1,  Dir::kAnalogInput, Active::kNotApplicable, "0-150 PSI; PROVISIONAL (V6/V7: A5 = SCL)"},
 };
 
+
+// UNO R4 WiFi: the HOME BENCH. Free to differ (the bench wiring may not match production). Today: TBS and TOB are momentary
+// buttons on D0 and D1 (production TBS is an SPDT switch: same wiring, active LOW); nothing is on the valve/SSR/analog pins.
+inline constexpr SignalDef kWifiSignals[kSignalCount] = {
+    // name        pin           direction          active           note
+    {"TBS",       pin::kD0,  Dir::kInputPullup, Active::kLow,  "maintained; V6/V7"},
+    {"TOB",       pin::kD1,  Dir::kInputPullup, Active::kLow,  "momentary; V6/V7"},
+    {"LEFT",      pin::kD4,  Dir::kOutput,      Active::kHigh, "HIGH = valve open; V6/V7"},
+    {"RIGHT",     pin::kD7,  Dir::kOutput,      Active::kHigh, "HIGH = valve open; V6/V7"},
+    {"FLUSH",     pin::kD11, Dir::kOutput,      Active::kHigh, "HIGH = valve open; V6/V7"},
+    {"SSR",       pin::kD8,  Dir::kOutput,      Active::kHigh, "HIGH = compressor on; V6/V7"},
+    {"AIR",       pin::kA0,  Dir::kAnalogInput, Active::kNotApplicable, "0-150 PSI; V6/V7"},
+    {"N2LOW",     pin::kA3,  Dir::kAnalogInput, Active::kNotApplicable, "0-30 PSI; V6/V7"},
+    // V6/V7 put N2-high on A5, which is the I2C SCL line. A1 is a PROVISIONAL
+    // placeholder until the real wiring is confirmed (Requirements PIN-10).
+    {"N2HIGH",    pin::kA1,  Dir::kAnalogInput, Active::kNotApplicable, "0-150 PSI; PROVISIONAL (V6/V7: A5 = SCL)"},
+};
+
+
+// Host tests: the production table.
+inline constexpr const SignalDef (&kHostSignals)[kSignalCount] = kMinimaSignals;
+
 // ---- Boards -------------------------------------------------------------------
 // I2C: the core binds Wire to A4 (SDA) / A5 (SCL) on both boards.
 // The owner reports D18/D19 on the WiFi; the core lists the same pins (18/19).
-inline constexpr BoardDef kMinimaBoard = {"UNO R4 Minima", kSignals, kSignalCount,
+inline constexpr BoardDef kMinimaBoard = {"UNO R4 Minima", kMinimaSignals, kSignalCount,
                                           pin::kA4, pin::kA5, 0x24, 0x34, 0x27, 0x74, 0x68};
-inline constexpr BoardDef kWifiBoard = {"UNO R4 WiFi", kSignals, kSignalCount,
+inline constexpr BoardDef kWifiBoard = {"UNO R4 WiFi", kWifiSignals, kSignalCount,
                                         pin::kA4, pin::kA5, 0x24, 0x34, 0x27, 0x74, 0x68};
-inline constexpr BoardDef kHostBoard = {"host (fake)", kSignals, kSignalCount,
+inline constexpr BoardDef kHostBoard = {"host (fake)", kHostSignals, kSignalCount,
                                         pin::kA4, pin::kA5, 0x24, 0x34, 0x27, 0x74, 0x68};
 
 #if defined(N2_BOARD_MINIMA)

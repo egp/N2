@@ -158,3 +158,15 @@ TEST_CASE("PIN-8: D0/D1 are TBS/TOB, so Serial1 must not be used") {
   CHECK(pinOf(kMinimaBoard, Signal::kTbs) == 0);
   CHECK(pinOf(kMinimaBoard, Signal::kTob) == 1);
 }
+
+TEST_CASE("PIN-2: each board has its own signal table, so one can change without the other") {
+  CHECK(kMinimaBoard.signals != kWifiBoard.signals);
+  CHECK(kMinimaBoard.signals != kWifiBoard.signals + 0);
+  CHECK(checkBoard(kMinimaBoard) == BoardCheck::kOk);
+  CHECK(checkBoard(kWifiBoard) == BoardCheck::kOk);
+  CHECK(kHostBoard.signals == kMinimaBoard.signals);  // the host tests run against the production table
+  // Production safety: the switches are active LOW and the outputs are active HIGH on the Minima.
+  CHECK(def(kMinimaBoard, Signal::kTbs).active == Active::kLow);
+  CHECK(def(kMinimaBoard, Signal::kTob).active == Active::kLow);
+  CHECK(def(kMinimaBoard, Signal::kSsr).active == Active::kHigh);
+}
