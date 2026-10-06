@@ -1,7 +1,15 @@
 // ===========================================================================================
-// reset_probe  VERSION 1.8   (2026-10-06)      <-- if you do not see this line, the IDE has an older copy
+// reset_probe  VERSION 1.10  (2026-10-06)      <-- if you do not see this line, the IDE has an older copy
 //
 // Change log
+//   1.10 RESULT of 1.9: after a software reset the three plain RAM spots (heap-mid, heap-top, stack-bottom) SURVIVED but the
+//        .noinit record did not. So the chip keeps RAM and something clears or overwrites .noinit at startup.
+//        This version prints the .noinit record's raw words as found at boot (all zero = cleared; other values = overwritten).
+//   1.9  RESULT of 1.8: serial works. A software reset cleared the flags fine (plain writes work, no unlock needed) but the
+//        .noinit RAM record did NOT survive (boot count stayed 1, record invalid), although the linker did put it in .noinit
+//        (0x20000248). So something overwrites RAM across a reset (the bootloader?). This version also writes signatures to
+//        THREE MORE RAM locations and reports which survive each kind of reset:
+//          heap-mid 0x20004000, heap-top 0x20007A00, stack-bottom 0x20007B00   (the heap is unused by this sketch)
 //   1.8  FOUND WHY THERE WAS NO SERIAL OUTPUT: on the UNO R4 WiFi the core is built with -DNO_USB, so `Serial` is a hardware
 //        UART (talking to the ESP32 chip that provides the USB connection) and the core does NOT call Serial.begin() for us
 //        (the Minima, which has native USB, does). Until begin() is called, every Serial.print() returns 0. Fix: setup() now
@@ -27,9 +35,9 @@
 //   1.1  built-in LED blinks the cause and the credit result (works without any serial output)
 //   1.0  first version: serial report of the reset flags, RAM-record survival, console attach/detach
 // ===========================================================================================
-#define PROBE_VERSION "1.8"
+#define PROBE_VERSION "1.10"
 #define PROBE_MAJOR 1
-#define PROBE_MINOR 8
+#define PROBE_MINOR 10
 
 // reset_probe.ino — EXPERIMENT, not production code.
 //
@@ -78,6 +86,7 @@ static void seal() { rec.check = checksum(rec); }
 static uint8_t rst0, rst2, rst0After, rst1After;
 static uint16_t rst1;
 static bool recordWasValid;
+static uint32_t rawAtBoot[5];           // the .noinit record exactly as found at boot (before anything touched it)
 static bool recMagicOk, recCheckOk;   // what the RAM record looked like at boot (shown on the matrix)
 static uint32_t baseRunMs, setupStartMs, creditMs;
 static const char* cause;
@@ -101,6 +110,29 @@ static void clearFlags() {
   R_SYSTEM->RSTSR1 = 0;
 }
 
+
+// ---- extra RAM locations to test, in case .noinit is overwritten by the bootloader (v1.9) ----
+struct Spot {
+  uint32_t address;
+  const char* name;
+  bool validAtBoot;
+  uint32_t bootsAtBoot;
+};
+static Spot spots[] = {{0x20004000u, "heap-mid", false, 0}, {0x20007A00u, "heap-top", false, 0}, {0x20007B00u, "stack-bottom", false, 0}};
+static const uint32_t kSpotMagic = 0x53504F54u;  // "SPOT"
+
+static void checkAndSealSpots() {
+  for (Spot& sp : spots) {
+    volatile uint32_t* w = reinterpret_cast<volatile uint32_t*>(sp.address);   // w[0] magic, w[1] boots, w[2] check
+    sp.validAtBoot = (w[0] == kSpotMagic) && (w[2] == (w[0] ^ w[1] ^ 0x5A5A5A5Au));
+    sp.bootsAtBoot = sp.validAtBoot ? w[1] : 0;
+    const uint32_t boots = sp.validAtBoot ? w[1] + 1 : 1;
+    w[0] = kSpotMagic;
+    w[1] = boots;
+    w[2] = kSpotMagic ^ boots ^ 0x5A5A5A5Au;
+  }
+}
+
 static void printReport() {
   Serial.println();
   Serial.print(F("==== RESET PROBE REPORT (reset_probe version " PROBE_VERSION ", UNO R4 WiFi) ===="));
@@ -117,6 +149,13 @@ static void printReport() {
   Serial.print(F("flags after clearing: RSTSR0=0x")); Serial.print(rst0After, HEX);
   Serial.print(F(" RSTSR1=0x")); Serial.println(rst1After, HEX);
   Serial.print(F("cause: ")); Serial.println(cause);
+  Serial.print(F(".noinit record at 0x")); Serial.print(reinterpret_cast<uint32_t>(&rec), HEX); Serial.print(F(" as found at boot: "));
+  for (uint8_t i = 0; i < 5; ++i) { Serial.print(F("0x")); Serial.print(rawAtBoot[i], HEX); Serial.print(i < 4 ? F(" ") : F("\n")); }
+  for (const Spot& sp : spots) {
+    Serial.print(F("RAM spot ")); Serial.print(sp.name); Serial.print(F(" @0x")); Serial.print(sp.address, HEX);
+    Serial.print(F(": survived the reset = ")); Serial.print(sp.validAtBoot ? F("YES") : F("NO"));
+    Serial.print(F("  boots seen = ")); Serial.println(sp.bootsAtBoot + (sp.validAtBoot ? 1 : 0));
+  }
   Serial.print(F("warm-up credit rule (valid record AND not power-on): credit = "));
   Serial.print(creditMs / 1000); Serial.println(F(" s"));
   Serial.print(F("millis() at start of setup(): ")); Serial.println(setupStartMs);
@@ -226,6 +265,7 @@ static void showMatrix(uint32_t now) {
 #endif
 
 void setup() {
+  { const uint32_t* r = reinterpret_cast<const uint32_t*>(&rec); for (uint8_t i = 0; i < 5; ++i) rawAtBoot[i] = r[i]; }
   // Read the reset flags before anything else can disturb them.
   rst0 = R_SYSTEM->RSTSR0;
   rst1 = R_SYSTEM->RSTSR1;
@@ -236,6 +276,7 @@ void setup() {
   rst0After = R_SYSTEM->RSTSR0;
   rst1After = static_cast<uint8_t>(R_SYSTEM->RSTSR1 & 0xFF);
 
+  checkAndSealSpots();            // test the extra RAM locations before anything else can touch them
   recMagicOk = (rec.magic == kMagic);
   recCheckOk = (rec.check == checksum(rec));
   recordWasValid = recMagicOk && recCheckOk;
