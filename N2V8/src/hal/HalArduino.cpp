@@ -39,6 +39,16 @@ bool HalArduino::i2cWrite(uint8_t address, const uint8_t* data, size_t n) {
   return Wire.endTransmission() == 0;
 }
 
+bool HalArduino::i2cReadReg(uint8_t address, uint8_t reg, uint8_t* data, size_t n) {
+  Wire.beginTransmission(address);
+  Wire.write(reg);
+  if (Wire.endTransmission(false) != 0) return false;  // keep the bus (repeated start) for the read
+  const uint8_t want = static_cast<uint8_t>(n);
+  if (Wire.requestFrom(address, want) != want) return false;
+  for (size_t i = 0; i < n; ++i) data[i] = static_cast<uint8_t>(Wire.read());
+  return true;
+}
+
 // ---- Console -----------------------------------------------------------------------------------------------
 // The two boards differ (see Requirements CON-4):
 //  * UNO R4 Minima: native USB. The core starts Serial. `if (Serial)` is true only while a PC has the port open (DTR).

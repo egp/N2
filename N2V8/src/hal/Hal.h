@@ -37,6 +37,10 @@ class Hal {
   // Write n bytes in ONE transaction. True only if the device acknowledged every byte (DRV-1).
   virtual bool i2cWrite(uint8_t address, const uint8_t* data, size_t n) = 0;
 
+  // Read n bytes starting at a device register: write the register number, then read (repeated start). False if the device
+  // does not acknowledge or returns fewer bytes (used by the RTC).
+  virtual bool i2cReadReg(uint8_t address, uint8_t reg, uint8_t* data, size_t n) = 0;
+
   // USB console (CON-2, CON-4). Nothing here may block.
   // The UNO R4 WiFi core does NOT start `Serial` for us (it is built with -DNO_USB); the sketch must. Call once at boot.
   virtual void consoleBegin() = 0;

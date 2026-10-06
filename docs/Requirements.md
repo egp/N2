@@ -411,6 +411,23 @@ most important feature during Debug. It **requires an attached console**.
 | NFR-3 | The current production sketch shall be kept as a known-good fallback for the field trip. |
 | FUT-1 | **Reserved for a later version:** changing pressure thresholds from the console (`cfg set`). The runtime `Config` struct (§7) shall make this a small change. |
 
+## 14b. Real-time clock (DS3231, optional) [NEW — draft, 2026-10-06]
+
+A battery-backed DS3231 at I2C address 0x68 (the same bus as the displays and the O2 sensor) gives wall-clock time. The controller
+**never depends on it**: a missing, unset or wrong clock is at most an INFO fault.
+
+| ID | Requirement |
+|---|---|
+| RTC-1 | The driver (`Rtc3231`, behind the Hal's `i2cReadReg`/`i2cWrite`) shall read and set the date and time, validate every register (BCD, month, day with leap years, hour; year 2000–2199 with the century bit), handle a chip left in 12-hour mode, and report success or failure for every call, counting bus errors. Calendar helpers are pure functions (`DateTime.h`). |
+| RTC-2 | The driver shall report whether the time can be trusted: the DS3231 oscillator-stop flag (OSF) means the clock lost power since it was last set. `set()` clears OSF and preserves the other status bits. |
+| RTC-3 | The console shall provide `time` (print the RTC date and time, and whether it is trusted) and `time set YYYY-MM-DD HH:MM:SS`. A malformed or impossible date shall be rejected without touching the chip. |
+| RTC-4 | The driver shall read the chip's temperature (0.25 °C steps) for diagnostics (BIST, `status`). |
+| RTC-5 | When fitted and trusted, the date/time shall appear in the boot banner and at the top of the `report` block, so a captured log can be dated (LOG-4). A missing RTC or an untrusted time shall be reported as INFO fault **F13**, never inhibit anything, and never delay POST. |
+| RTC-6 | Module safety (hardware, for the owner): many DS3231 boards (ZS-042 style) have a charging circuit meant for a rechargeable LIR2032; with a non-rechargeable CR2032 the cell can overheat. Fit an LIR2032, remove the charging resistor/diode, or use a board without it. |
+
+Status: driver and helpers are written and tested on the host (`test_rtc.cpp`, `test_datetime.cpp`); bench validation with
+`experiments/rtc_test`; console commands, F13 and the banner/report integration follow the bench validation.
+
 ## 14a. Reproducible environment and remote testing [NEW]
 
 Goal: some tests can be run by the hardware team in production from a package sent by email or fetched

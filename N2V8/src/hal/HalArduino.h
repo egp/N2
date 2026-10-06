@@ -20,6 +20,7 @@ class HalArduino : public Hal {
   void i2cBegin() override;
   bool i2cProbe(uint8_t address) override;
   bool i2cWrite(uint8_t address, const uint8_t* data, size_t n) override;
+  bool i2cReadReg(uint8_t address, uint8_t reg, uint8_t* data, size_t n) override;
   void consoleBegin() override;
   bool consoleCanDetectHost() override;
   bool consoleAttached() override;

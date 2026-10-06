@@ -4,6 +4,7 @@
 #include <array>
 #include <cstdint>
 #include <deque>
+#include <map>
 #include <set>
 #include <string>
 #include <vector>
@@ -42,6 +43,9 @@ class FakeHal : public Hal {
     bool acked;
   };
   std::vector<I2cWrite> i2cWrites;          // every write, in order
+  std::map<uint8_t, std::vector<uint8_t>> i2cRegs;  // register file per device (256 bytes, created on demand), for register-style devices
+  uint32_t i2cReads = 0;
+  uint8_t regPointer(uint8_t address) { auto& r = i2cRegs[address]; if (r.empty()) r.assign(256, 0); return 0; }
 
   // ---- observed state ----
   std::vector<Event> events;
@@ -88,7 +92,20 @@ class FakeHal : public Hal {
   bool i2cWrite(uint8_t address, const uint8_t* data, size_t n) override {
     const bool ack = i2cPresent.count(address) != 0;
     i2cWrites.push_back({address, std::vector<uint8_t>(data, data + n), ack});
+    if (ack && n >= 2) {  // register-style device: data[0] = register pointer, the rest are stored from there
+      regPointer(address);
+      auto& r = i2cRegs[address];
+      for (size_t i = 1; i < n; ++i) r[static_cast<uint8_t>(data[0] + i - 1)] = data[i];
+    }
     return ack;
+  }
+  bool i2cReadReg(uint8_t address, uint8_t reg, uint8_t* data, size_t n) override {
+    ++i2cReads;
+    if (i2cPresent.count(address) == 0) return false;
+    regPointer(address);
+    auto& r = i2cRegs[address];
+    for (size_t i = 0; i < n; ++i) data[i] = r[static_cast<uint8_t>(reg + i)];
+    return true;
   }
 
   // ---- console ----
