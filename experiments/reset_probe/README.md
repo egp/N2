@@ -46,7 +46,9 @@ for T4 (unplug/replug) 1 blink then a short blink.
 
 ## The WiFi board's 12x8 LED matrix shows it too (R4 WiFi only)
 Left: the cause as a digit (same numbers as the blink table). Right: **Y** = warm-up credit, **N** = no credit. The
-bottom-right pixel blinks twice a second: if it blinks, `loop()` is running. Nothing needs to be attached; the matrix is part
+bottom-right pixel blinks twice a second: if it blinks, `loop()` is running.
+Two more pixels on the bottom row describe the serial link: **bottom-left lit = the board sees a console** (the host has the
+port open with DTR raised); **third pixel from the left lit = a byte has arrived from the host**. Nothing needs to be attached; the matrix is part
 of the WiFi board. (The Minima has no matrix; it uses the built-in LED blinks only.)
 
 ## If the Serial Monitor goes quiet

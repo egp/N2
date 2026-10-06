@@ -48,6 +48,8 @@ static bool recordWasValid;
 static uint32_t baseRunMs, setupStartMs, creditMs;
 static const char* cause;
 static bool wasAttached = false;
+static bool serialAttached = false;   // what `if (Serial)` says right now (shown on the matrix)
+static bool everReceived = false;     // has any byte ever arrived from the host?
 
 static const char* classify(uint8_t r0, uint16_t r1) {
   if (r0 & 0x01) return "POWER-ON (PORF)";
@@ -153,6 +155,8 @@ static void showMatrix(uint32_t now) {
   drawGlyph(frame, kDigits[causeBlinks() - 1], 0);                 // cause 1..5
   drawGlyph(frame, creditMs > 0 ? kGlyphY : kGlyphN, 7);           // warm-up credit?
   if (heartbeat) setPixel(frame, 7, 11);                           // loop() is alive
+  if (serialAttached) setPixel(frame, 7, 0);                       // the board sees a console (DTR) right now
+  if (everReceived) setPixel(frame, 7, 2);                         // a byte has arrived from the host
   matrix.loadFrame(frame);
 }
 #endif
@@ -199,6 +203,7 @@ void loop() {
   seal();
 
   const bool attached = Serial;  // true only while a host has the port open (USB DTR)
+  serialAttached = attached;
   if (attached && !wasAttached) {
     Serial.print(F("[console attached at ")); Serial.print(millis()); Serial.println(F(" ms]"));
     printReport();
@@ -215,6 +220,7 @@ void loop() {
 
   if (attached && Serial.available()) {
     const int c = Serial.read();
+    everReceived = true;
     if (c == 'r') printReport();
     if (c == 's') { Serial.println(F("software reset now")); Serial.flush(); delay(50); NVIC_SystemReset(); }
     if (c == 'w') { Serial.println(F("watchdog reset in ~0.5 s")); Serial.flush(); WDT.begin(500); for (;;) {} }
