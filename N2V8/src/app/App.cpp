@@ -38,6 +38,7 @@ const char* App::requestBist() {
 void App::setup() {
   const uint32_t now = hal_.millis();
   beginHardware(hal_, board_);  // RST-2: outputs safe first, then ADC and I2C
+  hal_.consoleBegin();          // the R4 WiFi core does not start Serial for us (CON-4)
   if (opt_.watchdogEnabled) hal_.watchdogBegin(opt_.watchdogMs);
 
   sys_.setControllersEnabled(opt_.controllersEnabled);
@@ -56,18 +57,27 @@ void App::setup() {
 }
 
 // When a console attaches (the Serial Monitor is opened) it missed the boot messages: say who we are.
+void App::printBanner() {
+  char line[100];
+  snprintf(line, sizeof line, "N2V8 %s  built %s %s  board %s  mode %s  adc %u bits", info_.version, info_.date, info_.time, info_.board,
+           info_.mode, static_cast<unsigned>(info_.adcBits));
+  console_.tryPrint(line);
+  snprintf(line, sizeof line, "up %lu s, state %s. Type help.", static_cast<unsigned long>(hal_.millis() / 1000u),
+           mode_ == Mode::kPost ? "POST" : (mode_ == Mode::kBist ? "BIST" : "RUN"));
+  console_.tryPrint(line);
+}
+
+// Tell a newly attached console who we are. On the R4 WiFi no attach can be seen (the UART cannot see the PC), so the
+// banner is simply repeated every 10 s until the first byte arrives from the host.
 void App::announceConsole() {
+  const uint32_t now = hal_.millis();
   const bool attached = hal_.consoleAttached();
-  if (attached && !consoleWasAttached_) {
-    char line[100];
-    snprintf(line, sizeof line, "N2V8 %s  built %s %s  board %s  mode %s  adc %u bits", info_.version, info_.date, info_.time, info_.board,
-             info_.mode, static_cast<unsigned>(info_.adcBits));
-    console_.tryPrint(line);
-    snprintf(line, sizeof line, "up %lu s, state %s. Type help.", static_cast<unsigned long>(hal_.millis() / 1000u),
-             mode_ == Mode::kPost ? "POST" : (mode_ == Mode::kBist ? "BIST" : "RUN"));
-    console_.tryPrint(line);
-  }
+  if (attached && !consoleWasAttached_) printBanner();
   consoleWasAttached_ = attached;
+  if (attached && !hal_.consoleCanDetectHost() && console_.received() == 0 && static_cast<int32_t>(now - nextBanner_) >= 0) {
+    nextBanner_ = now + 10000;
+    printBanner();
+  }
 }
 
 void App::runPass(uint32_t now) {

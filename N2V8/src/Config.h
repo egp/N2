@@ -31,4 +31,11 @@ constexpr uint16_t kAirFullScaleX10 = 1500;       // 0-150.0 PSI
 constexpr uint16_t kN2LowFullScaleX100 = 3000;    // 0-30.00 PSI
 constexpr uint16_t kN2HighFullScaleX10 = 1500;    // 0-150.0 PSI
 
+// Where the O2 warm-up record (WarmRecord) lives in RAM (Requirements O2-6a).
+// NOT in a .noinit section: on this core the startup code overwrites that area from flash on every boot (measured on the
+// R4 WiFi with experiments/reset_probe). Ordinary RAM survives software, watchdog and reset-button resets, so the record sits
+// at a fixed address just below the heap limit (0x20007B00 on both boards) and well above the stack's bottom edge.
+// The sketch refuses to use it if the heap could ever reach it (see N2V8.ino).
+constexpr uint32_t kWarmRecordAddress = 0x20007A00u;
+
 }  // namespace n2

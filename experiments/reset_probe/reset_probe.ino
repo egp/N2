@@ -1,8 +1,14 @@
 // ===========================================================================================
-// reset_probe  VERSION 1.10  (2026-10-06)      <-- if you do not see this line, the IDE has an older copy
+// reset_probe  VERSION 1.B   (2026-10-06)      (minor versions are HEX: 1.A = 1.10, 1.B = 1.11)      <-- if you do not see this line, the IDE has an older copy
 //
 // Change log
-//   1.10 RESULT of 1.9: after a software reset the three plain RAM spots (heap-mid, heap-top, stack-bottom) SURVIVED but the
+//   1.B  RESULTS of 1.A on the R4 WiFi: software reset -> RSTSR1=0x04; watchdog -> 0x02; reset button -> all flags 0;
+//        RAM at three plain addresses survives all three, but is LOST on a USB unplug/replug (power loss). BUT after the power
+//        loss PORF was NOT set (RSTSR0=0): the bootloader probably clears it, so PORF cannot be used.
+//        This version uses the chip's cold/warm-start flag instead: RSTSR2.CWSF is 0 after power-on; the sketch sets it to 1,
+//        so any later reset without power loss reads 1 ("warm"). The credit record also moves to plain RAM (0x20007A40),
+//        exactly as the main firmware will do. Credit = valid record AND warm start.
+//   1.A  RESULT of 1.9: after a software reset the three plain RAM spots (heap-mid, heap-top, stack-bottom) SURVIVED but the
 //        .noinit record did not. So the chip keeps RAM and something clears or overwrites .noinit at startup.
 //        This version prints the .noinit record's raw words as found at boot (all zero = cleared; other values = overwritten).
 //   1.9  RESULT of 1.8: serial works. A software reset cleared the flags fine (plain writes work, no unlock needed) but the
@@ -35,9 +41,9 @@
 //   1.1  built-in LED blinks the cause and the credit result (works without any serial output)
 //   1.0  first version: serial report of the reset flags, RAM-record survival, console attach/detach
 // ===========================================================================================
-#define PROBE_VERSION "1.10"
+#define PROBE_VERSION "1.B"
 #define PROBE_MAJOR 1
-#define PROBE_MINOR 10
+#define PROBE_MINOR 11
 
 // reset_probe.ino — EXPERIMENT, not production code.
 //
@@ -74,7 +80,8 @@ struct Record {
   uint32_t runMs;  // accumulated run time across resets
   uint32_t check;
 };
-static Record rec __attribute__((section(".noinit")));
+// The credit record lives in plain RAM just below the heap (NOT .noinit: the startup code overwrites that on this core).
+static Record& rec = *reinterpret_cast<Record*>(0x20007A40u);
 static constexpr uint32_t kMagic = 0x4E325052;  // "N2PR"
 
 static uint32_t checksum(const Record& r) {
@@ -84,6 +91,7 @@ static void seal() { rec.check = checksum(rec); }
 
 // ---- captured at boot ----
 static uint8_t rst0, rst2, rst0After, rst1After;
+static bool warmStart;   // RSTSR2.CWSF at boot: 0 = cold start (power was lost), 1 = warm start (power kept)
 static uint16_t rst1;
 static bool recordWasValid;
 static uint32_t rawAtBoot[5];           // the .noinit record exactly as found at boot (before anything touched it)
@@ -96,6 +104,7 @@ static bool everReceived = false;
 static bool coreAcceptedBytes = false;   // did Serial.print() ever report bytes taken for sending?     // has any byte ever arrived from the host?
 
 static const char* classify(uint8_t r0, uint16_t r1) {
+  if (!warmStart) return "COLD START (power was lost)";
   if (r0 & 0x01) return "POWER-ON (PORF)";
   if (r1 & 0x02) return "WATCHDOG (WDTRF)";
   if (r1 & 0x01) return "INDEPENDENT WATCHDOG (IWDTRF)";
@@ -148,6 +157,7 @@ static void printReport() {
   Serial.print(F(")  RSTSR2=0x")); Serial.println(rst2, HEX);
   Serial.print(F("flags after clearing: RSTSR0=0x")); Serial.print(rst0After, HEX);
   Serial.print(F(" RSTSR1=0x")); Serial.println(rst1After, HEX);
+  Serial.print(F("RSTSR2.CWSF at boot = ")); Serial.print(warmStart ? 1 : 0); Serial.println(warmStart ? F("  (warm start: power was NOT lost)") : F("  (COLD start: power was lost)"));
   Serial.print(F("cause: ")); Serial.println(cause);
   Serial.print(F(".noinit record at 0x")); Serial.print(reinterpret_cast<uint32_t>(&rec), HEX); Serial.print(F(" as found at boot: "));
   for (uint8_t i = 0; i < 5; ++i) { Serial.print(F("0x")); Serial.print(rawAtBoot[i], HEX); Serial.print(i < 4 ? F(" ") : F("\n")); }
@@ -156,7 +166,7 @@ static void printReport() {
     Serial.print(F(": survived the reset = ")); Serial.print(sp.validAtBoot ? F("YES") : F("NO"));
     Serial.print(F("  boots seen = ")); Serial.println(sp.bootsAtBoot + (sp.validAtBoot ? 1 : 0));
   }
-  Serial.print(F("warm-up credit rule (valid record AND not power-on): credit = "));
+  Serial.print(F("warm-up credit rule (valid record AND warm start): credit = "));
   Serial.print(creditMs / 1000); Serial.println(F(" s"));
   Serial.print(F("millis() at start of setup(): ")); Serial.println(setupStartMs);
   Serial.print(F("uptime now: ")); Serial.print(millis() / 1000); Serial.println(F(" s"));
@@ -167,7 +177,7 @@ static void printReport() {
 
 // ---- LED beacon (no serial needed): non-blocking blink pattern, see the header ----
 static uint8_t causeBlinks() {
-  if (rst0 & 0x01) return 1;                 // power-on
+  if (!warmStart || (rst0 & 0x01)) return 1;  // cold start / power-on
   if (rst1 & 0x03) return 3;                 // watchdog (WDT or IWDT)
   if (rst1 & 0x04) return 4;                 // software
   if (rst0 & 0x0E) return 5;                 // voltage monitor
@@ -270,9 +280,11 @@ void setup() {
   rst0 = R_SYSTEM->RSTSR0;
   rst1 = R_SYSTEM->RSTSR1;
   rst2 = R_SYSTEM->RSTSR2;
+  warmStart = (rst2 & 0x01) != 0;
   setupStartMs = millis();
   cause = classify(rst0, rst1);
   clearFlags();
+  R_SYSTEM->RSTSR2 = 0x01;   // from now on any reset without power loss reads as a WARM start
   rst0After = R_SYSTEM->RSTSR0;
   rst1After = static_cast<uint8_t>(R_SYSTEM->RSTSR1 & 0xFF);
 
@@ -280,7 +292,7 @@ void setup() {
   recMagicOk = (rec.magic == kMagic);
   recCheckOk = (rec.check == checksum(rec));
   recordWasValid = recMagicOk && recCheckOk;
-  const bool powerOn = rst0 & 0x01;
+  const bool powerOn = !warmStart;   // cold start = power was lost (PORF itself is not visible, see the change log)
   if (recordWasValid && !powerOn) {
     baseRunMs = rec.runMs;  // runMs already includes the last session's uptime up to lastSeen
     creditMs = baseRunMs;

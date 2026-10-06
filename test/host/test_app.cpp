@@ -372,3 +372,41 @@ TEST_CASE("O2-6a: a power-on reset never gets credit, even with the feature enab
 TEST_CASE("ARC-3: the whole firmware run above never touched anything but the Hal (it ran on the host)") {
   SUCCEED();  // by construction: App, System, POST, BIST and drivers include no Arduino header
 }
+
+// ============================================================================ R4 WiFi console (CON-4)
+TEST_CASE("CON-4: setup() starts the console (the R4 WiFi core does not)") {
+  AppRig r;
+  CHECK_FALSE(r.hal.consoleBegun);
+  r.boot();
+  CHECK(r.hal.consoleBegun);
+}
+
+TEST_CASE("CON-4: where a PC cannot be detected (R4 WiFi) the banner repeats every 10 s until the host speaks") {
+  AppRig r;
+  r.hal.canDetectHost = false;  // emulate the UART: always 'attached', cannot see the PC
+  r.boot();
+  r.run(35000);
+  size_t banners = 0, pos = 0;
+  while ((pos = r.out.find("N2V8 0.0.0-test  built", pos)) != std::string::npos) { ++banners; pos += 5; }
+  CHECK(banners >= 4);  // at attach (boot), then every 10 s
+  const size_t before = banners;
+  r.type("ver");        // the host has spoken: stop repeating
+  r.out.clear();
+  r.run(30000);
+  banners = 0;
+  pos = 0;
+  while ((pos = r.out.find("N2V8 0.0.0-test  built", pos)) != std::string::npos) { ++banners; pos += 5; }
+  CHECK(banners == 0);
+  (void)before;
+}
+
+TEST_CASE("CON-4: where the host CAN be detected (Minima) the banner is printed once, at attach") {
+  AppRig r(quickWarmConfig(), AppOptions(), /*consoleAttached=*/false);
+  r.boot();
+  r.run(500);
+  r.hal.consoleIsAttached = true;
+  r.run(25000);
+  size_t banners = 0, pos = 0;
+  while ((pos = r.out.find("N2V8 0.0.0-test  built", pos)) != std::string::npos) { ++banners; pos += 5; }
+  CHECK(banners == 1);
+}

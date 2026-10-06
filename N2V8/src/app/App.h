@@ -67,6 +67,7 @@ class App : public CommandLauncher {
  private:
   void runPass(uint32_t now);
   void announceConsole();
+  void printBanner();
   bool tobPressed();
 
   Hal& hal_;
@@ -92,6 +93,7 @@ class App : public CommandLauncher {
   bool postRequested_ = false;
   bool bistRequested_ = false;
   bool consoleWasAttached_ = false;
+  uint32_t nextBanner_ = 10000;  // R4 WiFi: repeat the banner until a PC has been heard from
   uint32_t lastDropped_ = 0;
   uint32_t lastCreditTick_ = 0;
   bool o2WasError_ = false;

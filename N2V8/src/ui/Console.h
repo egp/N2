@@ -57,6 +57,7 @@ class Console : public LogSink {
   LogLevel level() const { return level_; }
   void setLevel(LogLevel level) { level_ = level; }
   uint32_t dropped() const { return dropped_; }
+  uint32_t received() const { return received_; }  // bytes ever read from the host (0 = never heard from a PC)
   bool attached() const { return hal_.consoleAttached(); }
   bool busy() const { return responder_ != nullptr; }
 
@@ -74,6 +75,7 @@ class Console : public LogSink {
   LineHook* hook_ = nullptr;
   uint8_t index_ = 0;
   uint32_t dropped_ = 0;
+  uint32_t received_ = 0;
   bool wasAttached_ = false;
 };
 

@@ -3,6 +3,7 @@
 
 #ifdef ARDUINO
 
+#include "../core/TxBudget.h"
 #include "Hal.h"
 
 namespace n2 {
@@ -19,6 +20,8 @@ class HalArduino : public Hal {
   void i2cBegin() override;
   bool i2cProbe(uint8_t address) override;
   bool i2cWrite(uint8_t address, const uint8_t* data, size_t n) override;
+  void consoleBegin() override;
+  bool consoleCanDetectHost() override;
   bool consoleAttached() override;
   int consoleRead() override;
   size_t consoleWriteSpace() override;
@@ -26,6 +29,9 @@ class HalArduino : public Hal {
   void watchdogBegin(uint32_t timeoutMs) override;
   void watchdogRefresh() override;
   ResetInfo readResetCause() override;
+
+ private:
+  TxBudget txBudget_;  // paces output on the R4 WiFi, whose UART writes block
 };
 
 }  // namespace n2

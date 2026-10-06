@@ -25,6 +25,8 @@ class FakeHal : public Hal {
   uint32_t nowMs = 0;
   uint32_t nowUs = 0;                       // returned by micros()
   bool consoleIsAttached = false;
+  bool consoleBegun = false;                 // set by consoleBegin()
+  bool canDetectHost = true;                 // false emulates the R4 WiFi (always 'attached', cannot see the PC)
   std::deque<char> consoleIn;                // bytes the "host" has typed
   std::string consoleOut;                    // everything written to the console
   size_t consoleSpace = 4096;                // free TX buffer; a test can shrink it to simulate a stalled host
@@ -90,6 +92,8 @@ class FakeHal : public Hal {
   }
 
   // ---- console ----
+  void consoleBegin() override { consoleBegun = true; }
+  bool consoleCanDetectHost() override { return canDetectHost; }
   bool consoleAttached() override { return consoleIsAttached; }
   int consoleRead() override {
     if (!consoleIsAttached || consoleIn.empty()) return -1;

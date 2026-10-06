@@ -38,6 +38,11 @@ class Hal {
   virtual bool i2cWrite(uint8_t address, const uint8_t* data, size_t n) = 0;
 
   // USB console (CON-2, CON-4). Nothing here may block.
+  // The UNO R4 WiFi core does NOT start `Serial` for us (it is built with -DNO_USB); the sketch must. Call once at boot.
+  virtual void consoleBegin() = 0;
+  // False on the R4 WiFi: its `Serial` is a UART that cannot tell whether a PC is listening, so consoleAttached() is
+  // always true there. The application repeats its banner until it has actually heard from the host.
+  virtual bool consoleCanDetectHost() = 0;
   virtual bool consoleAttached() = 0;                          // true only while a host has the port open
   virtual int consoleRead() = 0;                               // next input byte, or -1
   virtual size_t consoleWriteSpace() = 0;                      // bytes that can be written without waiting

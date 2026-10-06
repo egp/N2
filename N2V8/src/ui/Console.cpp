@@ -79,6 +79,7 @@ void Console::poll(CommandHandler& handler) {
   for (int budget = 64; budget > 0; --budget) {
     const int c = hal_.consoleRead();
     if (c < 0) break;
+    ++received_;
     const LineReader::Result r = reader_.feed(static_cast<char>(c));
     if (r == LineReader::Result::kOverflow) {
       const char* msg = "E line too long, discarded";

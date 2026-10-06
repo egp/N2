@@ -39,12 +39,36 @@ bool HalArduino::i2cWrite(uint8_t address, const uint8_t* data, size_t n) {
   return Wire.endTransmission() == 0;
 }
 
-// Console. `Serial` is true only while a host has the USB port open. NEVER call Serial.dtr():
-// in this core it forces the connected state permanently (Requirements CON-4).
+// ---- Console -----------------------------------------------------------------------------------------------
+// The two boards differ (see Requirements CON-4):
+//  * UNO R4 Minima: native USB. The core starts Serial. `if (Serial)` is true only while a PC has the port open (DTR).
+//    Serial.availableForWrite() reports free buffer space. NEVER call Serial.dtr() (it forces "connected" forever).
+//  * UNO R4 WiFi: the core is built with -DNO_USB, so Serial is a hardware UART to the ESP32 USB bridge. The sketch MUST
+//    call Serial.begin(); `if (Serial)` is always true; availableForWrite() is not implemented (returns 0); write() blocks
+//    until each byte has left the chip, so output is paced with a byte budget (TxBudget).
+#if defined(ARDUINO_UNOR4_WIFI)
+
+void HalArduino::consoleBegin() { Serial.begin(115200); }
+bool HalArduino::consoleCanDetectHost() { return false; }
+bool HalArduino::consoleAttached() { return true; }
+size_t HalArduino::consoleWriteSpace() { return txBudget_.space(millis()); }
+size_t HalArduino::consoleWrite(const char* data, size_t n) {
+  const size_t sent = Serial.write(reinterpret_cast<const uint8_t*>(data), n);
+  txBudget_.consume(static_cast<uint32_t>(sent), millis());
+  return sent;
+}
+
+#else  // UNO R4 Minima (native USB)
+
+void HalArduino::consoleBegin() { Serial.begin(115200); }  // harmless: the core has already started it
+bool HalArduino::consoleCanDetectHost() { return true; }
 bool HalArduino::consoleAttached() { return static_cast<bool>(Serial); }
-int HalArduino::consoleRead() { return Serial.available() > 0 ? Serial.read() : -1; }
 size_t HalArduino::consoleWriteSpace() { return Serial ? static_cast<size_t>(Serial.availableForWrite()) : 0; }
 size_t HalArduino::consoleWrite(const char* data, size_t n) { return Serial.write(reinterpret_cast<const uint8_t*>(data), n); }
+
+#endif
+
+int HalArduino::consoleRead() { return Serial.available() > 0 ? Serial.read() : -1; }
 
 void HalArduino::watchdogBegin(uint32_t timeoutMs) { WDT.begin(timeoutMs); }
 void HalArduino::watchdogRefresh() { WDT.refresh(); }
