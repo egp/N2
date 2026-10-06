@@ -36,22 +36,22 @@ void HalArduino::i2cSetClock(uint32_t hz) { Wire.setClock(hz); }
 
 bool HalArduino::i2cRecover() {
   Wire.end();
-  pinMode(A4, INPUT);  // SDA and SCL as plain inputs: the external pull-ups hold them high
-  pinMode(A5, INPUT);
-  delayMicroseconds(10);
-  for (uint8_t pulse = 0; pulse < 9 && digitalRead(A4) == LOW; ++pulse) {  // a slave mid-byte releases SDA after at most 9 clocks
-    pinMode(A5, OUTPUT);
-    digitalWrite(A5, LOW);
-    delayMicroseconds(10);
-    pinMode(A5, INPUT);
-    delayMicroseconds(10);
+  ::pinMode(A4, INPUT);  // SDA and SCL as plain inputs: the external pull-ups hold them high
+  ::pinMode(A5, INPUT);
+  ::delayMicroseconds(10);
+  for (uint8_t pulse = 0; pulse < 9 && ::digitalRead(A4) == LOW; ++pulse) {  // a slave mid-byte releases SDA after at most 9 clocks
+    ::pinMode(A5, OUTPUT);
+    ::digitalWrite(A5, LOW);
+    ::delayMicroseconds(10);
+    ::pinMode(A5, INPUT);
+    ::delayMicroseconds(10);
   }
-  pinMode(A4, OUTPUT);  // STOP condition: SDA rises while SCL is high
-  digitalWrite(A4, LOW);
-  delayMicroseconds(10);
-  pinMode(A4, INPUT);
-  delayMicroseconds(10);
-  const bool sdaFree = digitalRead(A4) == HIGH;
+  ::pinMode(A4, OUTPUT);  // STOP condition: SDA rises while SCL is high
+  ::digitalWrite(A4, LOW);
+  ::delayMicroseconds(10);
+  ::pinMode(A4, INPUT);
+  ::delayMicroseconds(10);
+  const bool sdaFree = ::digitalRead(A4) == HIGH;
   Wire.begin();
   Wire.setClock(kI2cClockHz);
   return sdaFree;

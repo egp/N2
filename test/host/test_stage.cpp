@@ -815,3 +815,22 @@ TEST_CASE("DRV-1: the stage firmware recovers the bus when the RTC does not answ
   r.run(61000);  // the next 60 s resync finds it
   CHECK(r.app->wall().synced());
 }
+
+TEST_CASE("DSP-7: LCD state changes are logged with the time stamp (so the LCD clock can be matched to the log)") {
+  Rig r;
+  r.setRtc({2026, 10, 6, 10, 31, 2});
+  r.boot();
+  r.run(600);
+  CHECK(r.has("LCD ready (init done)"));
+  r.clearOut();
+  r.hal.i2cPresent.erase(0x27);
+  r.run(2500);
+  CHECK(r.has("LCD I2C error #1"));
+  CHECK(r.has("I2C bus recovery #"));
+  CHECK(r.has("LCD not ready"));
+  CHECK(r.has("2026-10-06 10:31:"));  // stamped
+  r.clearOut();
+  r.hal.i2cPresent.insert(0x27);
+  r.run(3000);
+  CHECK(r.has("LCD ready (init done)"));
+}

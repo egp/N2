@@ -69,6 +69,7 @@ class Bringup : public StageActions {
   bool tobPressed();
   bool tbsOn();
   void logSwitchChanges();
+  void logLcdEvents();
 
   Hal& hal_;
   const BoardDef& board_;
@@ -97,6 +98,10 @@ class Bringup : public StageActions {
   bool goRequested_ = false;
   bool wasAttached_ = false;
   bool recoverRtcBus_ = true;
+  bool lcdWasReady_ = false;
+  uint32_t lcdErrorsSeen_ = 0;
+  uint32_t lcdRecoveriesSeen_ = 0;
+  uint32_t lcdReinitsSeen_ = 0;
   bool tbsWas_ = false;
   bool tobWas_ = false;
   bool heartbeat_ = false;

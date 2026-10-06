@@ -44,6 +44,19 @@ void Bringup::logSwitchChanges() {
   if (changed) screenRefresh_.arm(hal_.millis(), 0);  // show it on the matrix now, not at the next 250 ms tick
 }
 
+// One log line per LCD state change, so the time on the LCD's third row can be matched against the console log when the display misbehaves.
+void Bringup::logLcdEvents() {
+  const bool ready = lcd_.ready();
+  if (ready != lcdWasReady_) logf(log_, LogLevel::kInfo, "LCD %s", ready ? "ready (init done)" : "not ready (initialising or no answer)");
+  lcdWasReady_ = ready;
+  if (lcd_.i2cErrors() != lcdErrorsSeen_) logf(log_, LogLevel::kWarn, "LCD I2C error #%lu", static_cast<unsigned long>(lcd_.i2cErrors()));
+  lcdErrorsSeen_ = lcd_.i2cErrors();
+  if (lcd_.busRecoveries() != lcdRecoveriesSeen_) logf(log_, LogLevel::kWarn, "I2C bus recovery #%lu (LCD was not answering)", static_cast<unsigned long>(lcd_.busRecoveries()));
+  lcdRecoveriesSeen_ = lcd_.busRecoveries();
+  if (lcd_.reinitCount() != lcdReinitsSeen_) logf(log_, LogLevel::kInfo, "LCD re-initialised (#%lu)", static_cast<unsigned long>(lcd_.reinitCount()));
+  lcdReinitsSeen_ = lcd_.reinitCount();
+}
+
 void Bringup::setup() {
   hal_.consoleBegin();
   hal_.i2cBegin();
@@ -162,6 +175,7 @@ void Bringup::loop() {
   lcd_.service(now);
   console_.poll(commands_);
   logSwitchChanges();
+  logLcdEvents();
 
   // The banner: on the WiFi board (cannot see the PC) repeat until the PC has typed something; otherwise once per attach.
   const bool attached = console_.attached();
