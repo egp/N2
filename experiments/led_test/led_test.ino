@@ -1,5 +1,5 @@
 // ===========================================================================================
-// led_test  VERSION 1.0   (2026-10-06)      <-- if you do not see this line, the IDE has an older copy
+// led_test  VERSION 1.2   (2026-10-06)      <-- if you do not see this line, the IDE has an older copy
 //                                               (minor versions are written in HEX: 1.A = 1.10)
 //
 // Tests the REAL firmware LED driver (N2V8/src/drivers/Led1650.cpp, reached through the `src` link in this folder: the TM1650 4-digit, 8-segment display on I2C)
@@ -26,11 +26,17 @@
 //   A    FAILURE TEST: unplug the LED's SDA wire when told, then replug   0 = healthy, 1 = driver reports failure
 //
 // Console commands (Serial Monitor at 115200, or via Claude):   g = run the sequence again   n = next step   p = pause/resume
+//                                                              s = scan all I2C addresses on both buses
 //
 // Change log
+//   1.2  new console command  s  = scan every I2C address on BOTH buses of the WiFi board: Wire (A4 SDA / A5 SCL, which the firmware
+//        uses) and Wire1 (the Qwiic connector), to find a module that is wired but not answering where expected
+//   1.1  for 2 s after every boot the matrix shows the version in HEX ("1" "1" = 1.1); the test starts after the splash
 //   1.0  first version
 // ===========================================================================================
-#define TEST_VERSION "1.0"
+#define TEST_VERSION "1.2"
+#define TEST_MAJOR 1
+#define TEST_MINOR 2   // hex digit (10 would show as A)
 
 #include <Arduino.h>
 #include <Wire.h>
@@ -90,6 +96,7 @@ static uint8_t result = 0;         // the hex result shown on the right of the m
 static uint8_t subStep = 0;        // position inside a step that has several patterns
 static uint32_t lastSub = 0;
 static bool paused = false;
+static bool started = false;       // the sequence starts when the 2 s version splash is over
 static bool done = false;
 static uint8_t stepWrites[kSteps];
 
@@ -101,6 +108,21 @@ static n2::LedText text(const char* d, int8_t dot) {
   return t;
 }
 
+// Scan every 7-bit address on a bus and print the ones that answer.
+static void scanBus(TwoWire& bus, const char* name) {
+  Serial.print("  scan of "); Serial.print(name); Serial.print(": ");
+  uint8_t found = 0;
+  for (uint8_t a = 0x08; a < 0x78; ++a) {
+    bus.beginTransmission(a);
+    if (bus.endTransmission() == 0) {
+      Serial.print("0x"); Serial.print(a, HEX); Serial.print(' ');
+      ++found;
+    }
+  }
+  Serial.print(found == 0 ? "(nothing answers)" : "");
+  Serial.println();
+}
+
 static void showMatrix(uint32_t now) {
   static uint32_t next = 0;
   static bool heartbeat = false;
@@ -108,6 +130,13 @@ static void showMatrix(uint32_t now) {
   next = now + 500;
   heartbeat = !heartbeat;
   uint32_t frame[3] = {0, 0, 0};
+  if (now < 2000) {  // boot splash: the version in hex, e.g. "1" "1" = version 1.1
+    drawHex(frame, TEST_MAJOR, 0);
+    drawHex(frame, TEST_MINOR, 7);
+    matrix.loadFrame(frame);
+    next = now + 100;
+    return;
+  }
   drawHex(frame, step, 0);
   drawHex(frame, result, 7);
   if (led.healthy()) setPixel(frame, 7, 0);
@@ -229,7 +258,7 @@ void setup() {
   delay(100);
   Serial.println("\n==== led_test version " TEST_VERSION " (UNO R4 WiFi) ====");
   Serial.println("Testing the firmware's Led1650 driver. Commands: g = run again, n = next step, p = pause/resume");
-  enterStep(0, millis());
+  Serial.println("(the matrix shows the version in hex for 2 s; the test starts after that)");
 }
 
 void loop() {
@@ -242,9 +271,20 @@ void loop() {
     const int c = Serial.read();
     if (c == 'g') { done = false; enterStep(0, now); }
     else if (c == 'n' && !done) finishStep(now);
+    else if (c == 's') {
+      Serial.println("\n=== I2C scan (every address 0x08-0x77)");
+      scanBus(Wire, "Wire  (A4 = SDA, A5 = SCL)");
+      Wire1.begin();
+      scanBus(Wire1, "Wire1 (the Qwiic connector)");
+    }
     else if (c == 'p') { paused = !paused; Serial.println(paused ? "paused" : "running"); }
   }
 
+  if (!started) {  // wait for the version splash to finish
+    if (now < 2000) return;
+    started = true;
+    enterStep(0, now);
+  }
   if (done || paused) return;
   runStep(now);
   if (now - stepStart >= stepLength(step)) finishStep(now);
