@@ -31,4 +31,10 @@ bool parseDateTime(const char* date, const char* time, DateTime& out);
 // Seconds since 2000-01-01 00:00:00 (for measuring elapsed time and clock drift).
 uint32_t secondsSince2000(const DateTime& t);
 
+// The inverse of secondsSince2000. 32-bit seconds reach February 2136, so it only returns false if a year beyond 2199 were reached.
+bool dateTimeFromSeconds(uint32_t seconds, DateTime& out);
+
+// a - b in seconds (negative if a is earlier).
+int32_t secondsBetween(const DateTime& a, const DateTime& b);
+
 }  // namespace n2

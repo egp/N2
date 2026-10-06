@@ -31,6 +31,35 @@ uint32_t secondsSince2000(const DateTime& t) {
   return daysSince2000(t.year, t.month, t.day) * 86400u + t.hour * 3600u + t.minute * 60u + t.second;
 }
 
+bool dateTimeFromSeconds(uint32_t seconds, DateTime& out) {
+  uint32_t days = seconds / 86400u;
+  const uint32_t rest = seconds % 86400u;
+  uint16_t year = 2000;
+  while (year <= 2199) {
+    const uint16_t length = isLeapYear(year) ? 366 : 365;
+    if (days < length) break;
+    days -= length;
+    ++year;
+  }
+  if (year > 2199) return false;
+  uint8_t month = 1;
+  while (days >= daysInMonth(year, month)) {
+    days -= daysInMonth(year, month);
+    ++month;
+  }
+  out.year = year;
+  out.month = month;
+  out.day = static_cast<uint8_t>(days + 1);
+  out.hour = static_cast<uint8_t>(rest / 3600u);
+  out.minute = static_cast<uint8_t>(rest % 3600u / 60u);
+  out.second = static_cast<uint8_t>(rest % 60u);
+  return true;
+}
+
+int32_t secondsBetween(const DateTime& a, const DateTime& b) {
+  return static_cast<int32_t>(secondsSince2000(a)) - static_cast<int32_t>(secondsSince2000(b));
+}
+
 void formatDateTime(char* out, const DateTime& t) {
   snprintf(out, 20, "%04u-%02u-%02u %02u:%02u:%02u", static_cast<unsigned>(t.year % 10000u), static_cast<unsigned>(t.month % 100u),
            static_cast<unsigned>(t.day % 100u), static_cast<unsigned>(t.hour % 100u), static_cast<unsigned>(t.minute % 100u),

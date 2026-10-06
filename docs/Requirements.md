@@ -532,5 +532,7 @@ ignored** (owner, 2026-10-02): V8 uses the standard hardware `Wire` on SDA/SCL.
 The one V6/V7 value that cannot be used as-is is the high-pressure N2 sensor on **A5** (the I2C SCL
 line); see PIN-10. Still to confirm in production: which analog pin that sensor is really on, and that
 the output modules' active level is as V6/V7 assume.
+| RTC-7 | The RTC shall be used **only to time-stamp console log lines**, never for scheduling or control. The firmware anchors a software wall clock (`WallClock`) to the RTC at start-up and every 60 s, so stamping costs no I2C traffic. If the RTC is absent or untrusted the clock is "not synced" and lines carry no stamp. |
+| RTC-8 | The RTC shall be treated as read-only except that `time set` writes it when it is untrusted, unreadable, or differs from the given reference by more than 2 s. A missing RTC shall never stop POST or normal operation. |
 
 **RTC status:** RTC-1…RTC-5 implemented and host-tested (350 tests, Clang and GCC); RTC-1/2/4 and the battery backup validated on the R4 WiFi bench (`docs/results/rtc-test-wifi-20261006.md`). Firmware integration not yet flashed to hardware. RTC-6 is a hardware action for the owner.
