@@ -26,6 +26,12 @@ they must be right before the first hardware visit (DIAG).
 11. [ ] **Run the reset probe** (`experiments/reset_probe/README.md`, T1–T9) and paste the output into `docs/results/`. Repeat on the Minima. (O2-6a/6b, CON-3)
 12. [ ] I2C scan: confirm 0x24 (LED) and 0x27 (LCD). Optional early experiment: scan, `analogRead(A5)`, scan again. (PIN-10)
 
+## 1B-bis. Bench results so far (R4 WiFi)
+- [x] Reset experiment complete: cold/warm flag + plain-RAM record verified (docs/results/reset-probe-wifi-20261006.md).
+- [x] **LCD driver validated** on hardware (docs/results/lcd-test-wifi-20261006.md).
+- [ ] **LED driver test** waits for a replacement TM1650 module (the first one was damaged). Before powering the new one: check the power pins with a meter, confirm 5 V vs 3.3 V, and test the bare Arduino first.
+- [ ] Run the same reset probe on the Minima (at Tom's, or any Minima): the probe builds for it.
+
 ## 1C. On site (DIAG visit, Windows laptop with the Arduino IDE)
 13. [ ] Run the BIST with the console attached; answer p/f/r/s/q; copy the Serial Monitor text to a file.
 14. [ ] Read the production gauges next to BIST step 5 and note them.
