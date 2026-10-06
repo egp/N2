@@ -1,7 +1,11 @@
 // ===========================================================================================
-// reset_probe  VERSION 1.5   (2026-10-06)      <-- if you do not see this line, the IDE has an older copy
+// reset_probe  VERSION 1.6   (2026-10-06)      <-- if you do not see this line, the IDE has an older copy
 //
 // Change log
+//   1.6  result so far (v1.4/1.5): reset button changed 4 (software) to 2 (reset pin) -> the reset-cause flags work and clear.
+//        But credit stayed N: the RAM record did not survive. New matrix pixels (bottom row, counting from the left, 1st = 1):
+//        8th lit = the record's signature (magic) was still in RAM at boot; 10th lit = its checksum matched too.
+//        For 2 s after every boot the matrix shows the version digits ("1" then "6" = version 1.6).
 //   1.5  suspect: unlocking/re-locking the register-protect register (PRCR) may have broken USB serial.
 //        PRCR is no longer touched; flags are cleared with plain writes only (the report says if that worked).
 //        New matrix pixel (bottom row, 5th from left): lit = the core accepted bytes for sending
@@ -11,7 +15,9 @@
 //   1.1  built-in LED blinks the cause and the credit result (works without any serial output)
 //   1.0  first version: serial report of the reset flags, RAM-record survival, console attach/detach
 // ===========================================================================================
-#define PROBE_VERSION "1.5"
+#define PROBE_VERSION "1.6"
+#define PROBE_MAJOR 1
+#define PROBE_MINOR 6
 
 // reset_probe.ino — EXPERIMENT, not production code.
 //
@@ -60,6 +66,7 @@ static void seal() { rec.check = checksum(rec); }
 static uint8_t rst0, rst2, rst0After, rst1After;
 static uint16_t rst1;
 static bool recordWasValid;
+static bool recMagicOk, recCheckOk;   // what the RAM record looked like at boot (shown on the matrix)
 static uint32_t baseRunMs, setupStartMs, creditMs;
 static const char* cause;
 static bool wasAttached = false;
@@ -136,11 +143,18 @@ static void beacon(uint32_t now) {
 
 #if defined(ARDUINO_UNOR4_WIFI)
 // ---- 12x8 LED matrix (WiFi board only): glyphs are 5 columns x 7 rows, one 5-bit value per row ----
-static const uint8_t kGlyph1[7] = {0x04, 0x0C, 0x04, 0x04, 0x04, 0x04, 0x0E};
-static const uint8_t kGlyph2[7] = {0x0E, 0x11, 0x01, 0x02, 0x04, 0x08, 0x1F};
-static const uint8_t kGlyph3[7] = {0x1E, 0x01, 0x01, 0x0E, 0x01, 0x01, 0x1E};
-static const uint8_t kGlyph4[7] = {0x02, 0x06, 0x0A, 0x12, 0x1F, 0x02, 0x02};
-static const uint8_t kGlyph5[7] = {0x1F, 0x10, 0x1E, 0x01, 0x01, 0x11, 0x0E};
+static const uint8_t kDigit[10][7] = {
+    {0x0E, 0x11, 0x13, 0x15, 0x19, 0x11, 0x0E},  // 0
+    {0x04, 0x0C, 0x04, 0x04, 0x04, 0x04, 0x0E},  // 1
+    {0x0E, 0x11, 0x01, 0x02, 0x04, 0x08, 0x1F},  // 2
+    {0x1E, 0x01, 0x01, 0x0E, 0x01, 0x01, 0x1E},  // 3
+    {0x02, 0x06, 0x0A, 0x12, 0x1F, 0x02, 0x02},  // 4
+    {0x1F, 0x10, 0x1E, 0x01, 0x01, 0x11, 0x0E},  // 5
+    {0x06, 0x08, 0x10, 0x1E, 0x11, 0x11, 0x0E},  // 6
+    {0x1F, 0x01, 0x02, 0x04, 0x08, 0x08, 0x08},  // 7
+    {0x0E, 0x11, 0x11, 0x0E, 0x11, 0x11, 0x0E},  // 8
+    {0x0E, 0x11, 0x11, 0x0F, 0x01, 0x02, 0x0C},  // 9
+};
 static const uint8_t kGlyphY[7] = {0x11, 0x11, 0x0A, 0x04, 0x04, 0x04, 0x04};
 static const uint8_t kGlyphN[7] = {0x11, 0x19, 0x15, 0x13, 0x11, 0x11, 0x11};
 
@@ -157,19 +171,26 @@ static void drawGlyph(uint32_t* frame, const uint8_t* glyph, uint8_t leftColumn)
 }
 
 static void showMatrix(uint32_t now) {
-  static const uint8_t* const kDigits[5] = {kGlyph1, kGlyph2, kGlyph3, kGlyph4, kGlyph5};
   static bool heartbeat = false;
   static uint32_t nextUpdate = 0;
   if (static_cast<int32_t>(now - nextUpdate) < 0) return;
   nextUpdate = now + 500;
   heartbeat = !heartbeat;
   uint32_t frame[3] = {0, 0, 0};
-  drawGlyph(frame, kDigits[causeBlinks() - 1], 0);                 // cause 1..5
+  if (now < 2000) {                                                // boot splash: the version, e.g. "1" "6" = 1.6
+    drawGlyph(frame, kDigit[PROBE_MAJOR], 0);
+    drawGlyph(frame, kDigit[PROBE_MINOR], 7);
+    matrix.loadFrame(frame);
+    return;
+  }
+  drawGlyph(frame, kDigit[causeBlinks()], 0);                      // cause 1..5
   drawGlyph(frame, creditMs > 0 ? kGlyphY : kGlyphN, 7);           // warm-up credit?
   if (heartbeat) setPixel(frame, 7, 11);                           // loop() is alive
   if (serialAttached) setPixel(frame, 7, 0);                       // the board sees a console (DTR) right now
   if (everReceived) setPixel(frame, 7, 2);                         // a byte has arrived from the host
   if (coreAcceptedBytes) setPixel(frame, 7, 4);                    // the core took bytes for sending
+  if (recMagicOk) setPixel(frame, 7, 7);                           // the RAM record's signature survived the reset
+  if (recCheckOk) setPixel(frame, 7, 9);                           // ...and so did its checksum
   matrix.loadFrame(frame);
 }
 #endif
@@ -185,7 +206,9 @@ void setup() {
   rst0After = R_SYSTEM->RSTSR0;
   rst1After = static_cast<uint8_t>(R_SYSTEM->RSTSR1 & 0xFF);
 
-  recordWasValid = (rec.magic == kMagic) && (rec.check == checksum(rec));
+  recMagicOk = (rec.magic == kMagic);
+  recCheckOk = (rec.check == checksum(rec));
+  recordWasValid = recMagicOk && recCheckOk;
   const bool powerOn = rst0 & 0x01;
   if (recordWasValid && !powerOn) {
     baseRunMs = rec.runMs;  // runMs already includes the last session's uptime up to lastSeen

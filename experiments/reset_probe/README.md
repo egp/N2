@@ -49,7 +49,10 @@ Left: the cause as a digit (same numbers as the blink table). Right: **Y** = war
 bottom-right pixel blinks twice a second: if it blinks, `loop()` is running.
 Two more pixels on the bottom row describe the serial link: **bottom-left lit = the board sees a console** (the host has the
 port open with DTR raised); **third pixel from the left lit = a byte has arrived from the host**;
-**fifth pixel lit = the core accepted bytes for sending** (if lit but nothing reaches the PC, the USB transmit path is stuck). Nothing needs to be attached; the matrix is part
+**fifth pixel lit = the core accepted bytes for sending**;
+**eighth pixel lit = the RAM record's signature was still there at boot; tenth lit = its checksum matched too**
+(counting pixels from the left, the first being number 1). For 2 s after every boot the matrix shows the sketch version
+(e.g. `1` and `6` for version 1.6) (if lit but nothing reaches the PC, the USB transmit path is stuck). Nothing needs to be attached; the matrix is part
 of the WiFi board. (The Minima has no matrix; it uses the built-in LED blinks only.)
 
 ## If the Serial Monitor goes quiet
