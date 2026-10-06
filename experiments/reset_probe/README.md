@@ -45,15 +45,19 @@ blink = no credit**; then a longer pause and it starts again. For T2/T3 (reset b
 for T4 (unplug/replug) 1 blink then a short blink.
 
 ## The WiFi board's 12x8 LED matrix shows it too (R4 WiFi only)
-Left: the cause as a digit (same numbers as the blink table). Right: **Y** = warm-up credit, **N** = no credit. The
-bottom-right pixel blinks twice a second: if it blinks, `loop()` is running.
-Two more pixels on the bottom row describe the serial link: **bottom-left lit = the board sees a console** (the host has the
-port open with DTR raised); **third pixel from the left lit = a byte has arrived from the host**;
-**fifth pixel lit = the core accepted bytes for sending**;
-**eighth pixel lit = the RAM record's signature was still there at boot; tenth lit = its checksum matched too**
-(counting pixels from the left, the first being number 1). For 2 s after every boot the matrix shows the sketch version
-(e.g. `1` and `6` for version 1.6) (if lit but nothing reaches the PC, the USB transmit path is stuck). Nothing needs to be attached; the matrix is part
-of the WiFi board. (The Minima has no matrix; it uses the built-in LED blinks only.)
+The matrix cycles through four pages (about 8.5 s per round). Numbers are **hex**, two digits = one byte:
+
+| Page | Shown for | Two hex digits (or glyphs) | How to read it |
+|---|---|---|---|
+| 1 | 1.5 s | version, e.g. `1` `7` = 1.7 | which copy of the sketch is on the board. One lit pixel at the bottom-left. |
+| 2 | 1.5 s | **RSTSR0 at boot** | bit 0 (`01`) = power-on reset; bit 1 (`02`) = voltage monitor 0. Two lit pixels at the bottom-left. |
+| 3 | 1.5 s | **RSTSR1 at boot** | bit 0 (`01`) = independent watchdog, bit 1 (`02`) = watchdog, bit 2 (`04`) = software reset. Three lit pixels. |
+| 4 | 4 s | the **summary**: cause digit 1-5 on the left, **Y** (warm-up credit) or **N** on the right | see below |
+
+On the summary page the bottom row also reports the experiment's state (pixel 1 is the leftmost):
+**1** = the board sees a console (DTR); **3** = a byte has arrived from the host; **5** = the core accepted bytes for sending;
+**8** = the RAM record's signature was still there at boot; **10** = its checksum matched too; **12** = heartbeat (blinks).
+(The Minima has no matrix; it uses the built-in LED blinks only.)
 
 ## If the Serial Monitor goes quiet
 Pressing reset or replugging the USB cable disconnects the port for a moment. If the IDE shows the monitor as disconnected,

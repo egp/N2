@@ -1,7 +1,13 @@
 // ===========================================================================================
-// reset_probe  VERSION 1.6   (2026-10-06)      <-- if you do not see this line, the IDE has an older copy
+// reset_probe  VERSION 1.7   (2026-10-06)      <-- if you do not see this line, the IDE has an older copy
 //
 // Change log
+//   1.7  matrix cycles through pages, all numbers in HEX (two digits = one byte per page):
+//          page 1 (1.5 s)  version        major, minor   e.g. "1 7"  (minor 10..15 shows as A..F)
+//          page 2 (1.5 s)  RSTSR0 at boot  bit0 = power-on, bit1 = voltage-monitor 0 (the other bits are other monitors)
+//          page 3 (1.5 s)  RSTSR1 at boot  bit0 = IWDT reset, bit1 = WDT reset, bit2 = software reset
+//          page 4 (4 s)    the summary: cause digit (1-5), Y/N credit, and the status pixels on the bottom row
+//        On pages 1-3 the page number is shown by the lit pixels at the bottom-left (1, 2 or 3 pixels).
 //   1.6  result so far (v1.4/1.5): reset button changed 4 (software) to 2 (reset pin) -> the reset-cause flags work and clear.
 //        But credit stayed N: the RAM record did not survive. New matrix pixels (bottom row, counting from the left, 1st = 1):
 //        8th lit = the record's signature (magic) was still in RAM at boot; 10th lit = its checksum matched too.
@@ -15,9 +21,9 @@
 //   1.1  built-in LED blinks the cause and the credit result (works without any serial output)
 //   1.0  first version: serial report of the reset flags, RAM-record survival, console attach/detach
 // ===========================================================================================
-#define PROBE_VERSION "1.6"
+#define PROBE_VERSION "1.7"
 #define PROBE_MAJOR 1
-#define PROBE_MINOR 6
+#define PROBE_MINOR 7
 
 // reset_probe.ino — EXPERIMENT, not production code.
 //
@@ -143,7 +149,7 @@ static void beacon(uint32_t now) {
 
 #if defined(ARDUINO_UNOR4_WIFI)
 // ---- 12x8 LED matrix (WiFi board only): glyphs are 5 columns x 7 rows, one 5-bit value per row ----
-static const uint8_t kDigit[10][7] = {
+static const uint8_t kDigit[16][7] = {   // hex digits 0-F
     {0x0E, 0x11, 0x13, 0x15, 0x19, 0x11, 0x0E},  // 0
     {0x04, 0x0C, 0x04, 0x04, 0x04, 0x04, 0x0E},  // 1
     {0x0E, 0x11, 0x01, 0x02, 0x04, 0x08, 0x1F},  // 2
@@ -154,6 +160,12 @@ static const uint8_t kDigit[10][7] = {
     {0x1F, 0x01, 0x02, 0x04, 0x08, 0x08, 0x08},  // 7
     {0x0E, 0x11, 0x11, 0x0E, 0x11, 0x11, 0x0E},  // 8
     {0x0E, 0x11, 0x11, 0x0F, 0x01, 0x02, 0x0C},  // 9
+    {0x0E, 0x11, 0x11, 0x1F, 0x11, 0x11, 0x11},  // A
+    {0x1E, 0x11, 0x11, 0x1E, 0x11, 0x11, 0x1E},  // B
+    {0x0E, 0x11, 0x10, 0x10, 0x10, 0x11, 0x0E},  // C
+    {0x1E, 0x11, 0x11, 0x11, 0x11, 0x11, 0x1E},  // D
+    {0x1F, 0x10, 0x10, 0x1E, 0x10, 0x10, 0x1F},  // E
+    {0x1F, 0x10, 0x10, 0x1E, 0x10, 0x10, 0x10},  // F
 };
 static const uint8_t kGlyphY[7] = {0x11, 0x11, 0x0A, 0x04, 0x04, 0x04, 0x04};
 static const uint8_t kGlyphN[7] = {0x11, 0x19, 0x15, 0x13, 0x11, 0x11, 0x11};
@@ -177,9 +189,21 @@ static void showMatrix(uint32_t now) {
   nextUpdate = now + 500;
   heartbeat = !heartbeat;
   uint32_t frame[3] = {0, 0, 0};
-  if (now < 2000) {                                                // boot splash: the version, e.g. "1" "6" = 1.6
-    drawGlyph(frame, kDigit[PROBE_MAJOR], 0);
-    drawGlyph(frame, kDigit[PROBE_MINOR], 7);
+  // Pages, each shown as two hex digits (one byte). Cycle: version 1.5 s, RSTSR0 1.5 s, RSTSR1 1.5 s, summary 4 s.
+  const uint32_t t = now % 8500u;
+  uint8_t page = 0;                                     // 0 = summary
+  if (t < 1500u) page = 1;
+  else if (t < 3000u) page = 2;
+  else if (t < 4500u) page = 3;
+  if (page != 0) {
+    uint8_t value = 0;
+    if (page == 1) value = static_cast<uint8_t>((PROBE_MAJOR << 4) | PROBE_MINOR);
+    else if (page == 2) value = rst0;
+    else value = static_cast<uint8_t>(rst1 & 0xFF);
+    drawGlyph(frame, kDigit[value >> 4], 0);
+    drawGlyph(frame, kDigit[value & 0x0F], 7);
+    for (uint8_t i = 0; i < page; ++i) setPixel(frame, 7, i);   // page number: lit pixels on the bottom-left, 1 to 3
+    if (heartbeat) setPixel(frame, 7, 11);
     matrix.loadFrame(frame);
     return;
   }
