@@ -12,7 +12,7 @@ golden screens in the host tests; changing it later means editing one table and 
 6. **N2% only**, no O2%.
 7. Faults: **toggle** between the normal screen and a full-screen fault display every 3–4 s.
 
-## Option 1 — clear labels (recommended for readability)
+## Option 1 — clear labels (CHOSEN)
 
 ```
   0         1
@@ -88,9 +88,16 @@ A warning-level fault uses `WARNING` in the header. The LED shows `F03`.
 | 3 | 0–2, 4–8 | `AIR`, value (first to drop) |
 | 3 | 16–19 | the four actual output bits |
 
-## Remaining questions (software)
-1. Option 1 (clear labels, compressor one row down) or Option 2 (compressor on the pressure line, labels shortened to `L`/`H`)?
-2. Fault cycle: 3 s or 4 s?
+## Decisions (owner, 2026-10-06)
+1. **Option 1 (clear labels) is chosen.** Option 2 stays in the code only until the golden tests are rewritten, then it goes.
+2. **The compressor-running text is removed.** The compressor needs no label while it is simply running or off; the CMP field appears only to say
+   **why it is stopped: `LO` (N2-low too low) or `HI` (N2-high too high)**. That reclaims the field for something more useful.
+3. **TBS is not shown** on the LCD (TBS on the display was dropped; the LED/LCD simply show the state of the system).
+4. Fault screen cycle: still open, 3 s or 4 s (the code uses a constant, `LCD_FAULT_CYCLE_MS`).
+
+**Not yet done in the code:** the renders below are still the pre-decision ones (they show `CMP ON/OF`). Changing them means editing `renderNormal`
+in `LcdScreens.cpp` and the expected text in `test/host/test_display.cpp` together. Waiting for the owner to say what should use the reclaimed
+row-2 space (candidates: the O2 sample count, loop time, or the last fault code).
 
 ## Real renders (output of `render_screens`, i.e. what the firmware's own code produces)
 
