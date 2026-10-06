@@ -36,6 +36,7 @@ struct BringupOptions {
   uint32_t watchdogMs = 4000;        // WDT-1: refreshed at the end of every loop pass
   uint32_t rtcResyncMs = 60000;      // how often the log clock re-anchors to the RTC (RTC-7)
   uint32_t bannerRepeatMs = 3000;    // WiFi board: repeat the banner until the PC has been heard
+  bool lcdAlwaysRewrite = true;      // testing aid (Stage 1 is a bench sketch): rewrite all 80 LCD cells continuously, no caching
   uint32_t screenMs = 250;           // LCD and matrix refresh period
   uint32_t lcdStartMs = kDefaultLcdStartMs;  // do not touch the LCD until this long after boot (0 = at once); see DisplayManager::begin
 };
@@ -95,6 +96,7 @@ class Bringup : public StageActions {
   Deadline lcdStart_;
   bool goRequested_ = false;
   bool wasAttached_ = false;
+  bool recoverRtcBus_ = true;
   bool tbsWas_ = false;
   bool tobWas_ = false;
   bool heartbeat_ = false;

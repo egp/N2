@@ -82,6 +82,9 @@ class FakeHal : public Hal {
   }
   uint32_t i2cClockHz = 100000;
   std::vector<uint32_t> i2cClockChanges;
+  uint32_t i2cRecoveries = 0;
+  bool i2cRecoverResult = true;
+  bool i2cRecover() override { ++i2cRecoveries; return i2cRecoverResult; }
   void i2cSetClock(uint32_t hz) override { i2cClockHz = hz; i2cClockChanges.push_back(hz); }
   void i2cBegin() override {
     i2cStarted = true;

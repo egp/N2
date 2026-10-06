@@ -18,9 +18,11 @@ namespace n2 {
 struct LcdHealing {
   uint32_t firstRewriteMs = 250;
   uint32_t rewriteEveryMs = 5000;
-  uint32_t reinitAfterMs1 = 500;
-  uint32_t reinitAfterMs2 = 2000;
-  uint32_t reinitEveryMs = 30000;
+  // Re-initialisation is OFF by default (0): on the bench (2026-10-06) re-initialising a display that was already running left it
+  // garbled or blank in 6 resets out of 6, while the full rewrites alone gave 5 clean in 5 and 5 in 6. Kept as an option for experiments.
+  uint32_t reinitAfterMs1 = 0;
+  uint32_t reinitAfterMs2 = 0;
+  uint32_t reinitEveryMs = 0;
 };
 
 class Lcd20x4 {
@@ -48,10 +50,11 @@ class Lcd20x4 {
   // Self-healing (bench finding 2026-10-06: after a reset the display sometimes stayed blank or garbled and nothing we wrote showed;
   // the HD44780 cannot be read back through this backpack, so we cannot tell). With healing on, the driver repairs it on a schedule:
   //   * full rewrites of the screen 250 ms after the display first comes up, then at doubling gaps up to every 5 s
-  //     (repairs corrupted cells, no flicker),
-  //   * a full re-initialisation 0.5 s and 2 s after it first comes up, then every 30 s (repairs a controller stuck in a bad mode;
-  //     a brief clear-and-redraw). So a bad display is bad for at most about 30 s.
+  //     (repairs corrupted cells, no flicker). Optionally (off): timed full re-initialisations, see LcdHealing.
   using Healing = LcdHealing;
+  // Testing aid: no caching at all. As soon as one full pass of 80 cells has gone out, the next one starts, so the display is rewritten
+  // continuously (a corrupted cell is repaired within about 50 ms). Costs steady I2C traffic: use on the bench, not in production.
+  void setAlwaysRewrite(bool on) { alwaysRewrite_ = on; }
   void enableHealing(const Healing& healing = Healing()) { heal_ = healing; healOn_ = true; }
   void refresh();
   void reinit(uint32_t now);
@@ -62,6 +65,7 @@ class Lcd20x4 {
   bool healthy() const { return healthy_; }
   uint32_t i2cErrors() const { return errors_; }
   uint32_t reinitCount() const { return reinits_; }
+  uint32_t busRecoveries() const { return recoveries_; }  // times the I2C bus was recovered because the LCD stopped answering
   bool inSync() const;                   // the display shows exactly the desired screen
   bool backlightOn() const { return backlight_; }
   bool displayOn() const { return displayOn_; }
@@ -86,6 +90,7 @@ class Lcd20x4 {
   bool healthy_ = true;
   uint32_t errors_ = 0;
   uint32_t reinits_ = 0;
+  uint32_t recoveries_ = 0;
   bool backlight_ = true;
   bool displayOn_ = true;
   bool backlightDirty_ = false;
@@ -99,6 +104,7 @@ class Lcd20x4 {
 
   void serviceHealing(uint32_t now);
   bool healOn_ = false;
+  bool alwaysRewrite_ = false;
   Healing heal_;
   bool healStarted_ = false;
   uint32_t healReadyAt_ = 0;

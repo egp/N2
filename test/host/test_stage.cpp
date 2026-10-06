@@ -38,6 +38,7 @@ struct Rig {
     hal.inputLevel[tob.pin] = levelHigh(false, tob.active);  // TOB not pressed
     BringupOptions opt;
     opt.lcdStartMs = 0;  // LCD at once (the real default waits 2.5 s: see the start-delay tests)
+    opt.lcdAlwaysRewrite = false;  // tests count writes; the always-rewrite option has its own tests
     app.reset(new Bringup(hal, kHostBoard, info, withMatrix ? &matrix : nullptr, opt));
   }
   void setRtc(const DateTime& t) { Rtc3231 r(hal, 0x68); REQUIRE(r.set(t)); }
@@ -505,13 +506,13 @@ TEST_CASE("DSP-7: `lcd` and `lcd reinit` work from the console") {
   r.run(300);
   r.clearOut();
   r.type("lcd");
-  CHECK(r.has("LCD: ready, I2C errors 0, re-initialisations 0"));
+  CHECK(r.has("LCD: ready, I2C errors 0, re-inits 0, bus recoveries 0"));
   r.clearOut();
   r.type("lcd reinit");
   CHECK(r.has("LCD controller restarting"));
   r.run(1000);
   r.type("lcd");
-  CHECK(r.has("re-initialisations"));
+  CHECK(r.has("re-inits"));
   CHECK(r.has("ready"));
   r.type("lcd bogus");
   CHECK(r.has("usage: lcd [reinit | bus [rounds]]"));
@@ -680,9 +681,13 @@ TEST_CASE("DSP-7: with healing on, the screen is fully rewritten early, then at 
   CHECK(r.lcdWrites() - before < 12 * perRewrite + 6 * 100);
 }
 
-TEST_CASE("DSP-7: with healing on, the controller is re-initialised 0.5 s and 2 s after it first comes up, then every 30 s") {
+TEST_CASE("DSP-7: with re-initialisation switched on (it is off by default), the controller is re-initialised 0.5 s and 2 s after it comes up, then every 30 s") {
   HealRig r;
-  r.lcd.enableHealing();
+  LcdHealing h;
+  h.reinitAfterMs1 = 500;
+  h.reinitAfterMs2 = 2000;
+  h.reinitEveryMs = 30000;
+  r.lcd.enableHealing(h);
   r.run(300);
   CHECK(r.lcd.reinitCount() == 0);
   r.run(500);
@@ -699,12 +704,12 @@ TEST_CASE("DSP-7: with healing on, the controller is re-initialised 0.5 s and 2 
 }
 
 TEST_CASE("DSP-7: healing waits until the display has come up: a delayed start delays the whole schedule") {
-  HealRig r;
-  r.lcd.enableHealing();
   FakeHal hal;
   hal.i2cPresent.insert(0x27);
   Lcd20x4 lcd(hal, 0x27);
-  lcd.enableHealing();
+  LcdHealing h;
+  h.reinitAfterMs1 = 500;
+  lcd.enableHealing(h);
   lcd.setScreen(makeScreen("A", "B", "C", "D"));
   uint32_t now = 0;
   for (; now < 5000; now += 5) lcd.service(now);  // begin() not called: the driver is idle
@@ -715,15 +720,98 @@ TEST_CASE("DSP-7: healing waits until the display has come up: a delayed start d
   CHECK(lcd.reinitCount() == 0);  // first re-init is 500 ms after it came up
 }
 
-TEST_CASE("DSP-7: the stage firmware and the full application both turn healing on") {
+TEST_CASE("DSP-7: by default healing only rewrites: it never re-initialises a running display") {
+  HealRig r;
+  r.lcd.enableHealing();
+  r.run(120000);
+  CHECK(r.lcd.reinitCount() == 0);
+  CHECK(r.lcd.inSync());
+}
+
+TEST_CASE("DSP-7: the stage firmware and the full application both turn healing on (early full rewrites)") {
   Rig r;
   r.setRtc({2026, 10, 6, 10, 31, 2});
   r.boot();
-  r.run(1000);
-  CHECK(r.app->lcd().reinitCount() >= 1);  // the 0.5 s re-initialisation happened
+  r.run(300);
+  const size_t before = r.hal.i2cWrites.size();
+  r.run(400);
+  size_t after = r.hal.i2cWrites.size();
+  CHECK(after > before + 70);  // the 250 ms full rewrite happened
+  CHECK(r.app->lcd().reinitCount() == 0);
   DisplayManager dm(r.hal, kHostBoard, LcdLayout::kClearLabels);
   dm.begin(0, 0);
   uint32_t now = 0;
+  for (; now < 200; now += 5) dm.service(now);
+  const size_t w1 = r.hal.i2cWrites.size();
   for (; now < 700; now += 5) dm.service(now);
-  CHECK(dm.lcd().reinitCount() >= 1);
+  CHECK(r.hal.i2cWrites.size() > w1 + 70);
+  CHECK(dm.lcd().reinitCount() == 0);
+}
+
+TEST_CASE("DSP-7: setAlwaysRewrite rewrites all 80 cells over and over (no caching), still ends every pass in sync") {
+  HealRig r;
+  r.lcd.setAlwaysRewrite(true);
+  r.run(200);
+  const size_t first = r.lcdWrites();
+  r.run(1000);
+  // each full pass writes about 80 characters (plus cursor commands); a second of running gives many passes
+  CHECK(r.lcdWrites() > first + 3 * 80);
+  const size_t persecond = r.lcdWrites();
+  r.run(1000);
+  CHECK(r.lcdWrites() > persecond + 3 * 80);  // and it keeps going
+  CHECK(std::string(r.lcd.shown(0)) == "ROW0                ");
+  CHECK(r.lcd.reinitCount() == 0);
+}
+
+TEST_CASE("DSP-7: the stage firmware turns always-rewrite on by default and the option can turn it off") {
+  FakeHal hal;
+  hal.i2cPresent.insert(0x27);
+  RecordingMatrix matrix;
+  BuildInfo info{"8.0.0-test", "Jan  1 2026", "12:00:00", "host (fake)", "HOST", 10};
+  BringupOptions defaults;
+  CHECK(defaults.lcdAlwaysRewrite);
+  BringupOptions opt;
+  opt.lcdStartMs = 0;
+  Bringup app(hal, kHostBoard, info, &matrix, opt);
+  hal.consoleIsAttached = true;
+  app.setup();
+  for (uint32_t t = 0; t < 600; t += 10) { hal.nowMs += 10; app.loop(); }
+  const size_t a = hal.i2cWrites.size();
+  for (uint32_t t = 0; t < 1000; t += 10) { hal.nowMs += 10; app.loop(); }
+  CHECK(hal.i2cWrites.size() > a + 200);
+}
+
+// ============================================================================ I2C bus recovery
+TEST_CASE("DRV-1: when the LCD stops answering the driver recovers the bus on every retry, and the display comes back when it answers") {
+  FakeHal hal;
+  hal.i2cPresent.insert(0x27);
+  Lcd20x4 lcd(hal, 0x27);
+  lcd.begin(0);
+  lcd.setScreen(makeScreen("ROW0", "ROW1", "ROW2", "ROW3"));
+  uint32_t now = 0;
+  for (; now < 300 && !lcd.inSync(); now += 5) lcd.service(now);
+  REQUIRE(lcd.inSync());
+  hal.i2cPresent.erase(0x27);  // the bus wedges / the LCD vanishes
+  lcd.setScreen(makeScreen("NEW0", "NEW1", "NEW2", "NEW3"));
+  for (uint32_t t = 0; t < 3500; t += 5) lcd.service(now += 5);
+  CHECK_FALSE(lcd.healthy());
+  CHECK(lcd.busRecoveries() >= 2);
+  CHECK(hal.i2cRecoveries >= 2);
+  hal.i2cPresent.insert(0x27);
+  for (uint32_t t = 0; t < 4000 && !lcd.inSync(); t += 5) lcd.service(now += 5);
+  CHECK(lcd.inSync());
+  CHECK(lcd.healthy());
+  CHECK(std::string(lcd.shown(0)) == "NEW0                ");
+}
+
+TEST_CASE("DRV-1: the stage firmware recovers the bus when the RTC does not answer, then carries on") {
+  Rig r(true, false);  // no RTC
+  r.boot();
+  r.run(300);
+  CHECK(r.hal.i2cRecoveries >= 1);
+  CHECK_FALSE(r.app->wall().synced());
+  r.hal.i2cPresent.insert(0x68);
+  r.setRtc({2026, 10, 6, 10, 31, 2});
+  r.run(61000);  // the next 60 s resync finds it
+  CHECK(r.app->wall().synced());
 }

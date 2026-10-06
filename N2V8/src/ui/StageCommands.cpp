@@ -76,8 +76,8 @@ void StageCommands::status() {
     const char* word = r.level == CheckLevel::kPass ? "ok" : (r.level == CheckLevel::kInfo ? "info" : (r.level == CheckLevel::kFail ? "FAIL" : "-"));
     out_.add("  %-6s %-4s %s", c_.selfTest.checkName(i), word, r.text);
   }
-  out_.add("LCD: I2C errors %lu, re-initialisations %lu", static_cast<unsigned long>(c_.lcd.i2cErrors()),
-           static_cast<unsigned long>(c_.lcd.reinitCount()));
+  out_.add("LCD: I2C errors %lu, re-inits %lu, bus recoveries %lu", static_cast<unsigned long>(c_.lcd.i2cErrors()),
+           static_cast<unsigned long>(c_.lcd.reinitCount()), static_cast<unsigned long>(c_.lcd.busRecoveries()));
   char stamp[20];
   out_.add("log clock: %s", c_.wall.stamp(c_.hal.millis(), stamp) ? stamp : "not synced (no trusted RTC)");
   out_.add("console: dropped %lu log lines, received %lu bytes", static_cast<unsigned long>(c_.console.dropped()),
@@ -175,9 +175,9 @@ void StageCommands::lcdCommand(const Command& cmd) {
     c_.lcd.reinit(c_.hal.millis());
     out_.add("LCD controller restarting (the screen clears and redraws)");
   }
-  out_.add("LCD: %s, I2C errors %lu, re-initialisations %lu, content %s", c_.lcd.ready() ? "ready" : "not ready",
+  out_.add("LCD: %s, I2C errors %lu, re-inits %lu, bus recoveries %lu, content %s", c_.lcd.ready() ? "ready" : "not ready",
            static_cast<unsigned long>(c_.lcd.i2cErrors()), static_cast<unsigned long>(c_.lcd.reinitCount()),
-           c_.lcd.inSync() ? "in sync" : "being written");
+           static_cast<unsigned long>(c_.lcd.busRecoveries()), c_.lcd.inSync() ? "in sync" : "being written");
 }
 
 void StageCommands::i2cCommand(const Command& cmd) {

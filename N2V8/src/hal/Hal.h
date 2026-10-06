@@ -34,6 +34,11 @@ class Hal {
   virtual void i2cBegin() = 0;
   // Change the bus clock (Hz). Used by the speed sweep; i2cBegin() sets the configured speed (Config.h kI2cClockHz).
   virtual void i2cSetClock(uint32_t hz) = 0;
+  // Free a wedged bus. A reset in the middle of a transaction can leave a slave holding SDA low, or leave the controller's own I2C
+  // state stuck so that every later transaction fails (seen on the bench 2026-10-06: scan found nothing until the next reset).
+  // Shuts the controller down, clocks SCL up to nine times until SDA is released, sends a STOP, and starts the controller again at the
+  // configured speed. Returns true if SDA is high afterwards. Takes about 0.2 ms; safe to call at any time.
+  virtual bool i2cRecover() = 0;
   // True if a device acknowledges its address.
   virtual bool i2cProbe(uint8_t address) = 0;
   // Write n bytes in ONE transaction. True only if the device acknowledged every byte (DRV-1).

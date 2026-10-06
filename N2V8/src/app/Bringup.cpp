@@ -62,6 +62,7 @@ void Bringup::setup() {
   if (opt_.lcdStartMs == 0) lcd_.begin(now);
   else lcdStart_.arm(now, opt_.lcdStartMs);
   lcd_.enableHealing();  // see Lcd20x4::Healing
+  lcd_.setAlwaysRewrite(opt_.lcdAlwaysRewrite);
   lcd_.setScreen(renderBanner(info_.version, info_.board, info_.date));
   syncWallClock(now);
   rtcResync_.arm(now, opt_.rtcResyncMs);
@@ -83,7 +84,12 @@ bool Bringup::startBist() { return selfTest_.bistBegin(hal_.millis()); }
 void Bringup::syncWallClock(uint32_t now) {
   DateTime t;
   bool trusted = false;
-  if (rtc_.present() && rtc_.timeValid(trusted) && trusted && rtc_.read(t)) wall_.sync(t, now);
+  bool present = rtc_.present();
+  if (!present && recoverRtcBus_) {  // not answering: it may be the bus rather than the RTC; free it and ask once more
+    hal_.i2cRecover();
+    present = rtc_.present();
+  }
+  if (present && rtc_.timeValid(trusted) && trusted && rtc_.read(t)) wall_.sync(t, now);
   else wall_.unsync();
 }
 

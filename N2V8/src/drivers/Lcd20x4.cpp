@@ -150,13 +150,14 @@ void Lcd20x4::serviceHealing(uint32_t now) {
     healReadyAt_ = now;
     rewriteGapMs_ = heal_.firstRewriteMs;
     nextRewrite_.arm(now, rewriteGapMs_);
-    nextReinit_.arm(now, heal_.reinitAfterMs1);
+    if (heal_.reinitAfterMs1 > 0) nextReinit_.arm(now, heal_.reinitAfterMs1);
     return;
   }
   if (nextReinit_.reached(now)) {
     ++healReinits_;
-    if (healReinits_ == 1) nextReinit_.armAt(healReadyAt_ + heal_.reinitAfterMs2);
-    else nextReinit_.arm(now, heal_.reinitEveryMs);
+    if (healReinits_ == 1 && heal_.reinitAfterMs2 > 0) nextReinit_.armAt(healReadyAt_ + heal_.reinitAfterMs2);
+    else if (heal_.reinitEveryMs > 0) nextReinit_.arm(now, heal_.reinitEveryMs);
+    else nextReinit_.clear();
     reinit(now);
     return;
   }
@@ -233,6 +234,8 @@ void Lcd20x4::service(uint32_t now) {
       return;  // content is written on the next pass, so one call never does both
     case State::kRetry:
       if (!deadlineReached(now, until_)) return;
+      hal_.i2cRecover();  // the cause may be a wedged bus, not the display: free it before trying again
+      ++recoveries_;
       if (!hal_.i2cProbe(address_)) {
         until_ = now + kRetryMs;
         return;
@@ -242,6 +245,7 @@ void Lcd20x4::service(uint32_t now) {
       return;
     case State::kReady:
       if (healOn_) serviceHealing(now);
+      if (alwaysRewrite_ && inSync()) refresh();  // the previous full pass is done: start the next one
       break;
   }
   serviceContent(now);
