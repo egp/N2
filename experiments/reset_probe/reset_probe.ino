@@ -1,3 +1,15 @@
+// ===========================================================================================
+// reset_probe  VERSION 1.4   (2026-10-06)      <-- if you do not see this line, the IDE has an older copy
+//
+// Change log
+//   1.4  version header and change log (this); the same version is printed in the serial report
+//   1.3  matrix bottom row shows the serial link: lit pixel 0 = console seen (DTR), pixel 2 = a byte received
+//   1.2  WiFi board: 12x8 LED matrix shows the cause digit and Y/N for warm-up credit, plus a heartbeat pixel
+//   1.1  built-in LED blinks the cause and the credit result (works without any serial output)
+//   1.0  first version: serial report of the reset flags, RAM-record survival, console attach/detach
+// ===========================================================================================
+#define PROBE_VERSION "1.4"
+
 // reset_probe.ino — EXPERIMENT, not production code.
 //
 // Answers three questions on real hardware (Requirements O2-6a/6b, CON-3, RST-2):
@@ -73,7 +85,8 @@ static void clearFlags() {
 
 static void printReport() {
   Serial.println();
-  Serial.println(F("==== RESET PROBE REPORT (reset_probe v1, UNO R4 WiFi) ===="));
+  Serial.print(F("==== RESET PROBE REPORT (reset_probe version " PROBE_VERSION ", UNO R4 WiFi) ===="));
+  Serial.println();
   Serial.print(F("built ")); Serial.print(__DATE__); Serial.print(' '); Serial.println(__TIME__);
   Serial.print(F("boot #")); Serial.print(rec.boots);
   Serial.print(F("   RAM record valid at boot: ")); Serial.println(recordWasValid ? F("YES") : F("NO"));
