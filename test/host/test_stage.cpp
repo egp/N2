@@ -8,6 +8,7 @@
 #include "app/Bringup.h"
 #include "core/DateTime.h"
 #include "core/WallClock.h"
+#include "ui/I2cSweep.h"
 
 using namespace n2;
 
@@ -626,4 +627,62 @@ TEST_CASE("DSP-7: by default the LCD is not touched for 2.5 s after boot (bench 
   for (uint32_t t = 0; t < 3000; t += 10) { hal.nowMs += 10; app.loop(); }
   CHECK(app.lcd().ready());
   CHECK(app.lcd().inSync());
+}
+
+// ============================================================================ I2C speed sweep
+TEST_CASE("DRV-1: i2c sweep covers the two speeds the R4 really has (100 k, 400 k), reports a good bus clean, and restores the clock") {
+  Rig r;
+  r.setRtc({2026, 10, 6, 10, 31, 2});
+  r.boot();
+  r.run(1500);
+  r.hal.i2cClockChanges.clear();
+  r.clearOut();
+  r.type("i2c sweep 20");
+  CHECK(r.has("100000 Hz: LCD   0  RTC  0/20  probe  0/20  OK"));
+  CHECK(r.has("400000 Hz:"));
+  CHECK_FALSE(r.has("BAD"));
+  const std::vector<uint32_t> expected{100000, 400000, 100000};
+  CHECK(r.hal.i2cClockChanges == expected);
+  CHECK(r.hal.i2cClockHz == 100000);
+}
+
+TEST_CASE("DRV-1: i2c sweep flags the speed where a device misbehaves") {
+  FakeHal hal;
+  hal.i2cPresent = {0x27, 0x68};
+  Lcd20x4 lcd(hal, 0x27);
+  Rtc3231 rtc(hal, 0x68);
+  REQUIRE(rtc.set({2026, 10, 6, 10, 31, 2}));
+  const uint32_t speeds[2] = {100000, 400000};
+  SweepRow rows[2];
+  hal.i2cReadXor = 0;
+  CHECK(runI2cSweep(hal, lcd, rtc, 0x27, 0x68, speeds, 2, 20, 100000, rows) == 2);
+  CHECK(rows[0].ok());
+  CHECK(rows[1].ok());
+  hal.i2cReadXor = 0x10;  // read-back corrupted: every LCD round is bad
+  runI2cSweep(hal, lcd, rtc, 0x27, 0x68, speeds, 2, 20, 100000, rows);
+  CHECK(rows[0].lcdBad == 20);
+  CHECK_FALSE(rows[0].ok());
+  hal.i2cReadXor = 0;
+  hal.i2cPresent.erase(0x68);  // the RTC stops answering
+  runI2cSweep(hal, lcd, rtc, 0x27, 0x68, speeds, 2, 20, 100000, rows);
+  CHECK(rows[1].rtcBad == 20);
+  CHECK(rows[1].probeBad == 10);
+}
+
+TEST_CASE("DRV-1: i2c sweep refreshes the watchdog between speeds and the loop survives it") {
+  Rig r;
+  r.setRtc({2026, 10, 6, 10, 31, 2});
+  r.boot();
+  r.run(1500);
+  const uint32_t before = r.hal.watchdogRefreshes;
+  r.type("i2c sweep 5");
+  CHECK(r.hal.watchdogRefreshes >= before + 2 * 3);  // three refreshes per speed
+}
+
+TEST_CASE("DRV-1: i2c without arguments says how to use it") {
+  Rig r;
+  r.boot();
+  r.run(1500);
+  r.type("i2c");
+  CHECK(r.has("usage: i2c sweep [rounds]"));
 }

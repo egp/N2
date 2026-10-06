@@ -32,6 +32,8 @@ class Hal {
   virtual uint16_t analogRead(uint8_t pin) = 0;
 
   virtual void i2cBegin() = 0;
+  // Change the bus clock (Hz). Used by the speed sweep; i2cBegin() sets the configured speed (Config.h kI2cClockHz).
+  virtual void i2cSetClock(uint32_t hz) = 0;
   // True if a device acknowledges its address.
   virtual bool i2cProbe(uint8_t address) = 0;
   // Write n bytes in ONE transaction. True only if the device acknowledged every byte (DRV-1).

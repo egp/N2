@@ -3,6 +3,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "../Config.h"
+#include "I2cSweep.h"
+
 namespace n2 {
 
 Responder* StageCommands::handle(const Command& cmd) {
@@ -27,7 +30,9 @@ Responder* StageCommands::handle(const Command& cmd) {
       else out_.add("BIST cannot start now (POST is still running or held: type `go` to release it)");
       break;
     default:
-      if (strcmp(cmd.name, "lcd") == 0) {
+      if (strcmp(cmd.name, "i2c") == 0) {
+        i2cCommand(cmd);
+      } else if (strcmp(cmd.name, "lcd") == 0) {
         lcdCommand(cmd);
       } else if (strcmp(cmd.name, "go") == 0) {
         c_.actions.releaseHold();
@@ -48,6 +53,7 @@ void StageCommands::help() {
   out_.add("bist              run the operator-confirmed self-test (answers: p f r s q)");
   out_.add("go                release a POST hold (same as pressing TOB)");
   out_.add("lcd [reinit|bus]  LCD state; `lcd reinit` restarts the controller; `lcd bus [n]` tests the I2C link to the backpack");
+  out_.add("i2c sweep [n]     test the I2C bus at 100 kHz and 400 kHz, the only two speeds the R4 has");
   out_.add("scan              list every device that answers on the I2C bus");
   out_.add("time              show the RTC date/time and whether it can be trusted");
   out_.add("time set D T      set the RTC (YYYY-MM-DD HH:MM:SS) only if it is untrusted or >2 s off");
@@ -173,6 +179,26 @@ void StageCommands::lcdCommand(const Command& cmd) {
   out_.add("LCD: %s, I2C errors %lu, re-initialisations %lu, content %s", c_.lcd.ready() ? "ready" : "not ready",
            static_cast<unsigned long>(c_.lcd.i2cErrors()), static_cast<unsigned long>(c_.lcd.reinitCount()),
            c_.lcd.inSync() ? "in sync" : "being written");
+}
+
+void StageCommands::i2cCommand(const Command& cmd) {
+  if (cmd.argc < 1 || strcmp(cmd.arg[0], "sweep") != 0) {
+    out_.add("usage: i2c sweep [rounds]   (bus clock now %lu Hz)", static_cast<unsigned long>(kI2cClockHz));
+    return;
+  }
+  int n = cmd.argc >= 2 ? atoi(cmd.arg[1]) : 100;
+  if (n < 1) n = 1;
+  if (n > 200) n = 200;
+  SweepRow rows[kSweepMaxSpeeds];
+  const uint8_t count = runI2cSweep(c_.hal, c_.lcd, c_.rtc, c_.board.addrLcd, c_.board.addrRtc, kSweepSpeeds,
+                                    static_cast<uint8_t>(sizeof kSweepSpeeds / sizeof kSweepSpeeds[0]), static_cast<uint16_t>(n),
+                                    kI2cClockHz, rows);
+  out_.add("I2C sweep (%d LCD rounds, RTC reads, probes) bad counts, 0 = good:", n);
+  for (uint8_t i = 0; i < count; ++i)
+    out_.add("  %6lu Hz: LCD %3u  RTC %2u/%u  probe %2u/%u  %s  (RTC read %lu us)", static_cast<unsigned long>(rows[i].hz),
+             rows[i].lcdBad, rows[i].rtcBad, rows[i].rtcReads, rows[i].probeBad, rows[i].probes, rows[i].ok() ? "OK" : "BAD",
+             static_cast<unsigned long>(rows[i].microsPerRtcRead));
+  out_.add("  clock restored to %lu Hz. (Specs: PCF8574 LCD backpack 100 kHz, DS3231 400 kHz.)", static_cast<unsigned long>(kI2cClockHz));
 }
 
 void StageCommands::loopStats() {

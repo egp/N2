@@ -36,6 +36,17 @@ constexpr uint16_t kN2HighFullScaleX10 = 1500;    // 0-150.0 PSI
 // R4 WiFi with experiments/reset_probe). Ordinary RAM survives software, watchdog and reset-button resets, so the record sits
 // at a fixed address just below the heap limit (0x20007B00 on both boards) and well above the stack's bottom edge.
 // The sketch refuses to use it if the heap could ever reach it (see N2V8.ino).
+// I2C bus clock for the whole firmware: 100 kHz (the R4 default and the PCF8574 LCD backpack's rated maximum). The owner expected 30 kHz
+// to be plenty, but the R4 hardware I2C cannot do it (see the static_assert below). Debug override: -DN2_I2C_HZ=...
+#if defined(N2_I2C_HZ)
+constexpr uint32_t kI2cClockHz = N2_I2C_HZ;
+#else
+constexpr uint32_t kI2cClockHz = 100000;
+#endif
+// The UNO R4 Wire really has ONLY these two rates; any other value is silently ignored (the clock stays where it was).
+static_assert(kI2cClockHz == 100000 || kI2cClockHz == 400000,
+              "Config.h: kI2cClockHz must be 100000 or 400000 (the R4 Wire.setClock has no other real speed)");
+
 constexpr uint32_t kWarmRecordAddress = 0x20007A00u;
 
 }  // namespace n2

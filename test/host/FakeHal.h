@@ -80,6 +80,9 @@ class FakeHal : public Hal {
     events.push_back({Kind::kAnalogRead, pin, analogValue[pin]});
     return analogValue[pin];
   }
+  uint32_t i2cClockHz = 100000;
+  std::vector<uint32_t> i2cClockChanges;
+  void i2cSetClock(uint32_t hz) override { i2cClockHz = hz; i2cClockChanges.push_back(hz); }
   void i2cBegin() override {
     i2cStarted = true;
     events.push_back({Kind::kI2cBegin, 0, 0});

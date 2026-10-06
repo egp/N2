@@ -18,6 +18,7 @@ class HalArduino : public Hal {
   void setAnalogResolution(uint8_t bits) override;
   uint16_t analogRead(uint8_t pin) override;
   void i2cBegin() override;
+  void i2cSetClock(uint32_t hz) override;
   bool i2cProbe(uint8_t address) override;
   bool i2cWrite(uint8_t address, const uint8_t* data, size_t n) override;
   bool i2cRead(uint8_t address, uint8_t* data, size_t n) override;

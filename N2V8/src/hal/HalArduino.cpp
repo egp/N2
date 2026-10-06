@@ -3,6 +3,8 @@
 
 #include "HalArduino.h"
 
+#include "../Config.h"
+
 #include <Arduino.h>
 #include <WDT.h>
 #include <Wire.h>
@@ -28,10 +30,10 @@ uint16_t HalArduino::analogRead(uint8_t pin) { return static_cast<uint16_t>(::an
 
 void HalArduino::i2cBegin() {
   Wire.begin();
-#if defined(N2_I2C_HZ)
-  Wire.setClock(N2_I2C_HZ);  // debugging: a slower bus is more tolerant of noise and wiring capacitance
-#endif
+  Wire.setClock(kI2cClockHz);
 }
+
+void HalArduino::i2cSetClock(uint32_t hz) { Wire.setClock(hz); }
 
 bool HalArduino::i2cProbe(uint8_t address) {
   Wire.beginTransmission(address);

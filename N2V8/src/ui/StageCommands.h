@@ -58,6 +58,7 @@ class StageCommands : public CommandHandler {
   void log(const Command& command);
   void loopStats();
   void lcdCommand(const Command& command);
+  void i2cCommand(const Command& command);
 
   StageContext c_;
   TextResponder out_;
