@@ -420,3 +420,51 @@ TEST_CASE("Stage 1: a USB console that is not attached never stalls the loop") {
   r.run(2000);
   CHECK(r.hal.watchdogRefreshes >= 190);
 }
+
+TEST_CASE("Stage 1: the loop command's line fits the console line width") {
+  Rig r;
+  r.boot();
+  r.run(500);
+  r.type("loop");
+  CHECK(r.has("| >=1 s: 0"));
+}
+
+TEST_CASE("Stage 1: switch changes are logged and shown in status") {
+  Rig r;
+  const SignalDef& tbs0 = def(kHostBoard, Signal::kTbs);
+  r.hal.inputLevel[tbs0.pin] = levelHigh(false, tbs0.active);  // TBS off at the start
+  r.boot();
+  r.run(500);
+  const SignalDef& tob = def(kHostBoard, Signal::kTob);
+  r.hal.inputLevel[tob.pin] = levelHigh(true, tob.active);
+  r.run(50);
+  CHECK(r.has("TOB pressed"));
+  r.type("status");
+  CHECK(r.has("switches: TBS off (pin D0 reads HIGH), TOB pressed (pin D1 reads LOW)"));
+  r.hal.inputLevel[tob.pin] = levelHigh(false, tob.active);
+  r.run(50);
+  CHECK(r.has("TOB released"));
+  const SignalDef& tbs = def(kHostBoard, Signal::kTbs);
+  r.hal.inputLevel[tbs.pin] = levelHigh(true, tbs.active);
+  r.run(50);
+  CHECK(r.has("TBS ON"));
+}
+
+TEST_CASE("Stage 1: the matrix lights fully while TOB is held, and TBS ON adds a pixel") {
+  Rig r;
+  const SignalDef& tbs0 = def(kHostBoard, Signal::kTbs);
+  r.hal.inputLevel[tbs0.pin] = levelHigh(false, tbs0.active);
+  r.boot();
+  r.run(1500);
+  const SignalDef& tob = def(kHostBoard, Signal::kTob);
+  const SignalDef& tbs = def(kHostBoard, Signal::kTbs);
+  r.hal.inputLevel[tob.pin] = levelHigh(true, tob.active);
+  r.run(30);
+  CHECK(r.matrix.last[0] == 0xFFFFFFFFu);
+  CHECK(r.matrix.last[2] == 0xFFFFFFFFu);
+  r.hal.inputLevel[tob.pin] = levelHigh(false, tob.active);
+  r.hal.inputLevel[tbs.pin] = levelHigh(true, tbs.active);
+  r.run(30);
+  CHECK(r.matrix.last[0] != 0xFFFFFFFFu);
+  CHECK(matrixGetPixel(r.matrix.last, 7, 9));
+}

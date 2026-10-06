@@ -19,11 +19,29 @@ Bringup::Bringup(Hal& hal, const BoardDef& board, const BuildInfo& info, FrameSi
       rtcCheck_(rtc_, log_),
       checks_{&resetCheck_, &lcdCheck_, &rtcCheck_},
       selfTest_(console_, checks_, 3),
-      commands_(StageContext{hal, board, info, console_, selfTest_, rtc_, wall_, loopStats_, *this, resetText_}) {}
+      commands_(StageContext{hal, board, info, console_, selfTest_, rtc_, wall_, loopStats_, *this, resetText_,
+                                     [](void* o) { return static_cast<Bringup*>(o)->switchTbs(); },
+                                     [](void* o) { return static_cast<Bringup*>(o)->switchTob(); }, this}) {}
 
 bool Bringup::tobPressed() {
   const SignalDef& d = def(board_, Signal::kTob);
   return isOn(hal_.digitalRead(d.pin), d.active);
+}
+
+bool Bringup::tbsOn() {
+  const SignalDef& d = def(board_, Signal::kTbs);
+  return isOn(hal_.digitalRead(d.pin), d.active);
+}
+
+// Every switch change is one log line, so the operator sees at once whether the firmware noticed a press.
+void Bringup::logSwitchChanges() {
+  const bool tbs = tbsOn(), tob = tobPressed();
+  if (tbs != tbsWas_) logf(log_, LogLevel::kInfo, "TBS %s", tbs ? "ON" : "off");
+  if (tob != tobWas_) logf(log_, LogLevel::kInfo, "TOB %s", tob ? "pressed" : "released");
+  const bool changed = tbs != tbsWas_ || tob != tobWas_;
+  tbsWas_ = tbs;
+  tobWas_ = tob;
+  if (changed) screenRefresh_.arm(hal_.millis(), 0);  // show it on the matrix now, not at the next 250 ms tick
 }
 
 void Bringup::setup() {
@@ -31,6 +49,10 @@ void Bringup::setup() {
   hal_.i2cBegin();
   const SignalDef& tob = def(board_, Signal::kTob);
   hal_.pinMode(tob.pin, tob.active == Active::kLow ? PinMode::kInputPullup : PinMode::kInput);
+  const SignalDef& tbs = def(board_, Signal::kTbs);
+  hal_.pinMode(tbs.pin, tbs.active == Active::kLow ? PinMode::kInputPullup : PinMode::kInput);
+  tbsWas_ = tbsOn();
+  tobWas_ = tobPressed();
   reset_ = hal_.readResetCause();
   resetCheck_.setResetInfo(reset_);
   snprintf(resetText_, sizeof resetText_, "%s", ResetCheck::causeText(reset_));
@@ -115,6 +137,8 @@ void Bringup::updateScreens(uint32_t now) {
     }
     uint32_t frame[3];
     matrixDrawStatus(frame, left, right, levels, n, heartbeat_);
+    if (tbsWas_) matrixSetPixel(frame, 7, 9);                        // TBS ON: one extra pixel on the bottom row
+    if (tobWas_) frame[0] = frame[1] = frame[2] = 0xFFFFFFFFu;       // TOB held: the whole matrix lights
     matrix_->show(frame);
   }
 }
@@ -125,6 +149,7 @@ void Bringup::loop() {
 
   lcd_.service(now);
   console_.poll(commands_);
+  logSwitchChanges();
 
   // The banner: on the WiFi board (cannot see the PC) repeat until the PC has typed something; otherwise once per attach.
   const bool attached = console_.attached();

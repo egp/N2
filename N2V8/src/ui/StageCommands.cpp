@@ -55,6 +55,12 @@ void StageCommands::status() {
   out_.add("N2V8 %s  board %s  mode %s  uptime %lu s", c_.info.version, c_.info.board, c_.info.mode,
            static_cast<unsigned long>(c_.hal.millis() / 1000u));
   out_.add("reset cause: %s", c_.resetCause);
+  const SignalDef& tbsDef = def(c_.board, Signal::kTbs);
+  const SignalDef& tobDef = def(c_.board, Signal::kTob);
+  out_.add("switches: TBS %s (pin D%u reads %s), TOB %s (pin D%u reads %s)", c_.tbsOn(c_.switchOwner) ? "ON" : "off",
+           static_cast<unsigned>(tbsDef.pin), c_.hal.digitalRead(tbsDef.pin) ? "HIGH" : "LOW",
+           c_.tobPressed(c_.switchOwner) ? "pressed" : "released", static_cast<unsigned>(tobDef.pin),
+           c_.hal.digitalRead(tobDef.pin) ? "HIGH" : "LOW");
   for (uint8_t i = 0; i < c_.selfTest.checkCount(); ++i) {
     const CheckResult& r = c_.selfTest.postResult(i);
     const char* word = r.level == CheckLevel::kPass ? "ok" : (r.level == CheckLevel::kInfo ? "info" : (r.level == CheckLevel::kFail ? "FAIL" : "-"));
@@ -138,7 +144,7 @@ void StageCommands::log(const Command& cmd) {
 }
 
 void StageCommands::loopStats() {
-  out_.add("loop() passes %lu: min %lu us, mean %lu us, median %lu us, max %lu us, slow (>=1 s) %lu",
+  out_.add("loop passes %lu | us: min %lu mean %lu median %lu max %lu | >=1 s: %lu",
            static_cast<unsigned long>(c_.loop.count()), static_cast<unsigned long>(c_.loop.minUs()),
            static_cast<unsigned long>(c_.loop.meanUs()), static_cast<unsigned long>(c_.loop.medianUs()),
            static_cast<unsigned long>(c_.loop.maxUs()), static_cast<unsigned long>(c_.loop.slowCount()));

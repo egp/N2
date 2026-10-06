@@ -55,6 +55,8 @@ class Bringup : public StageActions {
   const WallClock& wall() const { return wall_; }
   Lcd20x4& lcd() { return lcd_; }
   const LoopStats& loopStats() const { return loopStats_; }
+  bool switchTbs() { return tbsOn(); }
+  bool switchTob() { return tobPressed(); }
   bool running() const { return selfTest_.postFinished() && !selfTest_.bistRunning(); }
 
  private:
@@ -62,6 +64,8 @@ class Bringup : public StageActions {
   void printBanner();
   void updateScreens(uint32_t now);
   bool tobPressed();
+  bool tbsOn();
+  void logSwitchChanges();
 
   Hal& hal_;
   const BoardDef& board_;
@@ -88,6 +92,8 @@ class Bringup : public StageActions {
   Deadline screenRefresh_;
   bool goRequested_ = false;
   bool wasAttached_ = false;
+  bool tbsWas_ = false;
+  bool tobWas_ = false;
   bool heartbeat_ = false;
   uint32_t bootMs_ = 0;
   char resetText_[24] = {};

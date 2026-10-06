@@ -37,6 +37,9 @@ struct StageContext {
   const LoopStats& loop;
   StageActions& actions;
   const char* resetCause;
+  bool (*tbsOn)(void*);
+  bool (*tobPressed)(void*);
+  void* switchOwner;
 };
 
 class StageCommands : public CommandHandler {

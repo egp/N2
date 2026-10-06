@@ -7,6 +7,7 @@
 // What the bring-up firmware draws (also in the sketch's README):
 //   left glyph   POST/BIST: the number of the check being run (hex, from 1).   Normal running: overall POST result.
 //   right glyph  that check's result:  0 = no result yet   1 = pass   2 = info (noted, not a fault)   F = fail
+//   TOB held     every pixel lit (so a press is visible at a glance).   TBS ON: pixel 9 of the bottom row.
 //   bottom row   pixels 0..7 = one per check, lit when that check passed or noted info;  pixel 11 = heartbeat (1 Hz blink)
 #pragma once
 
