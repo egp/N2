@@ -25,7 +25,6 @@ class StageActions {
   virtual void startPost() = 0;
   virtual bool startBist() = 0;   // false if it cannot start now
   virtual void releaseHold() = 0;
-  virtual void lcdReinitialised() = 0;  // the LCD was just restarted: its first writes are the likeliest to be damaged
 };
 
 struct StageContext {

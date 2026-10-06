@@ -39,3 +39,8 @@ Debug switches: `-DSTAGE1_NO_MATRIX`, `-DN2_I2C_HZ=30000`, `-DSTAGE1_LCD_START_M
 roughly half the time. The cause is start-up timing right after a reset, not the bus (the `lcd bus` test is clean), the RTC or the matrix.
 The extra re-initialisations and early rewrites are kept as options (`lcdReinit1Ms`, `lcdReinit2Ms`, off by default). To re-test with the RTC
 fitted: reset six times, wait 10 s each.
+
+**Self-healing LCD (2026-10-06, afternoon):** with the RTC fitted, one reset in six ended with the LCD garbled then blank and *never recovered*, even
+though the 2.5 s start delay had given 5 clean in 5 without the RTC. The HD44780 cannot be read back through this backpack, so the driver
+now repairs the display on a schedule (`LcdHealing` in `Lcd20x4.h`, on in both Stage 1 and the full application): full rewrites 250 ms after
+it comes up, doubling to every 5 s; full re-initialisations at 0.5 s and 2 s, then every 30 s. A bad display is therefore bad for at most about 30 s.

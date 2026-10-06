@@ -9,10 +9,19 @@
 
 #include <stdint.h>
 
+#include "../core/TimedState.h"
 #include "../hal/Hal.h"
 #include "../ui/LcdScreens.h"
 
 namespace n2 {
+
+struct LcdHealing {
+  uint32_t firstRewriteMs = 250;
+  uint32_t rewriteEveryMs = 5000;
+  uint32_t reinitAfterMs1 = 500;
+  uint32_t reinitAfterMs2 = 2000;
+  uint32_t reinitEveryMs = 30000;
+};
 
 class Lcd20x4 {
  public:
@@ -36,6 +45,14 @@ class Lcd20x4 {
     uint8_t firstOut = 0, firstBack = 0;  // the first pair that did not match (0, 0 if none)
   };
   BusTest busTest(uint16_t rounds);
+  // Self-healing (bench finding 2026-10-06: after a reset the display sometimes stayed blank or garbled and nothing we wrote showed;
+  // the HD44780 cannot be read back through this backpack, so we cannot tell). With healing on, the driver repairs it on a schedule:
+  //   * full rewrites of the screen 250 ms after the display first comes up, then at doubling gaps up to every 5 s
+  //     (repairs corrupted cells, no flicker),
+  //   * a full re-initialisation 0.5 s and 2 s after it first comes up, then every 30 s (repairs a controller stuck in a bad mode;
+  //     a brief clear-and-redraw). So a bad display is bad for at most about 30 s.
+  using Healing = LcdHealing;
+  void enableHealing(const Healing& healing = Healing()) { heal_ = healing; healOn_ = true; }
   void refresh();
   void reinit(uint32_t now);
   void setBacklight(bool on);            // BIST
@@ -78,6 +95,17 @@ class Lcd20x4 {
   int8_t curRow_ = -1;  // where the display's cursor is, or -1 if unknown
   int8_t curCol_ = -1;
   bool haveDesired_ = false;
+  uint32_t stale_[kLcdRows] = {};  // bit c of stale_[r]: cell must be rewritten even if it matches the shadow (refresh())
+
+  void serviceHealing(uint32_t now);
+  bool healOn_ = false;
+  Healing heal_;
+  bool healStarted_ = false;
+  uint32_t healReadyAt_ = 0;
+  uint32_t rewriteGapMs_ = 0;
+  uint8_t healReinits_ = 0;
+  Deadline nextRewrite_;
+  Deadline nextReinit_;
 };
 
 }  // namespace n2

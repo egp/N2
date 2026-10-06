@@ -61,14 +61,12 @@ void Bringup::setup() {
   bootMs_ = now;
   if (opt_.lcdStartMs == 0) lcd_.begin(now);
   else lcdStart_.arm(now, opt_.lcdStartMs);
+  lcd_.enableHealing();  // see Lcd20x4::Healing
   lcd_.setScreen(renderBanner(info_.version, info_.board, info_.date));
   syncWallClock(now);
   rtcResync_.arm(now, opt_.rtcResyncMs);
   bannerRepeat_.arm(now, 0);
   screenRefresh_.arm(now, opt_.screenMs);
-  lcdGapMs_ = opt_.lcdFirstRewriteMs;
-  lcdRewrite_.arm(now, lcdGapMs_);
-  if (opt_.lcdReinit1Ms > 0) lcdReinit_.arm(now, opt_.lcdReinit1Ms);
   selfTest_.postBegin(now);
   if (opt_.watchdogEnabled) hal_.watchdogBegin(opt_.watchdogMs);
 }
@@ -76,11 +74,6 @@ void Bringup::setup() {
 void Bringup::startPost() {
   goRequested_ = false;
   selfTest_.postBegin(hal_.millis());
-}
-
-void Bringup::lcdReinitialised() {
-  lcdGapMs_ = opt_.lcdFirstRewriteMs;
-  lcdRewrite_.arm(hal_.millis(), lcdGapMs_);
 }
 
 bool Bringup::startBist() { return selfTest_.bistBegin(hal_.millis()); }
@@ -159,9 +152,6 @@ void Bringup::loop() {
   if (lcdStart_.reached(now)) {
     lcd_.begin(now);
     lcdStart_.clear();
-    lcdGapMs_ = opt_.lcdFirstRewriteMs;
-    lcdRewrite_.arm(now, lcdGapMs_);
-    if (opt_.lcdReinit1Ms > 0) lcdReinit_.arm(now, opt_.lcdReinit1Ms);
   }
   lcd_.service(now);
   console_.poll(commands_);
@@ -191,19 +181,6 @@ void Bringup::loop() {
   if (rtcResync_.reached(now)) {
     syncWallClock(now);
     rtcResync_.arm(now, opt_.rtcResyncMs);
-  }
-  if (lcdReinit_.reached(now) && !selfTest_.bistRunning()) {
-    lcd_.reinit(now);
-    ++lcdReinits_;
-    if (lcdReinits_ == 1 && opt_.lcdReinit2Ms > 0) lcdReinit_.arm(bootMs_, opt_.lcdReinit2Ms);
-    else lcdReinit_.clear();
-    lcdGapMs_ = opt_.lcdFirstRewriteMs;
-    lcdRewrite_.arm(now, lcdGapMs_);
-  }
-  if (lcdRewrite_.reached(now) && !selfTest_.bistRunning()) {
-    lcd_.refresh();
-    lcdGapMs_ = lcdGapMs_ * 2 < opt_.lcdRewriteMs ? lcdGapMs_ * 2 : opt_.lcdRewriteMs;
-    lcdRewrite_.arm(now, lcdGapMs_);
   }
   if (screenRefresh_.reached(now)) {
     updateScreens(now);

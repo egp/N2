@@ -173,7 +173,6 @@ void StageCommands::lcdCommand(const Command& cmd) {
       return;
     }
     c_.lcd.reinit(c_.hal.millis());
-    c_.actions.lcdReinitialised();
     out_.add("LCD controller restarting (the screen clears and redraws)");
   }
   out_.add("LCD: %s, I2C errors %lu, re-initialisations %lu, content %s", c_.lcd.ready() ? "ready" : "not ready",

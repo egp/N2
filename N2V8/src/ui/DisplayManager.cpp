@@ -3,6 +3,7 @@
 namespace n2 {
 
 void DisplayManager::begin(uint32_t now, uint32_t lcdStartMs) {
+  lcd_.enableHealing();  // see Lcd20x4::Healing
   if (lcdStartMs == 0) lcd_.begin(now);
   else lcdStart_.arm(now, lcdStartMs);
   led_.begin(now);

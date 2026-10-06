@@ -37,12 +37,7 @@ struct BringupOptions {
   uint32_t rtcResyncMs = 60000;      // how often the log clock re-anchors to the RTC (RTC-7)
   uint32_t bannerRepeatMs = 3000;    // WiFi board: repeat the banner until the PC has been heard
   uint32_t screenMs = 250;           // LCD and matrix refresh period
-  uint32_t lcdRewriteMs = 5000;      // rewrite the whole LCD this often, to repair noise that left no I2C error
   uint32_t lcdStartMs = kDefaultLcdStartMs;  // do not touch the LCD until this long after boot (0 = at once); see DisplayManager::begin
-  uint32_t lcdReinit1Ms = 0;         // optional extra re-initialisations of the LCD controller this long after it starts, and
-  uint32_t lcdReinit2Ms = 0;         // again at this time (0 = off). Not needed once the start is delayed (bench 2026-10-06)
-  uint32_t lcdFirstRewriteMs = 250;  // after a boot or re-init the first writes are the likeliest to be damaged:
-                                     // rewrite after this long, then at twice the gap each time, up to lcdRewriteMs
 };
 
 class Bringup : public StageActions {
@@ -56,7 +51,6 @@ class Bringup : public StageActions {
   void startPost() override;
   bool startBist() override;
   void releaseHold() override { goRequested_ = true; }
-  void lcdReinitialised() override;
 
   // for tests
   SelfTest& selfTest() { return selfTest_; }
@@ -99,10 +93,6 @@ class Bringup : public StageActions {
   Deadline bannerRepeat_;
   Deadline screenRefresh_;
   Deadline lcdStart_;
-  Deadline lcdRewrite_;
-  Deadline lcdReinit_;
-  uint8_t lcdReinits_ = 0;
-  uint32_t lcdGapMs_ = 0;
   bool goRequested_ = false;
   bool wasAttached_ = false;
   bool tbsWas_ = false;

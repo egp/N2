@@ -61,6 +61,7 @@ void Lcd20x4::startInit(uint32_t now) {
     memset(r, ' ', kLcdCols);
     r[kLcdCols] = '\0';
   }
+  for (auto& row : stale_) row = 0;  // the clear that ends init has made the shadow true
 }
 
 void Lcd20x4::begin(uint32_t now) {
@@ -73,6 +74,10 @@ void Lcd20x4::begin(uint32_t now) {
   }
   backlightDirty_ = false;
   displayDirty_ = false;
+  healStarted_ = false;  // the healing schedule starts when the display first comes up
+  healReinits_ = 0;
+  nextRewrite_.clear();
+  nextReinit_.clear();
   startInit(now);
 }
 
@@ -124,10 +129,7 @@ Lcd20x4::BusTest Lcd20x4::busTest(uint16_t rounds) {
 }
 
 void Lcd20x4::refresh() {
-  for (auto& r : shadow_) {
-    memset(r, 0x01, kLcdCols);  // no desired character is 0x01, so every cell now counts as different
-    r[kLcdCols] = '\0';
-  }
+  for (auto& row : stale_) row = (1UL << kLcdCols) - 1UL;  // every cell is rewritten; shadow_ stays an honest record of the display
   curRow_ = curCol_ = -1;
 }
 
@@ -136,12 +138,39 @@ void Lcd20x4::reinit(uint32_t now) {
   ++reinits_;
   startInit(now);
   until_ = now;  // the display has been powered all along: no power-up wait
+  if (healStarted_) {  // after any re-init the early rewrites start over
+    rewriteGapMs_ = heal_.firstRewriteMs;
+    nextRewrite_.arm(now, rewriteGapMs_);
+  }
+}
+
+void Lcd20x4::serviceHealing(uint32_t now) {
+  if (!healStarted_) {
+    healStarted_ = true;
+    healReadyAt_ = now;
+    rewriteGapMs_ = heal_.firstRewriteMs;
+    nextRewrite_.arm(now, rewriteGapMs_);
+    nextReinit_.arm(now, heal_.reinitAfterMs1);
+    return;
+  }
+  if (nextReinit_.reached(now)) {
+    ++healReinits_;
+    if (healReinits_ == 1) nextReinit_.armAt(healReadyAt_ + heal_.reinitAfterMs2);
+    else nextReinit_.arm(now, heal_.reinitEveryMs);
+    reinit(now);
+    return;
+  }
+  if (nextRewrite_.reached(now)) {
+    refresh();
+    rewriteGapMs_ = rewriteGapMs_ * 2 < heal_.rewriteEveryMs ? rewriteGapMs_ * 2 : heal_.rewriteEveryMs;
+    nextRewrite_.arm(now, rewriteGapMs_);
+  }
 }
 
 bool Lcd20x4::inSync() const {
   if (state_ != State::kReady || backlightDirty_ || displayDirty_) return false;
   for (uint8_t r = 0; r < kLcdRows; ++r)
-    if (memcmp(shadow_[r], desired_[r], kLcdCols) != 0) return false;
+    if (memcmp(shadow_[r], desired_[r], kLcdCols) != 0 || stale_[r] != 0) return false;
   return true;
 }
 
@@ -175,7 +204,7 @@ void Lcd20x4::serviceContent(uint32_t now) {
   for (uint8_t r = 0; r < kLcdRows && budget > 0; ++r) {
     uint8_t c = 0;
     while (c < kLcdCols && budget > 0) {
-      if (shadow_[r][c] == desired_[r][c]) {
+      if (shadow_[r][c] == desired_[r][c] && !((stale_[r] >> c) & 1UL)) {
         ++c;
         continue;
       }
@@ -186,6 +215,7 @@ void Lcd20x4::serviceContent(uint32_t now) {
       }
       if (!writeByte(static_cast<uint8_t>(desired_[r][c]), true)) return fail(now);
       shadow_[r][c] = desired_[r][c];
+      stale_[r] &= ~(1UL << c);
       ++c;
       curCol_ = static_cast<int8_t>(curCol_ + 1);
       if (c >= kLcdCols) curRow_ = curCol_ = -1;  // DDRAM address runs on into another row
@@ -211,6 +241,7 @@ void Lcd20x4::service(uint32_t now) {
       until_ = now;    // no extra power-up wait: the display has been powered all along
       return;
     case State::kReady:
+      if (healOn_) serviceHealing(now);
       break;
   }
   serviceContent(now);

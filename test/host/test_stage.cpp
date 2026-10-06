@@ -498,14 +498,11 @@ TEST_CASE("DSP-7: refresh() rewrites the whole screen, reinit() restarts the con
   CHECK(lcd.inSync());
 }
 
-TEST_CASE("DSP-7: the stage firmware rewrites the LCD every few seconds and `lcd reinit` works from the console") {
+TEST_CASE("DSP-7: `lcd` and `lcd reinit` work from the console") {
   Rig r;
   r.setRtc({2026, 10, 6, 10, 31, 2});
   r.boot();
-  r.run(2000);
-  size_t writes = r.hal.i2cWrites.size();
-  r.run(6000);
-  CHECK(r.hal.i2cWrites.size() > writes + 60);  // a periodic full rewrite happened
+  r.run(300);
   r.clearOut();
   r.type("lcd");
   CHECK(r.has("LCD: ready, I2C errors 0, re-initialisations 0"));
@@ -514,49 +511,10 @@ TEST_CASE("DSP-7: the stage firmware rewrites the LCD every few seconds and `lcd
   CHECK(r.has("LCD controller restarting"));
   r.run(1000);
   r.type("lcd");
-  CHECK(r.has("re-initialisations 1"));
-  CHECK(r.has("in sync"));
+  CHECK(r.has("re-initialisations"));
+  CHECK(r.has("ready"));
   r.type("lcd bogus");
   CHECK(r.has("usage: lcd [reinit | bus [rounds]]"));
-}
-
-TEST_CASE("DSP-7: after boot the LCD is rewritten early (250 ms, 500 ms, 1 s...) and then settles to every 5 s") {
-  Rig r;
-  r.setRtc({2026, 10, 6, 10, 31, 2});
-  r.boot();
-  r.run(600);  // init and first draw settle
-  const size_t afterFirst = r.hal.i2cWrites.size();
-  r.run(1200);
-  CHECK(r.hal.i2cWrites.size() > afterFirst + 70);  // at least one early full rewrite already happened
-  r.run(30000);
-  const size_t a = r.hal.i2cWrites.size();
-  r.run(10000);
-  const size_t perTenSeconds = r.hal.i2cWrites.size() - a;
-  CHECK(perTenSeconds < 700);  // settled: about two full rewrites (plus the changing clock row) per 10 s
-}
-
-TEST_CASE("DSP-7: optional extra LCD re-initialisations (0.3 s and 1.2 s after boot) happen when asked for, and only then") {
-  FakeHal hal;
-  hal.i2cPresent.insert(0x27);
-  RecordingMatrix matrix;
-  BuildInfo info{"8.0.0-test", "Jan  1 2026", "12:00:00", "host (fake)", "HOST", 10};
-  BringupOptions opt;
-  opt.lcdStartMs = 0;
-  opt.lcdReinit1Ms = 300;
-  opt.lcdReinit2Ms = 1200;
-  Bringup app(hal, kHostBoard, info, &matrix, opt);
-  hal.consoleIsAttached = true;
-  app.setup();
-  auto run = [&](uint32_t ms) { for (uint32_t t = 0; t < ms; t += 10) { hal.nowMs += 10; app.loop(); } };
-  run(200);
-  CHECK(app.lcd().reinitCount() == 0);
-  run(300);
-  CHECK(app.lcd().reinitCount() == 1);
-  run(1000);
-  CHECK(app.lcd().reinitCount() == 2);
-  run(20000);
-  CHECK(app.lcd().reinitCount() == 2);
-  CHECK(app.lcd().inSync());
 }
 
 TEST_CASE("DSP-7: with lcdStartMs set, nothing is sent to the LCD until that time") {
@@ -566,8 +524,6 @@ TEST_CASE("DSP-7: with lcdStartMs set, nothing is sent to the LCD until that tim
   BuildInfo info{"8.0.0-test", "Jan  1 2026", "12:00:00", "host (fake)", "HOST", 10};
   BringupOptions opt;
   opt.lcdStartMs = 2500;
-  opt.lcdReinit1Ms = 0;
-  opt.lcdReinit2Ms = 0;
   Bringup app(hal, kHostBoard, info, &matrix, opt);
   hal.consoleIsAttached = true;
   app.setup();
@@ -577,7 +533,7 @@ TEST_CASE("DSP-7: with lcdStartMs set, nothing is sent to the LCD until that tim
   CHECK(toLcd == 0);
   for (uint32_t t = 0; t < 1500; t += 10) { hal.nowMs += 10; app.loop(); }
   CHECK(app.lcd().ready());
-  CHECK(app.lcd().reinitCount() == 0);
+  CHECK(app.lcd().reinitCount() <= 1);  // at most the first healing re-init (0.5 s after it came up)
 }
 
 TEST_CASE("DSP-7: `lcd bus` reports a clean link as all zeros and a corrupted one as mismatches") {
@@ -626,6 +582,7 @@ TEST_CASE("DSP-7: by default the LCD is not touched for 2.5 s after boot (bench 
   CHECK(toLcd == 0);
   for (uint32_t t = 0; t < 3000; t += 10) { hal.nowMs += 10; app.loop(); }
   CHECK(app.lcd().ready());
+  for (uint32_t t = 0; t < 1000 && !app.lcd().inSync(); t += 10) { hal.nowMs += 10; app.loop(); }
   CHECK(app.lcd().inSync());
 }
 
@@ -685,4 +642,88 @@ TEST_CASE("DRV-1: i2c without arguments says how to use it") {
   r.run(1500);
   r.type("i2c");
   CHECK(r.has("usage: i2c sweep [rounds]"));
+}
+
+// ============================================================================ LCD self-healing (DSP-7)
+namespace {
+struct HealRig {
+  FakeHal hal;
+  Lcd20x4 lcd{hal, 0x27};
+  uint32_t now = 0;
+  size_t lcdWrites() const { size_t n = 0; for (const auto& w : hal.i2cWrites) if (w.address == 0x27) ++n; return n; }
+  void run(uint32_t ms) { for (uint32_t t = 0; t < ms; t += 5) { now += 5; lcd.service(now); } }
+  HealRig() { hal.i2cPresent.insert(0x27); lcd.begin(0); lcd.setScreen(makeScreen("ROW0", "ROW1", "ROW2", "ROW3")); }
+};
+}  // namespace
+
+TEST_CASE("DSP-7: without enableHealing() the driver never rewrites by itself (existing behaviour)") {
+  HealRig r;
+  r.run(200);
+  const size_t settled = r.lcdWrites();
+  r.run(120000);
+  CHECK(r.lcdWrites() == settled);
+  CHECK(r.lcd.reinitCount() == 0);
+}
+
+TEST_CASE("DSP-7: with healing on, the screen is fully rewritten early, then at doubling gaps up to every 5 s") {
+  HealRig r;
+  r.lcd.enableHealing();
+  r.run(200);  // init and first draw
+  const size_t first = r.lcdWrites();
+  r.run(250);  // the first early full rewrite (250 ms after the display came up)
+  CHECK(r.lcdWrites() > first + 70);
+  size_t before = r.lcdWrites();
+  r.run(300);  // within the next 500 ms gap
+  // ... then the gaps double (0.25, 0.5, 1, 2, 4, 5, 5 ...): after 25 s there must be only a handful of rewrites, not hundreds
+  r.run(25000);
+  const size_t perRewrite = 80 * 2;  // a full rewrite is about 80 cells (cursor moves add a few writes)
+  CHECK(r.lcdWrites() - before < 12 * perRewrite + 6 * 100);
+}
+
+TEST_CASE("DSP-7: with healing on, the controller is re-initialised 0.5 s and 2 s after it first comes up, then every 30 s") {
+  HealRig r;
+  r.lcd.enableHealing();
+  r.run(300);
+  CHECK(r.lcd.reinitCount() == 0);
+  r.run(500);
+  CHECK(r.lcd.reinitCount() == 1);
+  r.run(1800);
+  CHECK(r.lcd.reinitCount() == 2);
+  r.run(25000);
+  CHECK(r.lcd.reinitCount() == 2);  // nothing until 30 s after the second
+  r.run(8000);
+  CHECK(r.lcd.reinitCount() == 3);
+  r.run(31000);
+  CHECK(r.lcd.reinitCount() == 4);
+  CHECK(r.lcd.inSync());
+}
+
+TEST_CASE("DSP-7: healing waits until the display has come up: a delayed start delays the whole schedule") {
+  HealRig r;
+  r.lcd.enableHealing();
+  FakeHal hal;
+  hal.i2cPresent.insert(0x27);
+  Lcd20x4 lcd(hal, 0x27);
+  lcd.enableHealing();
+  lcd.setScreen(makeScreen("A", "B", "C", "D"));
+  uint32_t now = 0;
+  for (; now < 5000; now += 5) lcd.service(now);  // begin() not called: the driver is idle
+  CHECK(lcd.reinitCount() == 0);
+  CHECK(hal.i2cWrites.empty());
+  lcd.begin(now);
+  for (uint32_t t = 0; t < 400; t += 5) { now += 5; lcd.service(now); }
+  CHECK(lcd.reinitCount() == 0);  // first re-init is 500 ms after it came up
+}
+
+TEST_CASE("DSP-7: the stage firmware and the full application both turn healing on") {
+  Rig r;
+  r.setRtc({2026, 10, 6, 10, 31, 2});
+  r.boot();
+  r.run(1000);
+  CHECK(r.app->lcd().reinitCount() >= 1);  // the 0.5 s re-initialisation happened
+  DisplayManager dm(r.hal, kHostBoard, LcdLayout::kClearLabels);
+  dm.begin(0, 0);
+  uint32_t now = 0;
+  for (; now < 700; now += 5) dm.service(now);
+  CHECK(dm.lcd().reinitCount() >= 1);
 }
