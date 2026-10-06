@@ -59,6 +59,12 @@ On the summary page the bottom row also reports the experiment's state (pixel 1 
 **8** = the RAM record's signature was still there at boot; **10** = its checksum matched too; **12** = heartbeat (blinks).
 (The Minima has no matrix; it uses the built-in LED blinks only.)
 
+## Why the serial monitor was silent (found with this probe)
+On the **UNO R4 WiFi** the Arduino core is built with `-DNO_USB`: `Serial` is a hardware UART (to the ESP32 chip that provides
+the USB connection) and the core does **not** call `Serial.begin()` for you. A sketch that never calls it gets no output at all
+(every print returns 0). Version 1.8 calls `Serial.begin(115200)`. The **Minima** has native USB serial and starts it itself.
+On the WiFi board `if (Serial)` is always true, so the probe repeats its report every 10 s; type `r` + Enter to get it at once.
+
 ## If the Serial Monitor goes quiet
 Pressing reset or replugging the USB cable disconnects the port for a moment. If the IDE shows the monitor as disconnected,
 re-select the board's port (or close and reopen the Serial Monitor); the report prints again each time the monitor attaches.

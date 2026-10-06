@@ -1,7 +1,13 @@
 // ===========================================================================================
-// reset_probe  VERSION 1.7   (2026-10-06)      <-- if you do not see this line, the IDE has an older copy
+// reset_probe  VERSION 1.8   (2026-10-06)      <-- if you do not see this line, the IDE has an older copy
 //
 // Change log
+//   1.8  FOUND WHY THERE WAS NO SERIAL OUTPUT: on the UNO R4 WiFi the core is built with -DNO_USB, so `Serial` is a hardware
+//        UART (talking to the ESP32 chip that provides the USB connection) and the core does NOT call Serial.begin() for us
+//        (the Minima, which has native USB, does). Until begin() is called, every Serial.print() returns 0. Fix: setup() now
+//        calls Serial.begin(115200). Also on the WiFi board `if (Serial)` is ALWAYS true (it cannot see the PC), so the report
+//        is repeated every 10 s there, and typing `r` still reprints it at any time. Matrix pixel 1 is therefore always lit
+//        on the WiFi board and means nothing there; pixel 5 (bytes accepted) now should light.
 //   1.7  matrix cycles through pages, all numbers in HEX (two digits = one byte per page):
 //          page 1 (1.5 s)  version        major, minor   e.g. "1 7"  (minor 10..15 shows as A..F)
 //          page 2 (1.5 s)  RSTSR0 at boot  bit0 = power-on, bit1 = voltage-monitor 0 (the other bits are other monitors)
@@ -21,9 +27,9 @@
 //   1.1  built-in LED blinks the cause and the credit result (works without any serial output)
 //   1.0  first version: serial report of the reset flags, RAM-record survival, console attach/detach
 // ===========================================================================================
-#define PROBE_VERSION "1.7"
+#define PROBE_VERSION "1.8"
 #define PROBE_MAJOR 1
-#define PROBE_MINOR 7
+#define PROBE_MINOR 8
 
 // reset_probe.ino — EXPERIMENT, not production code.
 //
@@ -248,6 +254,7 @@ void setup() {
   rec.runMs = baseRunMs + millis();
   seal();
   pinMode(LED_BUILTIN, OUTPUT);  // only after the flags are safely read
+  Serial.begin(115200);          // REQUIRED on the R4 WiFi (see the change log); harmless on the Minima
 #if defined(ARDUINO_UNOR4_WIFI)
   matrix.begin();
 #endif
@@ -270,6 +277,14 @@ void loop() {
     printReport();
   }
   wasAttached = attached;
+#if defined(ARDUINO_UNOR4_WIFI)
+  // `Serial` cannot tell whether a PC is listening, so repeat the report every 10 s: open the monitor and wait a moment.
+  static uint32_t nextReport = 5000;
+  if (millis() >= nextReport) {
+    nextReport = millis() + 10000;
+    printReport();
+  }
+#endif
 
   static uint32_t nextHb = 2000;
   if (attached && millis() >= nextHb) {
