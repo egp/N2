@@ -44,6 +44,11 @@ then a pause, then **one long (1 s) blink = warm-up credit > 0** (valid RAM reco
 blink = no credit**; then a longer pause and it starts again. For T2/T3 (reset button) expect 2 blinks then a long blink;
 for T4 (unplug/replug) 1 blink then a short blink.
 
+## The WiFi board's 12x8 LED matrix shows it too (R4 WiFi only)
+Left: the cause as a digit (same numbers as the blink table). Right: **Y** = warm-up credit, **N** = no credit. The
+bottom-right pixel blinks twice a second: if it blinks, `loop()` is running. Nothing needs to be attached; the matrix is part
+of the WiFi board. (The Minima has no matrix; it uses the built-in LED blinks only.)
+
 ## If the Serial Monitor goes quiet
 Pressing reset or replugging the USB cable disconnects the port for a moment. If the IDE shows the monitor as disconnected,
 re-select the board's port (or close and reopen the Serial Monitor); the report prints again each time the monitor attaches.

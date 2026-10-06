@@ -11,6 +11,8 @@
 //   cause blinks  : 1 = power-on, 2 = reset button / external pin, 3 = watchdog, 4 = software reset, 5 = other
 //   then a pause, then ONE long blink = warm-up credit > 0 (valid RAM record AND not a power-on reset),
 //                    or ONE very short blink = no credit.   Then the pattern repeats forever.
+// On the UNO R4 WiFi the 12x8 LED matrix shows the same thing: the cause digit on the left, Y (credit) or N (no credit)
+// on the right, and a blinking pixel in the bottom-right corner that proves loop() is running.
 // Safe on a bare board.
 // Open the Serial Monitor at any speed; the report prints whenever a console attaches.
 //
@@ -19,6 +21,10 @@
 //   x  corrupt the RAM record (next boot must show "record invalid")
 #include <Arduino.h>
 #include <WDT.h>
+#if defined(ARDUINO_UNOR4_WIFI)
+#include <Arduino_LED_Matrix.h>  // the WiFi board's built-in 12x8 LED matrix (the Minima does not have one)
+ArduinoLEDMatrix matrix;
+#endif
 
 struct Record {
   uint32_t magic;
@@ -114,6 +120,43 @@ static void beacon(uint32_t now) {
   digitalWrite(LED_BUILTIN, on ? HIGH : LOW);
 }
 
+#if defined(ARDUINO_UNOR4_WIFI)
+// ---- 12x8 LED matrix (WiFi board only): glyphs are 5 columns x 7 rows, one 5-bit value per row ----
+static const uint8_t kGlyph1[7] = {0x04, 0x0C, 0x04, 0x04, 0x04, 0x04, 0x0E};
+static const uint8_t kGlyph2[7] = {0x0E, 0x11, 0x01, 0x02, 0x04, 0x08, 0x1F};
+static const uint8_t kGlyph3[7] = {0x1E, 0x01, 0x01, 0x0E, 0x01, 0x01, 0x1E};
+static const uint8_t kGlyph4[7] = {0x02, 0x06, 0x0A, 0x12, 0x1F, 0x02, 0x02};
+static const uint8_t kGlyph5[7] = {0x1F, 0x10, 0x1E, 0x01, 0x01, 0x11, 0x0E};
+static const uint8_t kGlyphY[7] = {0x11, 0x11, 0x0A, 0x04, 0x04, 0x04, 0x04};
+static const uint8_t kGlyphN[7] = {0x11, 0x19, 0x15, 0x13, 0x11, 0x11, 0x11};
+
+// The matrix takes 96 bits (12 columns x 8 rows, row by row, most significant bit first) in three 32-bit words.
+static void setPixel(uint32_t* frame, uint8_t row, uint8_t col) {
+  const uint8_t index = static_cast<uint8_t>(row * 12 + col);
+  frame[index / 32] |= 1UL << (31 - (index % 32));
+}
+
+static void drawGlyph(uint32_t* frame, const uint8_t* glyph, uint8_t leftColumn) {
+  for (uint8_t row = 0; row < 7; ++row)
+    for (uint8_t bit = 0; bit < 5; ++bit)
+      if (glyph[row] & (0x10 >> bit)) setPixel(frame, row, static_cast<uint8_t>(leftColumn + bit));
+}
+
+static void showMatrix(uint32_t now) {
+  static const uint8_t* const kDigits[5] = {kGlyph1, kGlyph2, kGlyph3, kGlyph4, kGlyph5};
+  static bool heartbeat = false;
+  static uint32_t nextUpdate = 0;
+  if (static_cast<int32_t>(now - nextUpdate) < 0) return;
+  nextUpdate = now + 500;
+  heartbeat = !heartbeat;
+  uint32_t frame[3] = {0, 0, 0};
+  drawGlyph(frame, kDigits[causeBlinks() - 1], 0);                 // cause 1..5
+  drawGlyph(frame, creditMs > 0 ? kGlyphY : kGlyphN, 7);           // warm-up credit?
+  if (heartbeat) setPixel(frame, 7, 11);                           // loop() is alive
+  matrix.loadFrame(frame);
+}
+#endif
+
 void setup() {
   // Read the reset flags before anything else can disturb them.
   rst0 = R_SYSTEM->RSTSR0;
@@ -141,10 +184,16 @@ void setup() {
   rec.runMs = baseRunMs + millis();
   seal();
   pinMode(LED_BUILTIN, OUTPUT);  // only after the flags are safely read
+#if defined(ARDUINO_UNOR4_WIFI)
+  matrix.begin();
+#endif
 }
 
 void loop() {
   beacon(millis());
+#if defined(ARDUINO_UNOR4_WIFI)
+  showMatrix(millis());
+#endif
   rec.lastSeenMs = millis();
   rec.runMs = baseRunMs + millis();
   seal();

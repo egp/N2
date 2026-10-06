@@ -260,6 +260,7 @@ N2% 99.99  LRFS 1001
 | DSP-6 | A display failure (no ACK) shall never stop the control loop; it raises an INFO fault logged to the console. |
 | DSP-7 | LCD and LED initialization shall tolerate an absent or slow device and re-initialize when a later probe finds it. |
 | DSP-9 | **Withdrawn (owner):** the TBS state is not shown on the LCD; `LRFS 0000` and the tower state `OF` already show a disabled system, and the physical switch is at least as visible. The LED still blanks when TBS is off (DSP-3). |
+| DSP-10 | **R4 WiFi LED matrix (optional, BENCH/DIAG on the WiFi board only).** The WiFi board has a built-in 12×8 LED matrix (`ArduinoLEDMatrix`; the Minima has none, so production cannot depend on it). It may be used as an extra status display on the bench, e.g. a glyph for the mode (P = POST, B = BIST, R = run), the fault count, and a heartbeat pixel proving `loop()` is alive. Code for it shall be compiled only for `ARDUINO_UNOR4_WIFI`, shall sit behind the display interface (not in the controllers), and shall never be needed for any other requirement. Frame format (verified against the library's own example): 96 bits, 12 columns × 8 rows, row by row, most significant bit first, in three 32-bit words. Used first by `experiments/reset_probe`. |
 | DSP-8 | **Startup banner.** At startup the LCD shall show the firmware version and build date for about 1 s (user request); the console prints the full build identity (§10). |
 
 ## 9. Faults [NEW]
