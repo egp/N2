@@ -1,14 +1,17 @@
 // ===========================================================================================
-// reset_probe  VERSION 1.4   (2026-10-06)      <-- if you do not see this line, the IDE has an older copy
+// reset_probe  VERSION 1.5   (2026-10-06)      <-- if you do not see this line, the IDE has an older copy
 //
 // Change log
+//   1.5  suspect: unlocking/re-locking the register-protect register (PRCR) may have broken USB serial.
+//        PRCR is no longer touched; flags are cleared with plain writes only (the report says if that worked).
+//        New matrix pixel (bottom row, 5th from left): lit = the core accepted bytes for sending
 //   1.4  version header and change log (this); the same version is printed in the serial report
 //   1.3  matrix bottom row shows the serial link: lit pixel 0 = console seen (DTR), pixel 2 = a byte received
 //   1.2  WiFi board: 12x8 LED matrix shows the cause digit and Y/N for warm-up credit, plus a heartbeat pixel
 //   1.1  built-in LED blinks the cause and the credit result (works without any serial output)
 //   1.0  first version: serial report of the reset flags, RAM-record survival, console attach/detach
 // ===========================================================================================
-#define PROBE_VERSION "1.4"
+#define PROBE_VERSION "1.5"
 
 // reset_probe.ino — EXPERIMENT, not production code.
 //
@@ -61,7 +64,8 @@ static uint32_t baseRunMs, setupStartMs, creditMs;
 static const char* cause;
 static bool wasAttached = false;
 static bool serialAttached = false;   // what `if (Serial)` says right now (shown on the matrix)
-static bool everReceived = false;     // has any byte ever arrived from the host?
+static bool everReceived = false;
+static bool coreAcceptedBytes = false;   // did Serial.print() ever report bytes taken for sending?     // has any byte ever arrived from the host?
 
 static const char* classify(uint8_t r0, uint16_t r1) {
   if (r0 & 0x01) return "POWER-ON (PORF)";
@@ -73,14 +77,9 @@ static const char* classify(uint8_t r0, uint16_t r1) {
 }
 
 static void clearFlags() {
+  // Plain writes only. (v1.0-1.4 also unlocked and re-locked PRCR, which may have disturbed USB; see the change log.)
   R_SYSTEM->RSTSR0 = 0;
   R_SYSTEM->RSTSR1 = 0;
-  if (R_SYSTEM->RSTSR0 != 0 || R_SYSTEM->RSTSR1 != 0) {  // maybe register-protected: unlock, retry, relock
-    R_SYSTEM->PRCR = 0xA50B;
-    R_SYSTEM->RSTSR0 = 0;
-    R_SYSTEM->RSTSR1 = 0;
-    R_SYSTEM->PRCR = 0xA500;
-  }
 }
 
 static void printReport() {
@@ -170,6 +169,7 @@ static void showMatrix(uint32_t now) {
   if (heartbeat) setPixel(frame, 7, 11);                           // loop() is alive
   if (serialAttached) setPixel(frame, 7, 0);                       // the board sees a console (DTR) right now
   if (everReceived) setPixel(frame, 7, 2);                         // a byte has arrived from the host
+  if (coreAcceptedBytes) setPixel(frame, 7, 4);                    // the core took bytes for sending
   matrix.loadFrame(frame);
 }
 #endif
@@ -218,7 +218,8 @@ void loop() {
   const bool attached = Serial;  // true only while a host has the port open (USB DTR)
   serialAttached = attached;
   if (attached && !wasAttached) {
-    Serial.print(F("[console attached at ")); Serial.print(millis()); Serial.println(F(" ms]"));
+    if (Serial.print(F("[console attached at ")) > 0) coreAcceptedBytes = true;
+    Serial.print(millis()); Serial.println(F(" ms]"));
     printReport();
   }
   wasAttached = attached;
@@ -226,7 +227,8 @@ void loop() {
   static uint32_t nextHb = 2000;
   if (attached && millis() >= nextHb) {
     nextHb = millis() + 2000;
-    Serial.print(F("HB boot=")); Serial.print(rec.boots);
+    if (Serial.print(F("HB boot=")) > 0) coreAcceptedBytes = true;
+    Serial.print(rec.boots);
     Serial.print(F(" up=")); Serial.print(millis() / 1000);
     Serial.print(F("s credit_total=")); Serial.print(rec.runMs / 1000); Serial.println(F("s"));
   }
