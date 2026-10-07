@@ -78,6 +78,7 @@ void StageCommands::status() {
   }
   out_.add("LCD: I2C errors %lu, re-inits %lu, bus recoveries %lu", static_cast<unsigned long>(c_.lcd.i2cErrors()),
            static_cast<unsigned long>(c_.lcd.reinitCount()), static_cast<unsigned long>(c_.lcd.busRecoveries()));
+  out_.add("LED: %s, I2C errors %lu", c_.led.healthy() ? "healthy" : "NOT answering", static_cast<unsigned long>(c_.led.i2cErrors()));
   char stamp[20];
   out_.add("log clock: %s", c_.wall.stamp(c_.hal.millis(), stamp) ? stamp : "not synced (no trusted RTC)");
   out_.add("console: dropped %lu log lines, received %lu bytes", static_cast<unsigned long>(c_.console.dropped()),

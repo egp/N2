@@ -1,6 +1,7 @@
 // Stage 1 bring-up: wall clock, device checks, SelfTest runner, stage commands, and the whole Bringup app
 // (Requirements §11 POST, §12 BIST, §14b RTC-1..RTC-8, DSP-10).
 #include <catch2/catch_test_macros.hpp>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -27,13 +28,14 @@ struct Rig {
   std::unique_ptr<Bringup> app;
   std::string out;
 
-  explicit Rig(bool lcd = true, bool rtc = true, bool withMatrix = true) {
+  explicit Rig(bool lcd = true, bool rtc = true, bool withMatrix = true, bool led = true) {
     hal.consoleIsAttached = true;
     hal.canDetectHost = false;  // behave like the WiFi board
     hal.resetCause.known = true;
     hal.resetCause.powerOn = true;
     if (lcd) hal.i2cPresent.insert(0x27);
     if (rtc) hal.i2cPresent.insert(0x68);
+    if (led) hal.i2cPresent.insert({0x24, 0x34, 0x35, 0x36, 0x37});
     const SignalDef& tob = def(kHostBoard, Signal::kTob);
     hal.inputLevel[tob.pin] = levelHigh(false, tob.active);  // TOB not pressed
     BringupOptions opt;
@@ -229,9 +231,10 @@ TEST_CASE("Stage 1: boots, runs POST hands-off, and reaches RUN with everything 
   r.boot();
   r.run(1500);
   CHECK(r.has("N2V8 8.0.0-test stage 1"));
-  CHECK(r.has("POST 1/3 RESET"));
-  CHECK(r.has("POST 2/3 LCD"));
-  CHECK(r.has("POST 3/3 RTC"));
+  CHECK(r.has("POST 1/4 RESET"));
+  CHECK(r.has("POST 2/4 LCD"));
+  CHECK(r.has("POST 3/4 RTC"));
+  CHECK(r.has("POST 4/4 LED"));
   CHECK(r.has("POST OK"));
   CHECK(r.app->selfTest().postFinished());
   CHECK(r.app->running());
@@ -243,7 +246,7 @@ TEST_CASE("RTC-5: with no RTC at all, boot carries on gracefully (info, no hold,
   r.run(1500);
   CHECK(r.app->selfTest().postFinished());
   CHECK_FALSE(r.app->selfTest().postHolding());
-  CHECK(r.has("POST 3/3 RTC    info absent"));
+  CHECK(r.has("POST 3/4 RTC    info absent"));
   CHECK_FALSE(r.app->wall().synced());
   r.type("time");
   CHECK(r.has("RTC: not answering"));
@@ -323,24 +326,30 @@ TEST_CASE("Stage 1: the BIST asks the operator for the LCD, decides the RTC itse
   r.type("bist");
   CHECK(r.has("BIST started"));
   r.run(200);
-  CHECK(r.has("BIST 1/3 RESET"));
+  CHECK(r.has("BIST 1/4 RESET"));
   CHECK(r.has("reset cause = "));
   r.type("p");
-  CHECK(r.has("BIST 1/3 RESET  PASS"));
+  CHECK(r.has("BIST 1/4 RESET  PASS"));
   r.run(300);
-  CHECK(r.has("BIST 2/3 LCD"));
+  CHECK(r.has("BIST 2/4 LCD"));
   CHECK(r.has("LCD row 0: |####################|"));
   r.run(10000);  // pattern, backlight, display phases
   CHECK(r.has("4 readable rows"));
   r.type("f ghost characters");
-  CHECK(r.has("BIST 2/3 LCD    FAIL  ghost characters"));
+  CHECK(r.has("BIST 2/4 LCD    FAIL  ghost characters"));
   // the RTC step needs the RTC to move: advance it as real time would
   r.run(200);
-  CHECK(r.has("BIST 3/3 RTC"));
+  CHECK(r.has("BIST 3/4 RTC"));
   r.run(1000);
   r.setRtc({2026, 10, 6, 10, 31, 5});
   r.run(4000);
-  CHECK(r.has("BIST complete: 2 pass, 1 fail, 0 not run or skipped"));
+  // then the LED step: 3 s all segments, 4.6 s count, 2.5 s blink, then it asks
+  CHECK(r.has("BIST 4/4 LED"));
+  r.run(11000);
+  CHECK(r.has("8888 with one dot"));
+  r.type("p");
+  CHECK(r.has("BIST 4/4 LED    PASS"));
+  CHECK(r.has("BIST complete: 3 pass, 1 fail, 0 not run or skipped"));
 }
 
 TEST_CASE("Stage 1: BIST q quits at once and puts the LCD back to normal") {
@@ -384,7 +393,8 @@ TEST_CASE("Stage 1: scan names the devices it finds") {
   CHECK(r.has("0x27  LCD backpack"));
   CHECK(r.has("0x57  RTC module EEPROM"));
   CHECK(r.has("0x68  DS3231 RTC"));
-  CHECK(r.has("3 device(s)"));
+  CHECK(r.has("0x24  TM1650 LED"));
+  CHECK(r.has("8 device(s)"));
 }
 
 TEST_CASE("Stage 1: the matrix shows progress, a fail glyph while held, and a heartbeat") {
@@ -833,4 +843,146 @@ TEST_CASE("DSP-7: LCD state changes are logged with the time stamp (so the LCD c
   r.hal.i2cPresent.insert(0x27);
   r.run(3000);
   CHECK(r.has("LCD ready (init done)"));
+}
+
+// ============================================================================ Stage 2: the LED
+TEST_CASE("Stage 2: POST passes the LED when the control and all four digit addresses answer") {
+  Rig r;
+  r.setRtc({2026, 10, 6, 10, 31, 2});
+  r.boot();
+  r.run(1500);
+  CHECK(r.has("POST 4/4 LED    ok   0x24 + 4 digits ok"));
+  CHECK(r.has("POST OK"));
+}
+
+TEST_CASE("Stage 2: a missing or partly answering LED is only info: POST never holds on it") {
+  {
+    Rig r(true, true, true, false);  // no LED
+    r.setRtc({2026, 10, 6, 10, 31, 2});
+    r.boot();
+    r.run(1500);
+    CHECK(r.has("POST 4/4 LED    info no answer: carrying on without the LED"));
+    CHECK(r.app->selfTest().postFinished());
+    CHECK_FALSE(r.app->selfTest().postHolding());
+  }
+  {
+    Rig r(true, true, true, false);
+    r.hal.i2cPresent.insert({0x24, 0x34});  // only 2 of 5 addresses
+    r.setRtc({2026, 10, 6, 10, 31, 2});
+    r.boot();
+    r.run(1500);
+    CHECK(r.has("only 2 of 5 addresses answer"));
+    CHECK_FALSE(r.app->selfTest().postHolding());
+  }
+}
+
+TEST_CASE("Stage 2: the LCD check row shows one status per check: RES+ LCD+ RTC+ LED+") {
+  Rig r;
+  r.setRtc({2026, 10, 6, 10, 31, 2});
+  r.boot();
+  r.run(1500);
+  r.run(300);
+  CHECK(std::string(r.app->lcd().shown(1)) == "RES+ LCD+ RTC+ LED+ ");
+}
+
+TEST_CASE("Stage 2: the LCD check row shows i for info, F for fail") {
+  Rig r(true, false, true, false);  // no RTC, no LED: both info
+  r.boot();
+  r.run(1800);
+  CHECK(std::string(r.app->lcd().shown(1)) == "RES+ LCD+ RTCi LEDi ");
+  Rig r2(false, true, true, true);  // no LCD: nothing to see on the LCD, but POST holds on it
+  r2.boot();
+  r2.run(1500);
+  CHECK(r2.app->selfTest().postHolding());
+}
+
+TEST_CASE("Stage 2: the LED shows ---- during POST, FFFF while held, then the time HHMM with a blinking dot") {
+  Rig r;
+  r.setRtc({2026, 10, 6, 14, 5, 0});
+  r.boot();
+  r.tick(10);
+  r.run(300);
+  CHECK(r.app->led().shownSegments(0) != 0);  // something is written
+  r.run(1500);
+  const uint8_t one = Led1650::segmentsFor('1'), four = Led1650::segmentsFor('4'), zero = Led1650::segmentsFor('0'), five = Led1650::segmentsFor('5');
+  CHECK((r.app->led().shownSegments(0) & 0x7F) == (one & 0x7F));
+  CHECK((r.app->led().shownSegments(2) & 0x7F) == (zero & 0x7F));
+  CHECK((r.app->led().shownSegments(1) & 0x7F) == (four & 0x7F));
+  CHECK((r.app->led().shownSegments(3) & 0x7F) == (five & 0x7F));
+  // the dot after the second digit blinks: over a second both states occur
+  bool dotOn = false, dotOff = false;
+  for (int i = 0; i < 100; ++i) {
+    r.tick(10);
+    if (r.app->led().shownSegments(1) & 0x80) dotOn = true;
+    else dotOff = true;
+  }
+  CHECK(dotOn);
+  CHECK(dotOff);
+}
+
+TEST_CASE("Stage 2: without a trusted RTC the LED shows the uptime in seconds, right-justified") {
+  Rig r(true, false);
+  r.boot();
+  r.run(7000);
+  const uint8_t blank = Led1650::segmentsFor(' ');
+  CHECK((r.app->led().shownSegments(0) & 0x7F) == (blank & 0x7F));
+  CHECK((r.app->led().shownSegments(3) & 0x7F) == (Led1650::segmentsFor('6') & 0x7F));
+}
+
+TEST_CASE("Stage 2: LED state changes are logged like the LCD's, and the LED's errors show in status") {
+  Rig r;
+  r.setRtc({2026, 10, 6, 10, 31, 2});
+  r.boot();
+  r.run(500);
+  CHECK(r.has("LED ready"));
+  r.clearOut();
+  r.hal.i2cPresent.erase(0x34);
+  r.run(2500);
+  CHECK(r.has("LED I2C error #1"));
+  r.type("status");
+  CHECK(r.has("LED: "));
+  CHECK_FALSE(r.has("LED: healthy, I2C errors 0"));  // errors are counted (the partly answering module flaps between retry and ready)
+}
+
+TEST_CASE("Stage 2: the stage name is a build option, shown in the banner and on the LCD") {
+  FakeHal hal;
+  hal.i2cPresent = {0x27, 0x68, 0x24, 0x34, 0x35, 0x36, 0x37};
+  hal.consoleIsAttached = true;
+  hal.canDetectHost = false;
+  const SignalDef& tob = def(kHostBoard, Signal::kTob);
+  hal.inputLevel[tob.pin] = levelHigh(false, tob.active);
+  RecordingMatrix matrix;
+  BuildInfo info{"8.0.0-test", "Jan  1 2026", "12:00:00", "host (fake)", "HOST", 10};
+  BringupOptions opt;
+  opt.lcdStartMs = 0;
+  opt.stage = "2";
+  Bringup app(hal, kHostBoard, info, &matrix, opt);
+  app.setup();
+  for (uint32_t t = 0; t < 1500; t += 10) { hal.nowMs += 10; app.loop(); }
+  CHECK(hal.consoleOut.find("stage 2") != std::string::npos);
+  CHECK(std::string(app.lcd().shown(0)).find("s2") != std::string::npos);
+}
+
+TEST_CASE("DRV-1: with setRefresh the LED rewrites all digits and the control byte every period, and notices a module that vanished") {
+  FakeHal hal;
+  hal.i2cPresent = {0x24, 0x34, 0x35, 0x36, 0x37};
+  Led1650 led(hal, 0x24, 0x34);
+  led.setRefresh(1000);
+  led.begin(0);
+  LedText t;
+  memcpy(t.digit, "1234", 5);
+  t.dotAfter = -1;
+  led.setText(t);
+  uint32_t now = 0;
+  for (; now < 200; now += 5) led.service(now);
+  REQUIRE(led.inSync());
+  const size_t settled = hal.i2cWrites.size();
+  for (; now < 900; now += 5) led.service(now);
+  CHECK(hal.i2cWrites.size() == settled);       // nothing changes, nothing is written
+  for (; now < 1300; now += 5) led.service(now);
+  CHECK(hal.i2cWrites.size() == settled + 5);   // one refresh: control byte + 4 digits
+  hal.i2cPresent.erase(0x37);
+  for (; now < 2500; now += 5) led.service(now);
+  CHECK_FALSE(led.healthy());
+  CHECK(led.i2cErrors() >= 1);
 }

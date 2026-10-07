@@ -15,11 +15,13 @@ Bringup::Bringup(Hal& hal, const BoardDef& board, const BuildInfo& info, FrameSi
       log_(console_, wall_, hal),
       lcd_(hal, board.addrLcd),
       rtc_(hal, board.addrRtc),
+      led_(hal, board.addrLed, board.addrLedDigits),
       lcdCheck_(hal, lcd_, board.addrLcd, log_),
       rtcCheck_(rtc_, log_),
-      checks_{&resetCheck_, &lcdCheck_, &rtcCheck_},
-      selfTest_(console_, checks_, 3),
-      commands_(StageContext{hal, board, info, console_, selfTest_, rtc_, lcd_, wall_, loopStats_, *this, resetText_,
+      ledCheck_(hal, led_, board, log_),
+      checks_{&resetCheck_, &lcdCheck_, &rtcCheck_, &ledCheck_},
+      selfTest_(console_, checks_, 4),
+      commands_(StageContext{hal, board, info, console_, selfTest_, rtc_, lcd_, led_, wall_, loopStats_, *this, resetText_,
                                      [](void* o) { return static_cast<Bringup*>(o)->switchTbs(); },
                                      [](void* o) { return static_cast<Bringup*>(o)->switchTob(); }, this}) {}
 
@@ -57,6 +59,37 @@ void Bringup::logLcdEvents() {
   lcdReinitsSeen_ = lcd_.reinitCount();
 }
 
+// What the 4-digit LED shows: "----" until POST is done, FFFF while POST is held, then the wall-clock time HHMM with the middle dot blinking at 1 Hz
+// when the RTC is trusted, otherwise the uptime in seconds (right-justified, up to 9999).
+LedText Bringup::ledText(uint32_t now) {
+  LedText t;
+  t.dotAfter = -1;
+  if (selfTest_.postHolding()) {
+    memcpy(t.digit, "FFFF", 5);
+  } else if (!selfTest_.postFinished()) {
+    memcpy(t.digit, "----", 5);
+  } else {
+    DateTime d;
+    if (wall_.now(now, d)) {
+      snprintf(t.digit, sizeof t.digit, "%02u%02u", static_cast<unsigned>(d.hour % 100u), static_cast<unsigned>(d.minute % 100u));
+      t.dotAfter = (now / 500u) % 2u == 0 ? 1 : -1;
+    } else {
+      const unsigned long up = (now - bootMs_) / 1000u;
+      snprintf(t.digit, sizeof t.digit, "%4lu", up > 9999 ? 9999ul : up);
+    }
+  }
+  return t;
+}
+
+// One log line per LED state change (compare with logLcdEvents).
+void Bringup::logLedEvents() {
+  const bool ready = led_.ready() && led_.healthy();
+  if (ready != ledWasReady_) logf(log_, LogLevel::kInfo, "LED %s", ready ? "ready" : "not ready (initialising or no answer)");
+  ledWasReady_ = ready;
+  if (led_.i2cErrors() != ledErrorsSeen_) logf(log_, LogLevel::kWarn, "LED I2C error #%lu", static_cast<unsigned long>(led_.i2cErrors()));
+  ledErrorsSeen_ = led_.i2cErrors();
+}
+
 void Bringup::setup() {
   hal_.consoleBegin();
   hal_.i2cBegin();
@@ -75,6 +108,8 @@ void Bringup::setup() {
   if (opt_.lcdStartMs == 0) lcd_.begin(now);
   else lcdStart_.arm(now, opt_.lcdStartMs);
   lcd_.enableHealing();  // see Lcd20x4::Healing
+  led_.begin(now);
+  led_.setRefresh(250);  // rewrite the LED four times a second (5 short writes: cheap; see Led1650::setRefresh)
   lcd_.setAlwaysRewrite(opt_.lcdAlwaysRewrite);
   lcd_.setScreen(renderBanner(info_.version, info_.board, info_.date));
   syncWallClock(now);
@@ -108,7 +143,7 @@ void Bringup::syncWallClock(uint32_t now) {
 
 void Bringup::printBanner() {
   char line[96];
-  snprintf(line, sizeof line, "N2V8 %s stage 1 | %s | reset: %s", info_.version, info_.board, resetText_);
+  snprintf(line, sizeof line, "N2V8 %s stage %s | %s | reset: %s", info_.version, opt_.stage, info_.board, resetText_);
   console_.tryPrint(line);
   snprintf(line, sizeof line, "built %s %s. Type help for commands.", info_.date, info_.time);
   console_.tryPrint(line);
@@ -121,12 +156,13 @@ void Bringup::updateScreens(uint32_t now) {
 
   // ---- LCD (not while a BIST step owns it) ----
   if (!selfTest_.bistRunning() && now - bootMs_ >= 1000) {
-    char r1[24] = "", r2[24], r3[24];
-    for (uint8_t i = 0; i < n && i < 3; ++i) {
+    // Row 1: one 3-letter name and one status character per check: + ok, i info (noted, not a fault), F fail, - not run. "RST+ LCD+ RTC+ LED+"
+    char r1[24] = "", r2[24], r3[48];
+    for (uint8_t i = 0; i < n && i < 4; ++i) {
       const CheckLevel l = levels[i];
       char item[10];
-      snprintf(item, sizeof item, "%.3s:%s ", selfTest_.checkName(i),
-               l == CheckLevel::kPass ? "ok" : (l == CheckLevel::kInfo ? "i" : (l == CheckLevel::kFail ? "FAIL" : "-")));
+      snprintf(item, sizeof item, "%s%.3s%c", i == 0 ? "" : " ", selfTest_.checkName(i),
+               l == CheckLevel::kPass ? '+' : (l == CheckLevel::kInfo ? 'i' : (l == CheckLevel::kFail ? 'F' : '-')));
       strncat(r1, item, sizeof r1 - strlen(r1) - 1);
     }
     char stamp[20];
@@ -136,9 +172,12 @@ void Bringup::updateScreens(uint32_t now) {
     else if (!selfTest_.postFinished()) snprintf(r3, sizeof r3, "POST running");
     else snprintf(r3, sizeof r3, "up %lus  %s", static_cast<unsigned long>(now / 1000u), resetText_);
     char r0[24];
-    snprintf(r0, sizeof r0, "N2V8 %s s1", info_.version);
+    snprintf(r0, sizeof r0, "N2V8 %s s%s", info_.version, opt_.stage);
     lcd_.setScreen(makeScreen(r0, r1, r2, r3));
   }
+
+  // ---- LED (not while a BIST step owns it) ----
+  if (!selfTest_.bistRunning()) led_.setText(ledText(now));
 
   // ---- matrix ----
   if (matrix_ != nullptr) {
@@ -173,9 +212,11 @@ void Bringup::loop() {
     lcdStart_.clear();
   }
   lcd_.service(now);
+  led_.service(now);
   console_.poll(commands_);
   logSwitchChanges();
   logLcdEvents();
+  logLedEvents();
 
   // The banner: on the WiFi board (cannot see the PC) repeat until the PC has typed something; otherwise once per attach.
   const bool attached = console_.attached();

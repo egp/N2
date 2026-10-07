@@ -30,7 +30,7 @@ class RtcCheck : public DeviceCheck {
   DateTime first_{};
   uint32_t firstMs_ = 0;
   bool started_ = false;
-  char note_[24] = {};
+  char note_[32] = {};
 };
 
 }  // namespace n2

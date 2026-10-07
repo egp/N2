@@ -18,7 +18,9 @@
 #include "../drivers/Lcd20x4.h"
 #include "../drivers/Rtc3231.h"
 #include "../hal/Hal.h"
+#include "../drivers/Led1650.h"
 #include "../selftest/LcdCheck.h"
+#include "../selftest/LedCheck.h"
 #include "../selftest/ResetCheck.h"
 #include "../selftest/RtcCheck.h"
 #include "../selftest/SelfTest.h"
@@ -37,6 +39,7 @@ struct BringupOptions {
   uint32_t rtcResyncMs = 60000;      // how often the log clock re-anchors to the RTC (RTC-7)
   uint32_t bannerRepeatMs = 3000;    // WiFi board: repeat the banner until the PC has been heard
   bool lcdAlwaysRewrite = true;      // testing aid (Stage 1 is a bench sketch): rewrite all 80 LCD cells continuously, no caching
+  const char* stage = "1";           // which bring-up stage this build is (banner and LCD)
   uint32_t screenMs = 250;           // LCD and matrix refresh period
   uint32_t lcdStartMs = kDefaultLcdStartMs;  // do not touch the LCD until this long after boot (0 = at once); see DisplayManager::begin
 };
@@ -57,6 +60,7 @@ class Bringup : public StageActions {
   SelfTest& selfTest() { return selfTest_; }
   const WallClock& wall() const { return wall_; }
   Lcd20x4& lcd() { return lcd_; }
+  Led1650& led() { return led_; }
   const LoopStats& loopStats() const { return loopStats_; }
   bool switchTbs() { return tbsOn(); }
   bool switchTob() { return tobPressed(); }
@@ -70,6 +74,8 @@ class Bringup : public StageActions {
   bool tbsOn();
   void logSwitchChanges();
   void logLcdEvents();
+  void logLedEvents();
+  LedText ledText(uint32_t now);
 
   Hal& hal_;
   const BoardDef& board_;
@@ -82,10 +88,12 @@ class Bringup : public StageActions {
   StampedLog log_;      // every log line goes through here to get its time stamp
   Lcd20x4 lcd_;
   Rtc3231 rtc_;
+  Led1650 led_;
   ResetCheck resetCheck_;
   LcdCheck lcdCheck_;
   RtcCheck rtcCheck_;
-  DeviceCheck* checks_[3];
+  LedCheck ledCheck_;
+  DeviceCheck* checks_[4];
   SelfTest selfTest_;
   LoopStats loopStats_;
   StageCommands commands_;
@@ -98,6 +106,8 @@ class Bringup : public StageActions {
   bool goRequested_ = false;
   bool wasAttached_ = false;
   bool recoverRtcBus_ = true;
+  bool ledWasReady_ = false;
+  uint32_t ledErrorsSeen_ = 0;
   bool lcdWasReady_ = false;
   uint32_t lcdErrorsSeen_ = 0;
   uint32_t lcdRecoveriesSeen_ = 0;

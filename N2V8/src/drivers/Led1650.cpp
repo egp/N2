@@ -67,6 +67,14 @@ void Led1650::service(uint32_t now) {
       break;
   }
 
+  if (refreshMs_ > 0) {
+    if (!refresh_.armed()) refresh_.arm(now, refreshMs_);
+    else if (refresh_.reached(now)) {
+      controlDirty_ = true;
+      for (uint8_t i = 0; i < kDigits; ++i) writtenValid_[i] = false;
+      refresh_.arm(now, refreshMs_);
+    }
+  }
   if (controlDirty_) {
     const uint8_t b = displayOn_ ? kControlOn : kControlOff;
     if (!hal_.i2cWrite(control_, &b, 1)) return fail(now);

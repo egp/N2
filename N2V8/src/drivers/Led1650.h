@@ -7,6 +7,7 @@
 
 #include <stdint.h>
 
+#include "../core/TimedState.h"
 #include "../hal/Hal.h"
 #include "../ui/LedText.h"
 
@@ -27,6 +28,9 @@ class Led1650 {
   void service(uint32_t now);
 
   void setText(const LedText& text);  // desired content; written by service()
+  // Rewrite the control byte and all four digits every periodMs (0 = only on change, the default). A digit that does not change (an hour
+  // digit) would otherwise never be written, so a missing or wedged module would go unnoticed for as long as the text stays the same.
+  void setRefresh(uint32_t periodMs) { refreshMs_ = periodMs; }
   void setDisplayOn(bool on);         // BIST: display on/off without changing the content
 
   bool ready() const { return state_ == State::kReady; }
@@ -51,6 +55,8 @@ class Led1650 {
   bool healthy_ = true;
   uint32_t errors_ = 0;
   bool controlDirty_ = true;
+  uint32_t refreshMs_ = 0;
+  Deadline refresh_;
   bool displayOn_ = true;
   uint8_t desired_[kDigits] = {0, 0, 0, 0};
   uint8_t written_[kDigits] = {0, 0, 0, 0};

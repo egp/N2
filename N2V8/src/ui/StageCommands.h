@@ -10,6 +10,7 @@
 #include "../core/LoopStats.h"
 #include "../core/WallClock.h"
 #include "../drivers/Lcd20x4.h"
+#include "../drivers/Led1650.h"
 #include "../drivers/Rtc3231.h"
 #include "../hal/Hal.h"
 #include "../selftest/SelfTest.h"
@@ -35,6 +36,7 @@ struct StageContext {
   SelfTest& selfTest;
   Rtc3231& rtc;
   Lcd20x4& lcd;
+  Led1650& led;
   WallClock& wall;
   const LoopStats& loop;
   StageActions& actions;
