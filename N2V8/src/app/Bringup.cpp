@@ -105,7 +105,10 @@ void Bringup::setup() {
 
   const uint32_t now = hal_.millis();
   bootMs_ = now;
-  if (opt_.lcdStartMs == 0) lcd_.begin(now);
+  lcdCheck_.setEnabled(opt_.useLcd);
+  if (!opt_.useLcd) {
+    // no LCD in this build: never start the driver
+  } else if (opt_.lcdStartMs == 0) lcd_.begin(now);
   else lcdStart_.arm(now, opt_.lcdStartMs);
   lcd_.enableHealing();  // see Lcd20x4::Healing
   led_.begin(now);

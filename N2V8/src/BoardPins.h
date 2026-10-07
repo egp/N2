@@ -141,6 +141,17 @@ constexpr const SignalDef& def(const BoardDef& b, Signal s) { return b.signals[s
 constexpr uint8_t pinOf(const BoardDef& b, Signal s) { return def(b, s).pin; }
 constexpr bool isOutput(const SignalDef& d) { return d.dir == Dir::kOutput; }
 
+// ---- The TM1650 answers more addresses than its datasheet lists ------------------------------
+// Measured 2026-10-07 on the replacement module: it acknowledges 0x24, 0x25, 0x26, 0x27 (the whole control range, it ignores the low
+// address bits) AND 0x34-0x37. So an LCD backpack at 0x27 (the PCF8574 default) shares an address with the LED module. With both on one bus
+// the LCD writes failed over and over. Move the LCD to 0x20-0x23 (solder jumper A2 bridged gives 0x23).
+constexpr bool inTm1650Range(const BoardDef& b, uint8_t a) {
+  return (a >= b.addrLed && a < b.addrLed + 4) || (a >= b.addrLedDigits && a < b.addrLedDigits + 4);
+}
+// True if the LCD address is inside the range the LED module answers (a known hardware conflict; not a compile error because the
+// production wiring is unconfirmed: see docs/Owner_TODO.md).
+constexpr bool lcdOverlapsLed(const BoardDef& b) { return inTm1650Range(b, b.addrLcd); }
+
 // ---- Compile-time validation (PIN-4) ----------------------------------------------
 enum class BoardCheck : uint8_t {
   kOk,

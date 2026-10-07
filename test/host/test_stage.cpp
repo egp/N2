@@ -986,3 +986,44 @@ TEST_CASE("DRV-1: with setRefresh the LED rewrites all digits and the control by
   CHECK_FALSE(led.healthy());
   CHECK(led.i2cErrors() >= 1);
 }
+
+TEST_CASE("Stage 2: scan labels the LED's aliases and warns when the LCD sits inside the LED's address range") {
+  Rig r;
+  r.hal.i2cPresent.insert({0x25, 0x26});
+  r.boot();
+  r.run(1500);
+  r.type("scan");
+  CHECK(r.has("0x25  TM1650 LED"));
+  CHECK(r.has("0x27  LCD backpack (the TM1650 LED answers here too!)"));
+  r.clearOut();
+  r.type("status");
+  CHECK(r.has("WARNING: LCD address 0x27 is inside the LED module's range"));
+}
+
+TEST_CASE("Stage 2: with useLcd = false nothing is ever sent to the LCD address, POST notes it and does not hold, the LED still works") {
+  FakeHal hal;
+  hal.i2cPresent = {0x68, 0x24, 0x25, 0x26, 0x27, 0x34, 0x35, 0x36, 0x37};  // the LED module answers 0x27 too
+  hal.consoleIsAttached = true;
+  hal.canDetectHost = false;
+  const SignalDef& tob = def(kHostBoard, Signal::kTob);
+  hal.inputLevel[tob.pin] = levelHigh(false, tob.active);
+  RecordingMatrix matrix;
+  BuildInfo info{"8.0.0-test", "Jan  1 2026", "12:00:00", "host (fake)", "HOST", 10};
+  BringupOptions opt;
+  opt.stage = "2";
+  opt.useLcd = false;
+  Bringup app(hal, kHostBoard, info, &matrix, opt);
+  app.setup();
+  {
+    Rtc3231 rtc(hal, 0x68);
+    REQUIRE(rtc.set({2026, 10, 7, 9, 15, 0}));
+  }
+  for (uint32_t t = 0; t < 8000; t += 10) { hal.nowMs += 10; app.loop(); }
+  size_t toLcdAddress = 0;
+  for (const auto& w : hal.i2cWrites) if (w.address == 0x27) ++toLcdAddress;
+  CHECK(toLcdAddress == 0);
+  CHECK(hal.consoleOut.find("LCD    info disabled in this build") != std::string::npos);
+  CHECK(app.selfTest().postFinished());
+  CHECK(app.led().healthy());
+  CHECK(app.led().i2cErrors() == 0);
+}

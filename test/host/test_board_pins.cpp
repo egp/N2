@@ -170,3 +170,17 @@ TEST_CASE("PIN-2: each board has its own signal table, so one can change without
   CHECK(def(kMinimaBoard, Signal::kTob).active == Active::kLow);
   CHECK(def(kMinimaBoard, Signal::kSsr).active == Active::kHigh);
 }
+
+TEST_CASE("PIN-4: the TM1650 answers 0x24-0x27 and 0x34-0x37, so an LCD at 0x27 overlaps the LED module (known conflict), 0x23 does not") {
+  BoardDef b = kWifiBoard;
+  CHECK(inTm1650Range(b, 0x24));
+  CHECK(inTm1650Range(b, 0x27));
+  CHECK(inTm1650Range(b, 0x34));
+  CHECK(inTm1650Range(b, 0x37));
+  CHECK_FALSE(inTm1650Range(b, 0x23));
+  CHECK_FALSE(inTm1650Range(b, 0x38));
+  CHECK(lcdOverlapsLed(b));  // today's default 0x27: the conflict is recorded
+  b.addrLcd = 0x23;
+  CHECK_FALSE(lcdOverlapsLed(b));
+  CHECK(checkBoard(b) == BoardCheck::kOk);
+}

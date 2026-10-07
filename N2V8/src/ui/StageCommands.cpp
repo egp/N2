@@ -65,6 +65,8 @@ void StageCommands::status() {
   out_.add("N2V8 %s  board %s  mode %s  uptime %lu s", c_.info.version, c_.info.board, c_.info.mode,
            static_cast<unsigned long>(c_.hal.millis() / 1000u));
   out_.add("reset cause: %s", c_.resetCause);
+  if (lcdOverlapsLed(c_.board))
+    out_.add("WARNING: LCD address 0x%02X is inside the LED module's range (0x24-0x27): they collide. Move the LCD to 0x20-0x23.", static_cast<unsigned>(c_.board.addrLcd));
   const SignalDef& tbsDef = def(c_.board, Signal::kTbs);
   const SignalDef& tobDef = def(c_.board, Signal::kTob);
   out_.add("switches: TBS %s (pin D%u reads %s), TOB %s (pin D%u reads %s)", c_.tbsOn(c_.switchOwner) ? "ON" : "off",
@@ -90,10 +92,10 @@ void StageCommands::scan() {
   for (uint8_t a = 0x08; a < 0x78; ++a) {
     if (!c_.hal.i2cProbe(a)) continue;
     const char* who = "unknown";
-    if (a == c_.board.addrLcd) who = "LCD backpack";
+    if (a == c_.board.addrLcd) who = inTm1650Range(c_.board, a) ? "LCD backpack (the TM1650 LED answers here too!)" : "LCD backpack";
     else if (a == c_.board.addrRtc) who = "DS3231 RTC";
     else if (a == 0x57) who = "RTC module EEPROM";
-    else if (a == c_.board.addrLed || (a >= c_.board.addrLedDigits && a < c_.board.addrLedDigits + 4)) who = "TM1650 LED";
+    else if (inTm1650Range(c_.board, a)) who = "TM1650 LED";
     else if (a == c_.board.addrO2) who = "O2 sensor";
     out_.add("  0x%02X  %s", static_cast<unsigned>(a), who);
     ++count;

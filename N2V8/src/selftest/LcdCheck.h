@@ -17,6 +17,9 @@ class LcdCheck : public DeviceCheck {
  public:
   LcdCheck(Hal& hal, Lcd20x4& lcd, uint8_t address, LogSink& log) : hal_(hal), lcd_(lcd), address_(address), log_(log) {}
 
+  // A build can leave the LCD out completely (-DSTAGE2_NO_LCD): the driver is never started and nothing is sent to its address, which matters
+  // because the TM1650 LED module also answers at 0x27 and hears everything sent there.
+  void setEnabled(bool on) { enabled_ = on; }
   const char* name() const override { return "LCD"; }
   CheckResult post(uint32_t now) override;
   void bistBegin(uint32_t now) override;
@@ -36,6 +39,7 @@ class LcdCheck : public DeviceCheck {
   Deadline phaseEnd_;
   Deadline blink_;
   bool blinkState_ = true;
+  bool enabled_ = true;
 };
 
 }  // namespace n2

@@ -6,6 +6,10 @@ namespace n2 {
 
 CheckResult LcdCheck::post(uint32_t) {
   CheckResult r;
+  if (!enabled_) {
+    r.set(CheckLevel::kInfo, "disabled in this build");
+    return r;
+  }
   const bool answers = hal_.i2cProbe(address_);
   if (!answers) r.set(CheckLevel::kFail, "no answer at 0x%02X", static_cast<unsigned>(address_));
   else if (!lcd_.healthy()) r.set(CheckLevel::kFail, "0x%02X answers, driver reports errors", static_cast<unsigned>(address_));
@@ -21,6 +25,10 @@ void LcdCheck::enter(Phase phase, uint32_t now, uint32_t lengthMs) {
 }
 
 void LcdCheck::bistBegin(uint32_t now) {
+  if (!enabled_) {
+    phase_ = Phase::kAsk;  // nothing to show: the step asks at once and the operator skips it with s
+    return;
+  }
   const Screen pattern = makeScreen("####################", "ABCDEFGHIJKLMNOPQRST", "01234567890123456789", "####################");
   lcd_.setScreen(pattern);
   for (uint8_t i = 0; i < kLcdRows; ++i) logf(log_, LogLevel::kInfo, "   LCD row %u: |%s|", static_cast<unsigned>(i), pattern.row[i]);

@@ -39,6 +39,7 @@ struct BringupOptions {
   uint32_t rtcResyncMs = 60000;      // how often the log clock re-anchors to the RTC (RTC-7)
   uint32_t bannerRepeatMs = 3000;    // WiFi board: repeat the banner until the PC has been heard
   bool lcdAlwaysRewrite = true;      // testing aid (Stage 1 is a bench sketch): rewrite all 80 LCD cells continuously, no caching
+  bool useLcd = true;                // false: the LCD is left out entirely (nothing is ever sent to its address); see LcdCheck
   const char* stage = "1";           // which bring-up stage this build is (banner and LCD)
   uint32_t screenMs = 250;           // LCD and matrix refresh period
   uint32_t lcdStartMs = kDefaultLcdStartMs;  // do not touch the LCD until this long after boot (0 = at once); see DisplayManager::begin

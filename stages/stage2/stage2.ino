@@ -73,6 +73,9 @@ n2::Bringup& app() {
   static n2::BringupOptions options = [] {
     n2::BringupOptions o;
     o.stage = "2";
+#if defined(STAGE2_NO_LCD)  // build with -DSTAGE2_NO_LCD to test the LED and RTC without the LCD (nothing is sent to 0x27)
+    o.useLcd = false;
+#endif
 #if defined(N2_NO_WATCHDOG)
     o.watchdogEnabled = false;
 #endif
