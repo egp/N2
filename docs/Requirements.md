@@ -1,6 +1,6 @@
 # Nitrogen Generator Controller — Requirements (v2.6 DRAFT)
 
-**Status:** DRAFT for iteration — no code written yet. v2.3 folds in the author's reviews of v2.0–v2.2. M2–M5 (everything that can be tested on a host) are built and tested; the findings made while building them are marked **[found]**.
+**Status:** DRAFT for iteration (v2.6). Host work for M2–M5 exists and is under test; **M6 (bench bring-up) is in progress**. Findings made while building are marked **[found]**. v2.3 folded in the author's reviews of v2.0–v2.2.
 **Supersedes:** `N2V6/N2V6_Requirements.md` v1.1 (2026-06-10)
 **Behavioral reference:** `N2V7/N2V7.ino` (2026-07-13). Where V6 text and V7 code disagree, V7 is
 treated as the more recent intent and the difference is called out. Code from V5–V7 that meets a

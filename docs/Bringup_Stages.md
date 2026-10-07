@@ -1,5 +1,7 @@
 # Bring-up stages
 
+**Status (2026-10-07):** Stage 1 built (host green); E1 WiFi done; Stage 1 full bench run and DIAG flash still open; LED blocked on replacement module.
+
 Rather than debugging the whole N2V8 at once, start from what is proven on the bench and add one device at a time.
 
 **The rule for adding a device**

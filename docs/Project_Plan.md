@@ -1,8 +1,11 @@
 # Nitrogen Generator Controller — Project Plan (v0.2 DRAFT)
 
-Companion to `Requirements.md` v2.1. Requirement IDs (`PIN-10`, `INV-3`, …) refer to it.
+Companion to `Requirements.md` **v2.6**. Requirement IDs (`PIN-10`, `INV-3`, …) refer to it.
 Owner action items are in `Owner_TODO.md`. v0.2 folds in the author's review of v0.1.
-No firmware code exists yet.
+
+**Status (2026-10-07):** Host M0–M5 done (~408 tests green). Firmware exists on branch `v8`.
+**M6 (bench) is in progress:** E1 reset probe **DONE on R4 WiFi**; Stage 1 (LCD+RTC) built with host tests green;
+full Stage 1 bench run and DIAG flash still open. LED blocked on a replacement module. `main` stays V5 until M9.
 
 ## 1. Principles
 
@@ -15,17 +18,22 @@ No firmware code exists yet.
 6. **Never lose the working unit.** The known-good firmware stays available for the field trip (NFR-3).
 7. **The firmware is the only protection** (hardware answer HQ2: no independent safeguard; GOAL-11). The invariants in Requirements §6 get an independent review before the first hardware visit and again before production.
 
-## 1a. Status snapshot (2026-10-02)
+## 1a. Status snapshot (2026-10-07)
 
-Everything that can be tested without hardware is built and tested: **308 host tests**, all passing, including
-randomized property tests of the safety rules (765 000 assertions) and **mutation checks** (a deliberately broken safety rule
-is caught by at least one test, 14 of 14 tried). The sketch builds for both boards in both modes (DIAG, FIELD):
-**36–37 % flash, 28–39 % RAM** with the DFRobot library. CI (Ubuntu) runs the host tests and builds the four board/mode combinations.
+Everything that can be tested without hardware is built and tested: **~408 host tests**, all passing, including
+randomized property tests of the safety rules and **mutation checks** (a deliberately broken safety rule
+is caught by at least one test). The sketch builds for both boards in both modes (DIAG, FIELD):
+**36–37 % flash, 28–39 % RAM** with the DFRobot library (sizes from the 2026-10-02 full-firmware snapshot; re-measure after big adds).
+CI (Ubuntu) runs the host tests and builds the four board/mode combinations.
 
-What the host tests **cannot** prove, and so waits for the R4 WiFi (then the Minima): the real I2C timing and behavior of the
-two displays; the USB serial behavior (no host, stalled host, connect/disconnect); `Serial`/watchdog/reset-cause calls in
-`HalArduino` (written from the core's source, never run); the DFRobot adapter against a real SEN0465; the `.noinit` warm-up record;
-pin wiring and active levels (DIAG on site).
+**Bench progress (R4 WiFi, 2026-10-06):** E1 reset probe complete (`docs/results/reset-probe-wifi-20261006.md`);
+LCD and RTC drivers validated; Stage 1 sketch built (`stages/stage1/`, see `docs/Bringup_Stages.md`).
+Still open on the WiFi bench: full Stage 1 soak, DIAG flash (Owner_TODO 10a), LED (replacement module),
+then the rest of M6. Minima: reset probe and DIAG still open. Pinout owner-verify before FIELD.
+
+What the host tests **cannot** prove, and so still needs silicon: remaining I2C/display edge cases; USB serial
+behavior (no host, stalled host, connect/disconnect); watchdog/reset-cause on Minima; the DFRobot adapter against a
+real SEN0465; pin wiring and active levels (DIAG on site).
 
 ## 2. Decisions
 
@@ -58,7 +66,9 @@ N2V8/                      (repo root; cloned as folder N2V8 so the Arduino sket
   tools/                   n2log (capture), traceability script, buildinfo script
   reference/               N2V6.ino.txt  N2V7.ino.txt  N2V6_Requirements.md  V5 tests
   docs/                    Requirements.md  Project_Plan.md  Owner_TODO.md
-                           field_checklist.md  results/
+                           Bringup_Stages.md  field_checklist.md  results/
+  stages/                  staged bring-up sketches (stage1 = LCD+RTC+console)
+  experiments/             throw-away bench sketches (reset_probe, lcd_test, …)
   .github/workflows/ci.yml
 ```
 
@@ -124,8 +134,8 @@ Both build without errors; the only warnings are inside the Arduino core itself.
 - **Findings during M2:** (1) the core's `initVariant()` is not overridable and USB starts before `setup()`, so RST-2 is now "first action in `setup()`" (Requirements RST-2); the reset-to-first-write window is a bench measurement. (2) The macros `ARDUINO_UNOR4_MINIMA` / `ARDUINO_UNOR4_WIFI` are confirmed on both targets. (3) N2-high is a **provisional A1** because V6/V7's A5 is the I2C SCL line (PIN-10); the test suite proves the V6/V7 value would be rejected.
 - **Exit criterion met:** `ctest` green locally and in CI; both boards compile in CI.
 
-### E1 — Reset probe experiment (now, before M3)  *(owner asked 2026-10-02)*
-`experiments/reset_probe/` — a read-only sketch (no output pins, no devices) that reports the reset-cause flags, keeps a `.noinit` RAM record, and prints when a console attaches. Run the matrix in its README on the **R4 WiFi** (reset button, power cycle, software reset, watchdog reset, Serial Monitor close/reopen), later on the Minima. It settles O2-6a/6b (can PORF + RAM record tell reset from power-on, and can the flags be cleared) and CON-3 (does opening the monitor reset the board). Results go to `docs/results/`.
+### E1 — Reset probe experiment  — **DONE on R4 WiFi (2026-10-06)**; Minima still open
+`experiments/reset_probe/` — read-only sketch (no output pins, no devices) that reports reset-cause flags, a plain-RAM warm-up record, and console attach. WiFi matrix complete: results in `docs/results/reset-probe-wifi-20261006.md` (CWSF cold/warm + plain RAM; `.noinit` unusable on this core; PORF not visible to the sketch). Still to run: the same matrix on the **Minima**. Settles O2-6a/6b and CON-3.
 
 ### M3 — DIAG build: console, drivers, POST, BIST  *(new — diagnostics first)* — **DONE on the host**
 - Console (non-blocking both ways, attach detection, command parser, log format, `report`), build identity, loop-time statistics (min/mean/median/max).
@@ -151,14 +161,16 @@ Both build without errors; the only warnings are inside the Arduino core itself.
 - `FIELD`/`BENCH` modes: controllers + displays + console + POST/BIST + watchdog; `HalArduino`, `HalSim`, O2 adapter around the DFRobot library.
 - **Exit:** all modes compile for both boards; sizes within the 60 % budget (NFR-2).
 
-### M6 — Bench bring-up (R4 WiFi, home) — **NEXT** (start with E1, then flash the DIAG build)
-Results go to `docs/results/bench-YYYYMMDD.md`:
-1. DIAG: boot, POST, banner, LCD/LED via BIST steps 3–4 with `display` echo.
-2. Serial: attach/detach with the Serial Monitor; no host attached; commands still received while output is flooding (CON-2, CON-3).
-3. I2C stuck-bus behavior and watchdog (WDT-1…4).
-4. Simulated inputs through every transition and every invariant; fault line on the LCD.
-5. Loop-time statistics; choose the watchdog timeout (NFR-1).
-6. Soak test with simulated cycling.
+### M6 — Bench bring-up (R4 WiFi, home) — **IN PROGRESS** (E1 WiFi done; next: Stage 1 bench + DIAG flash)
+Results go under `docs/results/` (per-experiment notes already started; a rolled-up `bench-YYYYMMDD.md` later):
+1. ~~E1 reset probe on WiFi~~ — **DONE 2026-10-06**.
+2. Stage 1 (LCD+RTC+console): built; host green; **full bench run still pending** (`stages/stage1/`, `docs/Bringup_Stages.md`).
+3. DIAG: boot, POST, banner, LCD/LED via BIST steps 3–4 with `display` echo — **flash still open** (Owner_TODO 10a). LED blocked on replacement TM1650.
+4. Serial: attach/detach with the Serial Monitor; no host attached; commands still received while output is flooding (CON-2, CON-3).
+5. I2C stuck-bus behavior and watchdog (WDT-1…4).
+6. Simulated inputs through every transition and every invariant; fault line on the LCD.
+7. Loop-time statistics; choose the watchdog timeout (NFR-1).
+8. Soak test with simulated cycling.
 - **Exit:** all bench-verifiable requirements ticked; the rest go to the field checklist.
 
 ### M7 — Field kit
@@ -206,8 +218,8 @@ run `report` at the end of a long session. If long unattended captures are ever 
 3. First commit `a9248e8` pushed: `origin/v8`. `main` is untouched (`eb3093d`).
 
 **Still to do:**
-4. Work on `v8`; each milestone ends in a commit; pushes are confirmed with the owner.
-5. At M9: merge `v8` into `main` (clean because of the shared base) or replace `main`'s tree, as the owner prefers.
+4. Continue on `v8` (host and bench); each milestone ends in a commit; pushes are confirmed with the owner. Tip as of this status sync: see `git log` on `v8` (do not treat this doc as the tip SHA).
+5. At M9 only: merge `v8` into `main` (or replace `main`'s tree), as the owner prefers — **not before**.
 
 Commit messages end with the attribution line shown in the session settings.
 
@@ -239,6 +251,7 @@ Commit messages end with the attribution line shown in the session settings.
 ## 12. Working agreement
 
 - I propose; you decide. Open questions stay in `Requirements.md` §16–17 until answered.
-- No firmware code until M1 is signed off, except small experiments (e.g. the PIN-10 bench test).
-- I do not edit `N2V6/` or `N2V7/`. New work lives in `N2V8/`.
+- Host and `v8` firmware work may proceed. **M1 pinout / active-level verify** (Owner_TODO 1–4) must be done before trusting a FIELD build or a production visit. Small bench experiments are fine anytime.
+- Do not merge `v8` → `main` until M9 (known-good V5 on `main` stays available for the plant).
+- I do not edit `N2V6/` or `N2V7/` originals. New work lives in this tree (`N2V8/` sketch, `stages/`, `experiments/`, `docs/`).
 - Anything that touches hardware, flashing, system settings or pushes to GitHub is confirmed with you first.
