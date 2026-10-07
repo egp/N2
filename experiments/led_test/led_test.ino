@@ -1,5 +1,5 @@
 // ===========================================================================================
-// led_test  VERSION 1.2   (2026-10-06)      <-- if you do not see this line, the IDE has an older copy
+// led_test  VERSION 1.3   (2026-10-07)      <-- if you do not see this line, the IDE has an older copy
 //                                               (minor versions are written in HEX: 1.A = 1.10)
 //
 // Tests the REAL firmware LED driver (N2V8/src/drivers/Led1650.cpp, reached through the `src` link in this folder: the TM1650 4-digit, 8-segment display on I2C)
@@ -29,14 +29,18 @@
 //                                                              s = scan all I2C addresses on both buses
 //
 // Change log
+//   1.3  every step now ENDS WITH A PAUSE for you. The matrix holds the step number (left) and the result (right) as hex glyphs, the bottom row
+//        shows a bar of lit pixels meaning "waiting for you", and the LED keeps showing the step's last pattern. Type one line, for example
+//        "A0 9999" (the step, the matrix result, then what the LED shows) and press Enter: the sketch records it and goes to the next step.
+//        There is no time limit. Enter alone (an empty line) skips the comment. `n` still skips ahead during a step.
 //   1.2  new console command  s  = scan every I2C address on BOTH buses of the WiFi board: Wire (A4 SDA / A5 SCL, which the firmware
 //        uses) and Wire1 (the Qwiic connector), to find a module that is wired but not answering where expected
 //   1.1  for 2 s after every boot the matrix shows the version in HEX ("1" "1" = 1.1); the test starts after the splash
 //   1.0  first version
 // ===========================================================================================
-#define TEST_VERSION "1.2"
+#define TEST_VERSION "1.3"
 #define TEST_MAJOR 1
-#define TEST_MINOR 2   // hex digit (10 would show as A)
+#define TEST_MINOR 3   // hex digit (10 would show as A)
 
 #include <Arduino.h>
 #include <Wire.h>
@@ -96,6 +100,9 @@ static uint8_t result = 0;         // the hex result shown on the right of the m
 static uint8_t subStep = 0;        // position inside a step that has several patterns
 static uint32_t lastSub = 0;
 static bool paused = false;
+static bool awaiting = false;       // the step is over: waiting for the person's one-line answer
+static char answer[80];
+static uint8_t answerLen = 0;
 static bool started = false;       // the sequence starts when the 2 s version splash is over
 static bool done = false;
 static uint8_t stepWrites[kSteps];
@@ -140,6 +147,7 @@ static void showMatrix(uint32_t now) {
   drawHex(frame, step, 0);
   drawHex(frame, result, 7);
   if (led.healthy()) setPixel(frame, 7, 0);
+  if (awaiting) for (uint8_t col = 2; col <= 9; ++col) setPixel(frame, 7, col);  // a bar: waiting for you to answer
   if (heartbeat) setPixel(frame, 7, 11);
   matrix.loadFrame(frame);
 }
@@ -186,10 +194,24 @@ static void enterStep(uint8_t s, uint32_t now) {
   if (s != 0) Serial.println("  (describe what you actually see; the matrix shows this step's number)");
 }
 
+// The step's time is up (or `n`): record the I2C count, then WAIT for the person's answer (no time limit).
 static void finishStep(uint32_t now) {
   stepWrites[step] = static_cast<uint8_t>(hal.writes - writesAtStepStart);
   Serial.print("  step "); Serial.print(step, HEX); Serial.print(" used "); Serial.print(hal.writes - writesAtStepStart);
   Serial.print(" I2C writes, driver "); Serial.println(led.healthy() ? "healthy" : "REPORTS A FAILURE");
+  awaiting = true;
+  answerLen = 0;
+  Serial.print("  >>> MATRIX shows step "); Serial.print(step, HEX); Serial.print(" result "); Serial.print(result, HEX);
+  Serial.println(". Type what you saw, e.g.  \"");
+  Serial.print("      "); Serial.print(step, HEX); Serial.print(result, HEX); Serial.println(" 9999\"  (step+result from the matrix, then the LED), then Enter.");
+}
+
+// The answer arrived: record it and go on.
+static void answered(uint32_t now) {
+  answer[answerLen] = '\0';
+  awaiting = false;
+  Serial.print("  RECORDED step "); Serial.print(step, HEX); Serial.print(" (sketch result "); Serial.print(result, HEX); Serial.print("): ");
+  Serial.println(answerLen ? answer : "(no comment)");
   if (step + 1 < kSteps) {
     enterStep(step + 1, now);
   } else {
@@ -269,6 +291,12 @@ void loop() {
 
   while (Serial.available() > 0) {
     const int c = Serial.read();
+    if (awaiting) {  // every character belongs to the answer line
+      if (c == '\r') continue;
+      if (c == '\n') { answered(now); continue; }
+      if (answerLen < sizeof answer - 1) answer[answerLen++] = static_cast<char>(c);
+      continue;
+    }
     if (c == 'g') { done = false; enterStep(0, now); }
     else if (c == 'n' && !done) finishStep(now);
     else if (c == 's') {
@@ -286,6 +314,7 @@ void loop() {
     enterStep(0, now);
   }
   if (done || paused) return;
+  if (awaiting) return;  // the LED keeps its last pattern while the person answers
   runStep(now);
   if (now - stepStart >= stepLength(step)) finishStep(now);
 }
