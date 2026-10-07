@@ -23,6 +23,7 @@ namespace n2 {
 namespace pin {
 constexpr uint8_t kD0 = 0, kD1 = 1, kD2 = 2, kD3 = 3, kD4 = 4, kD5 = 5, kD6 = 6;
 constexpr uint8_t kD7 = 7, kD8 = 8, kD9 = 9, kD10 = 10, kD11 = 11, kD12 = 12, kD13 = 13;
+constexpr uint8_t kNoPin = 0xFF;  // "not used" (for example: the LED is on the hardware I2C bus)
 constexpr uint8_t kA0 = 14, kA1 = 15, kA2 = 16, kA3 = 17, kA4 = 18, kA5 = 19;
 
 constexpr bool isAnalog(uint8_t p) { return p >= kA0 && p <= kA5; }
@@ -68,7 +69,13 @@ struct BoardDef {
   uint8_t addrLcd;  // 20x4 LCD, PCF8574 backpack
   uint8_t addrO2;   // DFRobot SEN0465 (SEL dip switch = 0)
   uint8_t addrRtc;  // DS3231 real-time clock (the usual module also carries an EEPROM at 0x57, which we do not use)
+  // The LED module's OWN two-wire bus (software I2C on two ordinary pins), or kNoPin for the hardware bus. The TM1650 also answers at
+  // 0x25-0x27, which clashes with an LCD backpack at 0x27, so the LED gets its own bus (docs/results/lcd-led-address-clash-20261007.md).
+  uint8_t ledSdaPin = pin::kNoPin;
+  uint8_t ledSclPin = pin::kNoPin;
 };
+
+constexpr bool ledOnSoftBus(const BoardDef& b) { return b.ledSdaPin != pin::kNoPin && b.ledSclPin != pin::kNoPin; }
 
 // ---- Logical <-> physical level helpers (PIN-6) --------------------------------
 // Code never writes HIGH/LOW for a signal; it states on/off and these convert.
@@ -119,15 +126,26 @@ inline constexpr SignalDef kWifiSignals[kSignalCount] = {
 // Host tests: the production table.
 inline constexpr const SignalDef (&kHostSignals)[kSignalCount] = kMinimaSignals;
 
+// ---- The LCD backpack's I2C address (one setting for both real boards) ----------------------------
+// 0x27 is the PCF8574 default (all three address jumpers open) and what V6/V7 used. But the TM1650 LED module also answers at 0x24-0x27, so on
+// a bus with both, the LCD must move: bridge the backpack's A2 solder pad and it becomes 0x23 (A1 gives 0x25, A0 gives 0x26: still inside the
+// LED's range). Bench result 2026-10-07: LED and LCD at 0x27 on one bus = every LCD character write fails. Change this ONE line (or build with
+// -DN2_LCD_ADDRESS=0x23) after bridging A2.
+#if defined(N2_LCD_ADDRESS)
+inline constexpr uint8_t kLcdAddress = N2_LCD_ADDRESS;
+#else
+inline constexpr uint8_t kLcdAddress = 0x27;
+#endif
+
 // ---- Boards -------------------------------------------------------------------
 // I2C: the core binds Wire to A4 (SDA) / A5 (SCL) on both boards.
 // The owner reports D18/D19 on the WiFi; the core lists the same pins (18/19).
 inline constexpr BoardDef kMinimaBoard = {"UNO R4 Minima", kMinimaSignals, kSignalCount,
-                                          pin::kA4, pin::kA5, 0x24, 0x34, 0x27, 0x74, 0x68};
+                                          pin::kA4, pin::kA5, 0x24, 0x34, kLcdAddress, 0x74, 0x68};
 inline constexpr BoardDef kWifiBoard = {"UNO R4 WiFi", kWifiSignals, kSignalCount,
-                                        pin::kA4, pin::kA5, 0x24, 0x34, 0x27, 0x74, 0x68};
+                                        pin::kA4, pin::kA5, 0x24, 0x34, kLcdAddress, 0x74, 0x68};
 inline constexpr BoardDef kHostBoard = {"host (fake)", kHostSignals, kSignalCount,
-                                        pin::kA4, pin::kA5, 0x24, 0x34, 0x27, 0x74, 0x68};
+                                        pin::kA4, pin::kA5, 0x24, 0x34, 0x27, 0x74, 0x68};  // the host tests keep 0x27
 
 #if defined(N2_BOARD_MINIMA)
 inline constexpr const BoardDef& kBoard = kMinimaBoard;
@@ -146,6 +164,7 @@ constexpr bool isOutput(const SignalDef& d) { return d.dir == Dir::kOutput; }
 // address bits) AND 0x34-0x37. So an LCD backpack at 0x27 (the PCF8574 default) shares an address with the LED module. With both on one bus
 // the LCD writes failed over and over. Move the LCD to 0x20-0x23 (solder jumper A2 bridged gives 0x23).
 constexpr bool inTm1650Range(const BoardDef& b, uint8_t a) {
+  if (ledOnSoftBus(b)) return false;  // the LED is not on the shared bus, so it cannot answer there
   return (a >= b.addrLed && a < b.addrLed + 4) || (a >= b.addrLedDigits && a < b.addrLedDigits + 4);
 }
 // True if the LCD address is inside the range the LED module answers (a known hardware conflict; not a compile error because the
@@ -162,7 +181,8 @@ enum class BoardCheck : uint8_t {
   kDuplicatePin,        // two signals share a pin
   kSignalOnI2cPin,      // a signal uses SDA or SCL
   kBadI2cPins,          // SDA/SCL are not valid pins or are equal
-  kDuplicateI2cAddress  // two I2C devices share an address (the four TM1650 digit addresses included)
+  kDuplicateI2cAddress,  // two I2C devices share an address (the four TM1650 digit addresses included)
+  kBadLedBusPins         // the LED's own bus pins: only one given, invalid, equal, on the I2C pins, or used by a signal
 };
 
 constexpr BoardCheck checkBoard(const BoardDef& b) {
@@ -181,6 +201,13 @@ constexpr BoardCheck checkBoard(const BoardDef& b) {
     if (d.pin == b.sdaPin || d.pin == b.sclPin) return BoardCheck::kSignalOnI2cPin;
     for (uint8_t j = static_cast<uint8_t>(i + 1); j < b.signalCount; ++j)
       if (b.signals[j].pin == d.pin) return BoardCheck::kDuplicatePin;
+  }
+  if ((b.ledSdaPin != pin::kNoPin) != (b.ledSclPin != pin::kNoPin)) return BoardCheck::kBadLedBusPins;
+  if (ledOnSoftBus(b)) {
+    if (!pin::isValid(b.ledSdaPin) || !pin::isValid(b.ledSclPin) || b.ledSdaPin == b.ledSclPin) return BoardCheck::kBadLedBusPins;
+    if (b.ledSdaPin == b.sdaPin || b.ledSdaPin == b.sclPin || b.ledSclPin == b.sdaPin || b.ledSclPin == b.sclPin) return BoardCheck::kBadLedBusPins;
+    for (uint8_t i = 0; i < b.signalCount; ++i)
+      if (b.signals[i].pin == b.ledSdaPin || b.signals[i].pin == b.ledSclPin) return BoardCheck::kBadLedBusPins;
   }
   // Addresses in use: LED control, LED digits (4 consecutive), LCD, O2. None may overlap.
   const uint8_t addrs[] = {b.addrLed, b.addrLcd, b.addrO2, b.addrRtc};

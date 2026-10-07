@@ -80,7 +80,8 @@ void StageCommands::status() {
   }
   out_.add("LCD: I2C errors %lu, re-inits %lu, bus recoveries %lu", static_cast<unsigned long>(c_.lcd.i2cErrors()),
            static_cast<unsigned long>(c_.lcd.reinitCount()), static_cast<unsigned long>(c_.lcd.busRecoveries()));
-  out_.add("LED: %s, I2C errors %lu", c_.led.healthy() ? "healthy" : "NOT answering", static_cast<unsigned long>(c_.led.i2cErrors()));
+  out_.add("LED: %s, I2C errors %lu, bus: %s", c_.led.healthy() ? "healthy" : "NOT answering", static_cast<unsigned long>(c_.led.i2cErrors()),
+           ledOnSoftBus(c_.board) ? "its own (soft I2C)" : "shared hardware I2C");
   char stamp[20];
   out_.add("log clock: %s", c_.wall.stamp(c_.hal.millis(), stamp) ? stamp : "not synced (no trusted RTC)");
   out_.add("console: dropped %lu log lines, received %lu bytes", static_cast<unsigned long>(c_.console.dropped()),
@@ -100,6 +101,9 @@ void StageCommands::scan() {
     out_.add("  0x%02X  %s", static_cast<unsigned>(a), who);
     ++count;
   }
+  if (ledOnSoftBus(c_.board))
+    out_.add("LED on its own bus (soft I2C D%u/D%u): %u of 5 addresses answer", static_cast<unsigned>(c_.board.ledSdaPin),
+             static_cast<unsigned>(c_.board.ledSclPin), static_cast<unsigned>(c_.led.answeringAddresses()));
   out_.add("I2C scan 0x08-0x77: %u device(s)", static_cast<unsigned>(count));
 }
 

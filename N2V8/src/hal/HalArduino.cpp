@@ -13,6 +13,7 @@ namespace n2 {
 
 uint32_t HalArduino::millis() { return ::millis(); }
 uint32_t HalArduino::micros() { return ::micros(); }
+void HalArduino::delayMicroseconds(uint32_t us) { ::delayMicroseconds(us); }
 
 void HalArduino::pinMode(uint8_t pin, PinMode mode) {
   switch (mode) {

@@ -49,7 +49,7 @@ TEST_CASE("PIN-7: wiring facts carried from V6/V7") {
   CHECK(def(b, Signal::kN2LowPressure).pin == pin::kA3);
   CHECK(b.addrLed == 0x24);
   CHECK(b.addrLedDigits == 0x34);  // TM1650 digit registers 0x34..0x37
-  CHECK(b.addrLcd == 0x27);
+  CHECK(b.addrLcd == kLcdAddress);
   CHECK(b.addrO2 == 0x74);
   CHECK(b.addrRtc == 0x68);
 }
@@ -173,6 +173,7 @@ TEST_CASE("PIN-2: each board has its own signal table, so one can change without
 
 TEST_CASE("PIN-4: the TM1650 answers 0x24-0x27 and 0x34-0x37, so an LCD at 0x27 overlaps the LED module (known conflict), 0x23 does not") {
   BoardDef b = kWifiBoard;
+  b.addrLcd = 0x27;  // the PCF8574 default, whatever kLcdAddress is set to today
   CHECK(inTm1650Range(b, 0x24));
   CHECK(inTm1650Range(b, 0x27));
   CHECK(inTm1650Range(b, 0x34));
@@ -183,4 +184,27 @@ TEST_CASE("PIN-4: the TM1650 answers 0x24-0x27 and 0x34-0x37, so an LCD at 0x27 
   b.addrLcd = 0x23;
   CHECK_FALSE(lcdOverlapsLed(b));
   CHECK(checkBoard(b) == BoardCheck::kOk);
+}
+
+TEST_CASE("PIN-4: a board may give the LED its own two-wire bus; the pins are validated and the LED then cannot clash with the LCD") {
+  BoardDef b = kWifiBoard;
+  b.addrLcd = 0x27;
+  CHECK(lcdOverlapsLed(b));
+  b.ledSdaPin = pin::kD2;
+  b.ledSclPin = pin::kD3;
+  CHECK(ledOnSoftBus(b));
+  CHECK(checkBoard(b) == BoardCheck::kOk);
+  CHECK_FALSE(lcdOverlapsLed(b));
+  CHECK_FALSE(inTm1650Range(b, 0x27));
+  b.ledSclPin = pin::kNoPin;  // only one given
+  CHECK(checkBoard(b) == BoardCheck::kBadLedBusPins);
+  b.ledSclPin = b.ledSdaPin;  // equal
+  CHECK(checkBoard(b) == BoardCheck::kBadLedBusPins);
+  b.ledSclPin = b.sclPin;     // on the hardware I2C pins
+  CHECK(checkBoard(b) == BoardCheck::kBadLedBusPins);
+  b.ledSclPin = pinOf(b, Signal::kSsr);  // used by a signal (D8)
+  CHECK(checkBoard(b) == BoardCheck::kBadLedBusPins);
+  b.ledSdaPin = 99;
+  b.ledSclPin = pin::kD3;
+  CHECK(checkBoard(b) == BoardCheck::kBadLedBusPins);
 }

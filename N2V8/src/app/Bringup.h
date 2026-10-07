@@ -19,6 +19,7 @@
 #include "../drivers/Rtc3231.h"
 #include "../hal/Hal.h"
 #include "../drivers/Led1650.h"
+#include "../drivers/SoftI2c.h"
 #include "../selftest/LcdCheck.h"
 #include "../selftest/LedCheck.h"
 #include "../selftest/ResetCheck.h"
@@ -89,6 +90,7 @@ class Bringup : public StageActions {
   StampedLog log_;      // every log line goes through here to get its time stamp
   Lcd20x4 lcd_;
   Rtc3231 rtc_;
+  SoftI2c softLedBus_;  // the LED's own two-wire bus when the board defines one (BoardDef::ledSdaPin/ledSclPin)
   Led1650 led_;
   ResetCheck resetCheck_;
   LcdCheck lcdCheck_;
@@ -104,6 +106,7 @@ class Bringup : public StageActions {
   Deadline bannerRepeat_;
   Deadline screenRefresh_;
   Deadline lcdStart_;
+  Deadline softBusRecover_;
   bool goRequested_ = false;
   bool wasAttached_ = false;
   bool recoverRtcBus_ = true;

@@ -23,6 +23,8 @@ class Hal {
 
   virtual uint32_t millis() = 0;
   virtual uint32_t micros() = 0;
+  // Busy-wait for a few microseconds (only for bit-banged protocols; never for anything longer than about 100 us).
+  virtual void delayMicroseconds(uint32_t us) = 0;
 
   virtual void pinMode(uint8_t pin, PinMode mode) = 0;
   virtual void digitalWrite(uint8_t pin, bool high) = 0;

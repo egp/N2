@@ -9,6 +9,7 @@
 
 #include "../core/TimedState.h"
 #include "../hal/Hal.h"
+#include "../hal/I2cBus.h"
 #include "../ui/LedText.h"
 
 namespace n2 {
@@ -21,8 +22,10 @@ class Led1650 {
   static constexpr uint8_t kControlOn = 0x11;   // brightness 1, 8-segment mode, display on
   static constexpr uint8_t kControlOff = 0x10;  // same, display off
 
-  Led1650(Hal& hal, uint8_t controlAddress, uint8_t digitBaseAddress)
-      : hal_(hal), control_(controlAddress), digitBase_(digitBaseAddress) {}
+  // `bus` selects where the LED sits: nullptr = the hardware I2C bus through the Hal; or a SoftI2c on its own two pins (the TM1650 answers 0x25-0x27
+  // too, which clashes with an LCD backpack at 0x27: see SoftI2c.h).
+  Led1650(Hal& hal, uint8_t controlAddress, uint8_t digitBaseAddress, I2cBus* bus = nullptr)
+      : halBus_(hal), bus_(bus != nullptr ? bus : &halBus_), control_(controlAddress), digitBase_(digitBaseAddress) {}
 
   void begin(uint32_t now);
   void service(uint32_t now);
@@ -36,6 +39,7 @@ class Led1650 {
   bool ready() const { return state_ == State::kReady; }
   bool healthy() const { return healthy_; }
   uint32_t i2cErrors() const { return errors_; }
+  uint8_t answeringAddresses();  // how many of the 5 addresses (control + 4 digits) acknowledge now: 5 = all
   bool inSync() const;  // every desired digit has been written
   uint8_t shownSegments(uint8_t digit) const { return written_[digit]; }  // last segments written (diagnostics, tests)
   bool displayOn() const { return displayOn_; }
@@ -47,7 +51,8 @@ class Led1650 {
   enum class State : uint8_t { kIdle, kPowerWait, kReady, kRetry };
   void fail(uint32_t now);
 
-  Hal& hal_;
+  HalI2cBus halBus_;
+  I2cBus* bus_;
   uint8_t control_;
   uint8_t digitBase_;
   State state_ = State::kIdle;

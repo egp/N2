@@ -12,6 +12,7 @@ class HalArduino : public Hal {
  public:
   uint32_t millis() override;
   uint32_t micros() override;
+  void delayMicroseconds(uint32_t us) override;
   void pinMode(uint8_t pin, PinMode mode) override;
   void digitalWrite(uint8_t pin, bool high) override;
   bool digitalRead(uint8_t pin) override;

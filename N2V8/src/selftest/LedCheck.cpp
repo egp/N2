@@ -6,10 +6,7 @@ namespace n2 {
 
 CheckResult LedCheck::post(uint32_t) {
   CheckResult r;
-  uint8_t answering = 0;
-  if (hal_.i2cProbe(board_.addrLed)) ++answering;
-  for (uint8_t d = 0; d < Led1650::kDigits; ++d)
-    if (hal_.i2cProbe(static_cast<uint8_t>(board_.addrLedDigits + d))) ++answering;
+  const uint8_t answering = led_.answeringAddresses();
   if (answering == 5 && led_.healthy()) r.set(CheckLevel::kPass, "0x%02X + 4 digits ok", static_cast<unsigned>(board_.addrLed));
   else if (answering == 0) r.set(CheckLevel::kInfo, "no answer: carrying on without the LED");
   else r.set(CheckLevel::kInfo, "only %u of 5 addresses answer", static_cast<unsigned>(answering));

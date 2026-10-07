@@ -15,10 +15,11 @@ Bringup::Bringup(Hal& hal, const BoardDef& board, const BuildInfo& info, FrameSi
       log_(console_, wall_, hal),
       lcd_(hal, board.addrLcd),
       rtc_(hal, board.addrRtc),
-      led_(hal, board.addrLed, board.addrLedDigits),
+      softLedBus_(hal, board.ledSdaPin, board.ledSclPin),
+      led_(hal, board.addrLed, board.addrLedDigits, ledOnSoftBus(board) ? static_cast<I2cBus*>(&softLedBus_) : nullptr),
       lcdCheck_(hal, lcd_, board.addrLcd, log_),
       rtcCheck_(rtc_, log_),
-      ledCheck_(hal, led_, board, log_),
+      ledCheck_(led_, board, log_),
       checks_{&resetCheck_, &lcdCheck_, &rtcCheck_, &ledCheck_},
       selfTest_(console_, checks_, 4),
       commands_(StageContext{hal, board, info, console_, selfTest_, rtc_, lcd_, led_, wall_, loopStats_, *this, resetText_,
@@ -111,6 +112,7 @@ void Bringup::setup() {
   } else if (opt_.lcdStartMs == 0) lcd_.begin(now);
   else lcdStart_.arm(now, opt_.lcdStartMs);
   lcd_.enableHealing();  // see Lcd20x4::Healing
+  softLedBus_.begin();  // release the LED's own lines (does nothing when the LED is on the hardware bus)
   led_.begin(now);
   led_.setRefresh(250);  // rewrite the LED four times a second (5 short writes: cheap; see Led1650::setRefresh)
   lcd_.setAlwaysRewrite(opt_.lcdAlwaysRewrite);
@@ -216,6 +218,13 @@ void Bringup::loop() {
   }
   lcd_.service(now);
   led_.service(now);
+  if (ledOnSoftBus(board_) && !led_.healthy()) {  // a stuck LED bus: free it once a second (the hardware bus is recovered by the Hal)
+    if (!softBusRecover_.armed()) softBusRecover_.arm(now, 1000);
+    else if (softBusRecover_.reached(now)) {
+      softLedBus_.recover();
+      softBusRecover_.arm(now, 1000);
+    }
+  }
   console_.poll(commands_);
   logSwitchChanges();
   logLcdEvents();

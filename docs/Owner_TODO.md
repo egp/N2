@@ -31,6 +31,11 @@ they must be right before the first hardware visit (DIAG).
 - [x] **LCD driver validated** on hardware (docs/results/lcd-test-wifi-20261006.md).
 - [x] **RTC driver validated** on hardware (docs/results/rtc-test-wifi-20261006.md); now integrated in the firmware (`time`, `time set`, banner, F13). Check the RTC module's charging circuit before relying on a CR2032 (RTC-6).
 - [ ] **Stage 1 on the bench** (`stages/stage1/README.md`): wire LCD + RTC on one I2C bus (pull-ups: see README), upload, `help`, `status`, `scan`, `bist`; copy output to `docs/results/`.
+- [ ] **LCD/LED address clash (found 2026-10-07):** the TM1650 LED module also answers at 0x24-0x27, so with an LCD at 0x27 on the same bus every LCD character write fails
+  (`docs/results/lcd-led-address-clash-20261007.md`). Plan: confirm with Tom, then **bridge the A2 solder pad on both LCD backpacks** (address 0x23), set `kLcdAddress` to 0x23 in
+  `BoardPins.h`, and run Stage 2. Fallback if the jumper is refused: the LED on its own two wires (D2/D3) with the already-written software I2C (`BoardDef::ledSdaPin/ledSclPin`);
+  first confirm D2 and D3 are physically unused on the production panel. Tom's unit has never had LED and LCD working together, so this is the first real test of that.
+- [x] **LED driver (TM1650) validated** on hardware (docs/results/led-test-wifi-20261007.md).
 - [ ] **LED driver test** waits for a replacement TM1650 module (the first one was damaged). Before powering the new one: check the power pins with a meter, confirm 5 V vs 3.3 V, and test the bare Arduino first.
 - [ ] Run the same reset probe on the Minima (at Tom's, or any Minima): the probe builds for it.
 

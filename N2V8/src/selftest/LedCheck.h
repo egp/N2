@@ -16,7 +16,7 @@ namespace n2 {
 
 class LedCheck : public DeviceCheck {
  public:
-  LedCheck(Hal& hal, Led1650& led, const BoardDef& board, LogSink& log) : hal_(hal), led_(led), board_(board), log_(log) {}
+  LedCheck(Led1650& led, const BoardDef& board, LogSink& log) : led_(led), board_(board), log_(log) {}
 
   const char* name() const override { return "LED"; }
   CheckResult post(uint32_t now) override;
@@ -29,7 +29,6 @@ class LedCheck : public DeviceCheck {
   enum class Phase : uint8_t { kAll, kCount, kBlink, kAsk };
   void enter(Phase phase, uint32_t now, uint32_t lengthMs);
 
-  Hal& hal_;
   Led1650& led_;
   const BoardDef& board_;
   LogSink& log_;

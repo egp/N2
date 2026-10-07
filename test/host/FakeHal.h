@@ -4,6 +4,7 @@
 #include <array>
 #include <cstdint>
 #include <deque>
+#include <functional>
 #include <map>
 #include <set>
 #include <string>
@@ -59,6 +60,8 @@ class FakeHal : public Hal {
   uint32_t millis() override { return nowMs; }
   uint32_t microsPerCall = 0;               // micros() advances by this much on every call (to give loop time a size)
   uint32_t micros() override { nowUs += microsPerCall; return nowUs; }
+  void delayMicroseconds(uint32_t us) override { nowUs += us; delayedUs += us; }
+  uint64_t delayedUs = 0;                   // total busy-wait requested (bit-banged I2C)
 
   void pinMode(uint8_t pin, PinMode m) override {
     mode[pin] = static_cast<int>(m);
@@ -68,7 +71,13 @@ class FakeHal : public Hal {
     level[pin] = high ? 1 : 0;
     events.push_back({Kind::kWrite, pin, high ? 1 : 0});
   }
+  std::function<bool(uint8_t pin)> readHook;  // if set, digitalRead asks it (a test models a device reacting to the pins)
   bool digitalRead(uint8_t pin) override {
+    if (readHook) {
+      const bool v = readHook(pin);
+      events.push_back({Kind::kRead, pin, v ? 1 : 0});
+      return v;
+    }
     events.push_back({Kind::kRead, pin, inputLevel[pin] ? 1 : 0});
     return inputLevel[pin];
   }

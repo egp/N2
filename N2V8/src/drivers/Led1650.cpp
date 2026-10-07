@@ -20,6 +20,13 @@ void Led1650::begin(uint32_t now) {
   for (uint8_t i = 0; i < kDigits; ++i) writtenValid_[i] = false;
 }
 
+uint8_t Led1650::answeringAddresses() {
+  uint8_t n = bus_->probe(control_) ? 1 : 0;
+  for (uint8_t d = 0; d < kDigits; ++d)
+    if (bus_->probe(static_cast<uint8_t>(digitBase_ + d))) ++n;
+  return n;
+}
+
 void Led1650::setText(const LedText& text) {
   for (uint8_t i = 0; i < kDigits; ++i)
     desired_[i] = static_cast<uint8_t>(segmentsFor(text.digit[i]) | (text.dotAfter == static_cast<int8_t>(i) ? 0x80 : 0x00));
@@ -55,7 +62,7 @@ void Led1650::service(uint32_t now) {
       break;
     case State::kRetry:
       if (!deadlineReached(now, until_)) return;
-      if (!hal_.i2cProbe(control_)) {  // still not there: keep waiting
+      if (!bus_->probe(control_)) {  // still not there: keep waiting
         until_ = now + kRetryMs;
         return;
       }
@@ -77,14 +84,14 @@ void Led1650::service(uint32_t now) {
   }
   if (controlDirty_) {
     const uint8_t b = displayOn_ ? kControlOn : kControlOff;
-    if (!hal_.i2cWrite(control_, &b, 1)) return fail(now);
+    if (!bus_->write(control_, &b, 1)) return fail(now);
     controlDirty_ = false;
     healthy_ = true;
   }
   for (uint8_t i = 0; i < kDigits; ++i) {
     if (writtenValid_[i] && written_[i] == desired_[i]) continue;
     const uint8_t seg = desired_[i];
-    if (!hal_.i2cWrite(static_cast<uint8_t>(digitBase_ + i), &seg, 1)) return fail(now);
+    if (!bus_->write(static_cast<uint8_t>(digitBase_ + i), &seg, 1)) return fail(now);
     written_[i] = seg;
     writtenValid_[i] = true;
     healthy_ = true;
