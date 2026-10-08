@@ -178,3 +178,15 @@ TEST_CASE("BounceMeter median, mean, min, max of the settle times", "[debounce]"
   REQUIRE(m.settleMeanUs() == (101 + 301 + 201 + 901) / 4);
   REQUIRE_FALSE(m.inOperation());
 }
+
+TEST_CASE("a press and its release 100 ms later are two operations, hold time is not bounce", "[debounce]") {
+  BounceMeter m;                                           // default quiet window
+  uint32_t t = 0; m.sample(false, t);
+  t += 50000; m.sample(true, t);
+  t += 300; m.sample(false, t); t += 200; m.sample(true, t);   // press with a little bounce
+  for (int i = 0; i < 100; i++) { t += 1000; m.sample(true, t); }   // held 100 ms
+  REQUIRE(m.stats().operations == 1); REQUIRE(m.stats().lastToOn); REQUIRE(m.stats().lastSettleUs == 500);
+  t += 1000; m.sample(false, t);                           // release, clean
+  for (int i = 0; i < 50; i++) { t += 1000; m.sample(false, t); }
+  REQUIRE(m.stats().operations == 2); REQUIRE_FALSE(m.stats().lastToOn); REQUIRE(m.stats().lastSettleUs == 0);
+}

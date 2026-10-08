@@ -29,6 +29,7 @@ void BounceMeter::finish() {
   if (stats_.operations < kMaxKept) kept_[stats_.operations] = settle;
   stats_.lastSettleUs = settle;
   stats_.lastEdges = edges_;
+  stats_.lastToOn = toOn_;
   stats_.operations++;
   stats_.edgesTotal += edges_;
   if (edges_ > stats_.edgesMax) stats_.edgesMax = edges_;
@@ -52,6 +53,7 @@ void BounceMeter::sample(bool raw, uint32_t nowUs) {
     if (!inOp_) {
       inOp_ = true;
       firstEdgeUs_ = nowUs;
+      toOn_ = raw;
     }
     lastEdgeUs_ = nowUs;
     edges_++;

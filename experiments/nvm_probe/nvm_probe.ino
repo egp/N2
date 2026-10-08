@@ -1,5 +1,5 @@
 // ===========================================================================================
-// nvm_probe  VERSION 1.1   (2026-10-08)     <-- if you do not see this line, the IDE has an older copy
+// nvm_probe  VERSION 1.3   (2026-10-08)     <-- if you do not see this line, the IDE has an older copy
 //                                               (minor versions are written in HEX: 1.A = 1.10)
 //
 // Learns how the UNO R4's non-volatile memory (data flash, reached through the core's EEPROM library) behaves, and measures the
@@ -17,7 +17,7 @@
 //   e            erase both copies (back to "nothing stored")  -- asks you to type  e y
 //   b            GUIDED BOUNCE TEST (b again cancels): first TBS, then TOB. The LCD shows the progress (cycle 3 of 20) and, live,
 //                min / median / mean / max settle time in microseconds and edges per operation. One cycle = switch ON, then OFF
-//                (so 2 operations). Each operation also prints a line on the console.
+//                (so 2 transitions). Each operation also prints a line on the console.
 //   c N          number of cycles per switch (5..30, default 20)
 //   r            result so far on the console (raw numbers; 2 x max shown unrounded, plus what rounding up to whole ms would give)
 //   z            clear the bounce statistics
@@ -27,11 +27,14 @@
 // the switch has been still for 0.2 s), and operate each switch 20+ times, press AND release.
 //
 // Change log
+//   1.3  a transition ends after 20 ms without an edge (v1.2: 200 ms, which merged a press and its release when the button was held
+//        less than 0.2 s: the 'settle' times of 100-200 ms were hold times). Each line says ON or OFF.
+//   1.2  save uses ONE EEPROM.put (v1.1 and earlier wrote byte by byte: 16 block erases and 0.25-0.7 s per save)
 //   1.1  guided bounce test with progress and min/median/mean/max on the LCD (no rounding: raw microseconds, 2 x max in 0.1 ms);
 //        20 on/off cycles per switch (c N changes it); the k command is gone (use  w TBS TOB  once you have decided the values)
 //   1.0  first version
 // ===========================================================================================
-#define PROBE_VERSION "1.1"
+#define PROBE_VERSION "1.3"
 
 #include <Arduino.h>
 #include <EEPROM.h>
@@ -55,7 +58,12 @@ class EepromNvm : public Nvm {
   void read(size_t addr, uint8_t* d, size_t n) override { for (size_t i = 0; i < n; i++) d[i] = EEPROM.read(static_cast<int>(addr + i)); }
   bool write(size_t addr, const uint8_t* d, size_t n) override {
     if (addr / 1024 != (addr + n - 1) / 1024) return false;
-    for (size_t i = 0; i < n; i++) EEPROM.update(static_cast<int>(addr + i), d[i]);   // (each update of a changed byte = 1 block write)
+    // ONE put() = one block erase + program for the whole record. (v1.0 wrote byte by byte: every changed byte rewrote the 1 KB block,
+    // 16 block erases and 0.25-0.7 s per save, found on the bench 2026-10-08.)
+    uint8_t rec[kNvmRecordBytes];
+    if (n != sizeof rec) return false;
+    for (size_t i = 0; i < n; i++) rec[i] = d[i];
+    EEPROM.put(static_cast<int>(addr), rec);
     return true;
   }
 };
@@ -211,7 +219,7 @@ void loop() {
     m.flush(nowUs);
     if (m.stats().operations != ops) {
       ops = m.stats().operations; screenDirty = true;
-      Serial.print(stage == 2 ? "TOB #" : "TBS #"); Serial.print(ops); Serial.print(" edges "); Serial.print(m.stats().lastEdges);
+      Serial.print(stage == 2 ? "TOB #" : "TBS #"); Serial.print(ops); Serial.print(m.stats().lastToOn ? " ON  " : " OFF "); Serial.print(" edges "); Serial.print(m.stats().lastEdges);
       Serial.print(" settle us "); Serial.println(m.stats().lastSettleUs);
       if (ops / 2 >= cyclesWanted) {
         Serial.println(stage == 1 ? "TBS done; now TOB" : "TOB done"); 

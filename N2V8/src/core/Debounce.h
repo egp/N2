@@ -36,13 +36,13 @@ struct BounceStats {
   uint32_t edgesTotal = 0;
   uint16_t edgesMax = 0;
   uint32_t settleMinUs = 0, settleMaxUs = 0, settleSumUs = 0;
-  uint32_t lastSettleUs = 0; uint16_t lastEdges = 0;   // the most recent operation
+  uint32_t lastSettleUs = 0; uint16_t lastEdges = 0; bool lastToOn = false;   // the most recent operation
   uint32_t passMaxUs = 0;   // longest gap between two samples: edges closer than this may have been missed
 };
 
 class BounceMeter {
  public:
-  explicit BounceMeter(uint32_t quietUs = 200000) : quietUs_(quietUs) {}
+  explicit BounceMeter(uint32_t quietUs = 20000) : quietUs_(quietUs) {}
   void reset();
   void sample(bool raw, uint32_t nowUs);
   void flush(uint32_t nowUs);                    // close an operation that is waiting for its quiet time
@@ -59,7 +59,7 @@ class BounceMeter {
   void finish();
   uint32_t quietUs_;
   BounceStats stats_;
-  bool started_ = false, level_ = false, inOp_ = false;
+  bool started_ = false, level_ = false, inOp_ = false, toOn_ = false;
   uint32_t lastSampleUs_ = 0, firstEdgeUs_ = 0, lastEdgeUs_ = 0;
   uint16_t edges_ = 0;
   uint32_t kept_[kMaxKept] = {};
