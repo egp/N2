@@ -49,6 +49,7 @@ class BounceMeter {
   const BounceStats& stats() const { return stats_; }
   // 2 x the longest settle time, rounded up to whole ms, limited to 2..100. 0 if nothing was measured.
   uint8_t recommendedMs() const;
+  uint32_t lastEdgeUs() const { return lastEdgeUs_; }   // micros() of the most recent edge (0 before the first)
   bool inOperation() const { return inOp_; }       // an operation is open (the input moved less than quietUs ago)
   // Median of the settle times kept (the first kMaxKept operations; plenty for 10-20 cycles = 20-40 operations).
   uint32_t settleMedianUs() const;

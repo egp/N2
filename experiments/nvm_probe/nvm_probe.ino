@@ -1,5 +1,5 @@
 // ===========================================================================================
-// nvm_probe  VERSION 1.4   (2026-10-08)     <-- if you do not see this line, the IDE has an older copy
+// nvm_probe  VERSION 1.5   (2026-10-08)     <-- if you do not see this line, the IDE has an older copy
 //                                               (minor versions are written in HEX: 1.A = 1.10)
 //
 // Learns how the UNO R4's non-volatile memory (data flash, reached through the core's EEPROM library) behaves, and measures the
@@ -27,6 +27,9 @@
 // the switch has been still for 0.2 s), and operate each switch 20+ times, press AND release.
 //
 // Change log
+//   1.5  nothing is printed and the LCD is not touched until 300 ms after the last edge (v1.4: right after the transition ended, so a quick
+//        re-press landed inside a long loop pass: one 10.8 ms 'bounce' was probably that). Console lines are queued and printed later.
+//        r also prints the TBS+TOB pooled numbers (for the WiFi bench, where both are identical buttons).
 //   1.4  record schema 2: stores the sketch version and the WRITE COUNT (shown by l); the write adapter takes the record size from NvmRecord.h
 //   1.3  a transition ends after 20 ms without an edge (v1.2: 200 ms, which merged a press and its release when the button was held
 //        less than 0.2 s: the 'settle' times of 100-200 ms were hold times). Each line says ON or OFF.
@@ -35,7 +38,7 @@
 //        20 on/off cycles per switch (c N changes it); the k command is gone (use  w TBS TOB  once you have decided the values)
 //   1.0  first version
 // ===========================================================================================
-#define PROBE_VERSION "1.4"
+#define PROBE_VERSION "1.5"
 #define PROBE_VERSION_HEX 0x0104   // stored in every record: the sketch that wrote it
 
 #include <Arduino.h>
@@ -67,7 +70,12 @@ static BounceMeter tbsMeter, tobMeter;
 static bool measuring = false;
 static uint16_t tbsOps = 0, tobOps = 0;
 static String line;
-static uint32_t lastPassUs = 0, passMaxUs = 0, bannerMs = 0;
+struct PendingOp { uint8_t which; bool toOn; uint16_t edges; uint32_t settleUs; uint16_t number; };
+static PendingOp pending[16];
+static uint8_t pendingCount = 0;
+static const uint32_t kPrintAfterQuietUs = 300000;
+static uint8_t pendingDone = 0;     // 1: TBS finished, 2: TOB finished (announce after the quiet time)
+static uint32_t lastPassUs = 0, passMaxUs = 0, passMaxOpUs = 0, bannerMs = 0;
 static bool heardHost = false;
 
 static void printReport(const StoreReport& r) {
@@ -89,6 +97,18 @@ static void printMeter(const char* name, const BounceMeter& m) {
   Serial.print("; settle us: min "); Serial.print(s.settleMinUs); Serial.print(" median "); Serial.print(m.settleMedianUs());
   Serial.print(" mean "); Serial.print(m.settleMeanUs()); Serial.print(" max "); Serial.println(s.settleMaxUs);
   Serial.print("    2 x max = "); Serial.print(2 * s.settleMaxUs); Serial.print(" us; rounded up to whole ms (NOT applied) = "); Serial.print(m.recommendedMs()); Serial.println(" ms");
+}
+
+static void printPooled() {
+  const BounceStats& a = tbsMeter.stats();
+  const BounceStats& b = tobMeter.stats();
+  const uint32_t ops = a.operations + b.operations;
+  if (!ops) return;
+  Serial.print("TBS+TOB pooled (only meaningful where both are the same kind of switch, e.g. the WiFi bench): ");
+  Serial.print(ops); Serial.print(" transitions, settle us mean "); Serial.print((a.settleSumUs + b.settleSumUs) / ops);
+  Serial.print(" max "); Serial.print(a.settleMaxUs > b.settleMaxUs ? a.settleMaxUs : b.settleMaxUs);
+  Serial.print(", bounced "); Serial.print((a.edgesTotal - a.operations) || (b.edgesTotal - b.operations) ? "some" : "none");
+  Serial.print(", edges max "); Serial.println(a.edgesMax > b.edgesMax ? a.edgesMax : b.edgesMax);
 }
 
 static void dump() {
@@ -135,14 +155,15 @@ static void command(String c) {
     Serial.println("both copies erased"); printReport(store.load());
   } else if (c == "b") {
     if (stage == 1 || stage == 2) { stage = 0; Serial.println("bounce test cancelled"); }
-    else { tbsMeter.reset(); tobMeter.reset(); tbsOps = tobOps = 0; passMaxUs = 0; stage = 1; Serial.print("BOUNCE TEST: operate TBS ON then OFF, "); Serial.print(cyclesWanted); Serial.println(" times (LCD shows progress)"); }
+    else { tbsMeter.reset(); tobMeter.reset(); tbsOps = tobOps = 0; passMaxUs = 0; passMaxOpUs = 0; pendingCount = 0; pendingDone = 0; stage = 1; Serial.print("BOUNCE TEST: operate TBS ON then OFF, "); Serial.print(cyclesWanted); Serial.println(" times (LCD shows progress)"); }
     screenDirty = true;
   } else if (c == "r") {
     printMeter("TBS", tbsMeter); printMeter("TOB", tobMeter);
-    Serial.print("longest loop pass "); Serial.print(passMaxUs); Serial.println(" us (edges closer than this could be missed)");
+    printPooled();
+    Serial.print("longest loop pass "); Serial.print(passMaxUs); Serial.print(" us; longest while a transition was in progress "); Serial.print(passMaxOpUs); Serial.println(" us (edges closer together than this could be missed)");
   } else if (c == "z") {
-    tbsMeter.reset(); tobMeter.reset(); tbsOps = tobOps = 0; passMaxUs = 0; stage = 0; screenDirty = true; Serial.println("cleared");
-    tbsMeter.reset(); tobMeter.reset(); tbsOps = tobOps = 0; passMaxUs = 0; Serial.println("cleared");
+    tbsMeter.reset(); tobMeter.reset(); tbsOps = tobOps = 0; passMaxUs = 0; passMaxOpUs = 0; pendingCount = 0; pendingDone = 0; stage = 0; screenDirty = true; Serial.println("cleared");
+    tbsMeter.reset(); tobMeter.reset(); tbsOps = tobOps = 0; passMaxUs = 0; passMaxOpUs = 0; pendingCount = 0; pendingDone = 0; Serial.println("cleared");
   } else if (c.startsWith("c ")) {
     const int n = c.substring(2).toInt();
     if (n < 5 || n > 30) { Serial.println("cycles must be 5..30"); return; }
@@ -198,22 +219,36 @@ void loop() {
     const uint8_t pinNo = stage == 2 ? kTobPin : kTbsPin;
     const uint32_t gap = nowUs - lastPassUs;
     if (lastPassUs && gap > passMaxUs) passMaxUs = gap;
+    if (lastPassUs && m.inOperation() && gap > passMaxOpUs) passMaxOpUs = gap;   // the passes that matter: while a transition is in progress
     m.sample(digitalRead(pinNo) == LOW, nowUs);
     m.flush(nowUs);
     if (m.stats().operations != ops) {
-      ops = m.stats().operations; screenDirty = true;
-      Serial.print(stage == 2 ? "TOB #" : "TBS #"); Serial.print(ops); Serial.print(m.stats().lastToOn ? " ON  " : " OFF "); Serial.print(" edges "); Serial.print(m.stats().lastEdges);
-      Serial.print(" settle us "); Serial.println(m.stats().lastSettleUs);
+      ops = m.stats().operations;
+      if (pendingCount < 16) pending[pendingCount++] = {static_cast<uint8_t>(stage), m.stats().lastToOn, m.stats().lastEdges, m.stats().lastSettleUs, ops};
       if (ops / 2 >= cyclesWanted) {
-        Serial.println(stage == 1 ? "TBS done; now TOB" : "TOB done"); 
-        if (stage == 1) stage = 2; else { stage = 3; printMeter("TBS", tbsMeter); printMeter("TOB", tobMeter); }
-        screenDirty = true; lastPassUs = 0;
+        pendingDone = stage;                         // announced later, with the lines
+        if (stage == 1) stage = 2; else stage = 3;
+        lastPassUs = 0;
       }
     }
   }
   lastPassUs = nowUs;
-  // The LCD is touched only while no operation is open (a row write takes ~10 ms, longer than typical bounce).
-  if (lcdStarted && !(active && m.inOperation())) {
+  // Quiet: the active switch has not moved for 300 ms. Only then is anything printed or the LCD touched (a console line or a row write
+  // takes several ms; doing it right after a transition made a quick re-press land inside a long loop pass).
+  const bool quiet = !active || (!m.inOperation() && static_cast<uint32_t>(nowUs - m.lastEdgeUs()) >= kPrintAfterQuietUs);
+  if (quiet && (pendingCount || pendingDone)) {
+    for (uint8_t i = 0; i < pendingCount; i++) {
+      const PendingOp& p = pending[i];
+      Serial.print(p.which == 2 ? "TOB #" : "TBS #"); Serial.print(p.number); Serial.print(p.toOn ? " ON  " : " OFF "); Serial.print(" edges "); Serial.print(p.edges);
+      Serial.print(" settle us "); Serial.println(p.settleUs);
+    }
+    pendingCount = 0;
+    if (pendingDone == 1) Serial.println("TBS done; now TOB");
+    if (pendingDone == 2) { Serial.println("TOB done"); printMeter("TBS", tbsMeter); printMeter("TOB", tobMeter); printPooled(); }
+    pendingDone = 0;
+    screenDirty = true;
+  }
+  if (lcdStarted && quiet) {
     if (screenDirty) { showScreen(); screenDirty = false; }
     lcd.service(nowMs);
   }

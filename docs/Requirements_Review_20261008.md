@@ -95,3 +95,6 @@ Review of `Requirements.md` (v2.6 draft, 541 lines) against (1) the owner's stat
 | Table of contents | **In the real firmware sketch `N2V8/N2V8.ino`** (not Tom's test, which has shipped as v1.6 and is unchanged): `file:line` entries, brief (ends at line 44, limit 50), common edits are **pressure thresholds and timing values**, plus a comment with the command that refreshes it. | `deliverables/update_sketch_toc.py` |
 
 Backlog additions: **F11** bounce BIST step + NVM block + `kDefaultDebounceMs` (INP-10, NVM-1); **F12** done: `N2V8.ino` table of contents.
+
+## H. Parked ideas (owner, 2026-10-08)
+* **F14 (PARKED): LCD as a lifecycle object** (enable/disable/update, name/stateName/nextDeadlineMs like the three controllers). Owner decisions: the LCD controller must NOT log its state transitions to the console (unlike Tower, Compressor and O2); a display reads the OutputSnapshot and never influences control. Save for later; it may be unnecessary if the flicker is solved another way. The 1 Hz limit on the normal screen (DSP-12) and the lower per-pass character budget (`Lcd20x4::kCharsPerService`, now 6) are the cheaper levers. Revisit with F1-F3.
