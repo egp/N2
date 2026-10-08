@@ -85,3 +85,13 @@ Review of `Requirements.md` (v2.6 draft, 541 lines) against (1) the owner's stat
 | F8 | `FaultId` F13 in the docs table (done in the code), `LF xx` on the LCD (done) | FLT-5, DSP-4 | done |
 | F9 | The full `App` adopts the `DeviceCheck`/`SelfTest` framework (replacing the monolithic POST/BIST) and the bring-up `Bringup` app converges with `App` | CHK-1…CHK-3, STG-1 | two parallel implementations |
 | F10 | Check `delay()` is absent: grep + host test that fails if `delay(` appears under `N2V8/src` (except the library adapter) | GOAL-6 | true today in `src/`; not enforced |
+
+## G. Decisions of the second round (owner, 2026-10-08)
+
+| Item | Decision | Where |
+|---|---|---|
+| Debounce (INP-6, Q34) | **Characterize, do not guess**: measure the bounce on the R4 WiFi bench and on the Minima production panel in a BIST step; store the recommended debounce in NVM; also change the compiled default afterwards. | INP-6, INP-10, NVM-1 |
+| POST-mode indication (DSP-11) | **LCD shows steps, progress and results; LED shows the LED test as the interim display, then 0000 after a pass and FFFF after a failure.** | DSP-11, POST-5 |
+| Table of contents | **In the real firmware sketch `N2V8/N2V8.ino`** (not Tom's test, which has shipped as v1.6 and is unchanged): `file:line` entries, brief (ends at line 44, limit 50), common edits are **pressure thresholds and timing values**, plus a comment with the command that refreshes it. | `deliverables/update_sketch_toc.py` |
+
+Backlog additions: **F11** bounce BIST step + NVM block + `kDefaultDebounceMs` (INP-10, NVM-1); **F12** done: `N2V8.ino` table of contents.

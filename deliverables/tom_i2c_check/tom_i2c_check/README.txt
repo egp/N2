@@ -1,4 +1,4 @@
-tom_i2c_check  -  OPERATOR GUIDE                                   version 1.7
+tom_i2c_check  -  OPERATOR GUIDE                                   version 1.6
 =============================================================================
 
 WHAT THIS IS
@@ -99,7 +99,7 @@ WHAT HAPPENS, IN ORDER
            test runs again, over and over.
 
   THE LCD (4 rows of 20 characters), normal screen:
-      row 1   CHECK v1.7 TBS0 TOB0     <- the two switches, live (see below)
+      row 1   CHECK v1.6 TBS0 TOB0     <- the two switches, live (see below)
       row 2   LCD+ RTC+ LED+ O2+       <- one status per device
       row 3   2026-10-08 11:32:16      <- the RTC date and time
       row 4   what the test is doing, or the result

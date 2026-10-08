@@ -1,122 +1,152 @@
 #!/usr/bin/env python3
-"""update_sketch_toc.py SKETCH.ino  -  (re)writes the TABLE OF CONTENTS comment at the top of tom_i2c_check.ino.
+"""update_sketch_toc.py SKETCH.ino  -  (re)writes the "WHERE TO EDIT" table of contents at the top of a sketch.
 
-Run it after you edit the sketch: it finds every section and every device's code by pattern and writes the line numbers (the numbers are the FINAL
-line numbers, with the table itself counted). In the Arduino IDE 2: Ctrl+L (Cmd+L on a Mac) = Go to line. This script is for the author's Mac; it is
-NOT part of the package for the site. Needs only Python 3.
+  python3 deliverables/update_sketch_toc.py N2V8/N2V8.ino                                     <- the real firmware (file:line entries)
+  python3 deliverables/update_sketch_toc.py deliverables/tom_i2c_check/tom_i2c_check/tom_i2c_check.ino   <- the single-file test sketch (NOT used: v1.6 has shipped)
+
+It finds every entry by a search pattern (never by a typed line number), so run it again after any edit and the numbers are right.
+For N2V8.ino the entries are  file:line  (relative to the sketch folder N2V8/N2V8/): the code is in src/, which the IDE does not show as tabs; open
+the file (File > Open) and use Ctrl+L = Go to line. The whole table is checked to end before line 50 of the sketch.
+This script is for the author's Mac. It is not part of any package for the site. Needs only Python 3.
 """
-import re, sys
+import os, re, sys
 
-path = sys.argv[1] if len(sys.argv) > 1 else "tom_i2c_check/tom_i2c_check.ino"
-START = "// TABLE OF CONTENTS"
-END = "// END OF TABLE OF CONTENTS"
+MAX_END_LINE = 50
+
+path = sys.argv[1] if len(sys.argv) > 1 else "N2V8/N2V8.ino"
+base_dir = os.path.dirname(os.path.abspath(path))
 lines = open(path).read().split("\n")
 
-# remove an old table
-if any(l.startswith(START) for l in lines):
-    a = next(i for i, l in enumerate(lines) if l.startswith(START))
-    b = next(i for i, l in enumerate(lines) if l.startswith(END))
-    # also drop the blank comment line before the table, if there is one
-    if a > 0 and lines[a - 1] == "//":
+# ---------------------------------------------------------------------------------------------- remove an old table (either style)
+def remove_old(start_prefix, end_prefix):
+    global lines
+    if not any(l.startswith(start_prefix) for l in lines):
+        return
+    a = next(i for i, l in enumerate(lines) if l.startswith(start_prefix))
+    b = next(i for i, l in enumerate(lines) if l.startswith(end_prefix))
+    while a > 0 and lines[a - 1] in ("//", ""):
         a -= 1
     del lines[a:b + 1]
+    if a < len(lines) and lines[a] != "" and not lines[a].startswith("//"):
+        lines.insert(a, "")
 
-def banner(title_regex):
-    """line number (1-based) of the dashed line above the banner whose first text line matches"""
-    for i, l in enumerate(lines):
-        if re.match(title_regex, l) and i > 0 and re.match(r"^// -{40,}$", lines[i - 1]):
-            return i  # 1-based number of the dashed line (index i-1 is 0-based)
-    raise SystemExit("banner not found: " + title_regex)
+# ---------------------------------------------------------------------------------------------- helpers
+def read(rel):
+    return open(os.path.join(base_dir, rel)).read().split("\n")
 
-def code(regex, after=0, within=100000):
-    """1-based line number of the first line matching regex at or after line `after` (1-based), within `within` lines"""
-    for i in range(max(after - 1, 0), min(len(lines), max(after - 1, 0) + within)):
-        if re.search(regex, lines[i]):
-            return i + 1
-    raise SystemExit("code not found: " + regex)
+def find(rel, regex, nth=1):
+    """1-based line number of the nth line in file `rel` (relative to the sketch folder) matching regex"""
+    src = lines if rel == os.path.basename(path) else read(rel)
+    hits = [i + 1 for i, l in enumerate(src) if re.search(regex, l)]
+    if len(hits) < nth:
+        raise SystemExit("pattern not found in %s: %s" % (rel, regex))
+    return hits[nth - 1]
 
-def code_all(regex, after=0):
-    return [i + 1 for i in range(max(after - 1, 0), len(lines)) if re.search(regex, lines[i])]
+# ================================================================================================ N2V8.ino
+def do_n2v8():
+    START = "// WHERE TO EDIT"
+    END = "// END WHERE TO EDIT"
+    remove_old(START, END)
 
-# (indent, label, line number)
-entries = []
-def sec(label, n): entries.append((0, label, n))
-def sub(label, n): entries.append((1, label, n))
+    common = [  # (file, regex, what)
+        ("src/ControlConfig.h", r"^    900, 1200", "TOWER      airLowOff airLowOn towerFillMs towerOverlapMs"),
+        ("src/ControlConfig.h", r"^    1000, 2000, 1000, 1200", "COMPRESSOR n2LowOff n2LowOn n2HighOn n2HighOff"),
+        ("src/ControlConfig.h", r"^    60000, 2000, 250", "O2         interval flush sample count retry timeout errorRetry warm-up mandatory"),
+        ("src/ControlConfig.h", r"^    1000, 3, 5000", "OUTPUTS/FAULTS  minHold sensorFaultSamples faultHold orderMargin orderHold"),
+        ("src/Config.h", r"kSensorMinMillivolts", "sensor valid window 0.5-4.5 V, fault window 0.4-4.6 V, full scales"),
+        ("src/app/App.h", r"uint32_t watchdogMs", "watchdog ms, LCD layout, LCD start delay, fault screen cycle, log level"),
+        ("src/BuildConfig.h", r"#define N2_BUILD_DIAG", "build mode (DIAG default / FIELD), default log level, O2 mandatory"),
+        ("src/BoardPins.h", r"kMinimaSignals\[", "pins, active levels (kLcdAddress = 0x23 just above the boards)"),
+    ]
+    areas = [
+        ("src/app/App.cpp", r"void App::loop", "loop(): POST mode / BIST / RUN"),
+        ("src/app/App.cpp", r"void App::setup", "setup(): outputs safe first, then the rest"),
+        ("src/core/System.cpp", r"void System::step", "one pass: inputs, controllers, invariants, outputs"),
+        ("src/core/Tower.cpp", r"void Tower::update", "TOWER controller"),
+        ("src/core/Compressor.cpp", r"void Compressor::update", "COMPRESSOR controller"),
+        ("src/core/O2Controller.cpp", r"void O2Controller::update", "O2 controller (flush, sample, warm-up)"),
+        ("src/drivers/O2SensorDfrobot.cpp", r"readO2PercentX100", "O2 sensor read (DFRobot library adapter)"),
+        ("src/core/Sensors.cpp", r"::sample", "pressure inputs, fault windows"),
+        ("src/core/Invariants.cpp", r"checkInvariants", "SAFETY rules (INV-1 .. INV-10)"),
+        ("src/core/OutputDriver.cpp", r"::apply", "outputs: active levels, minimum hold"),
+        ("src/core/Faults.cpp", r"kTable\[", "fault table (codes, text, severity)"),
+        ("src/ui/LcdScreens.cpp", r"Screen renderNormal", "LCD normal screen"),
+        ("src/ui/LedText.cpp", r"LedText renderLed", "LED text"),
+        ("src/drivers/Lcd20x4.cpp", r"^void Lcd20x4::service\(", "LCD driver"),
+        ("src/drivers/Led1650.cpp", r"^void Led1650::service\(", "LED driver"),
+        ("src/drivers/Rtc3231.cpp", r"bool Rtc3231::read", "RTC driver"),
+        ("src/selftest/Post.cpp", r"void Post::runCheck", "POST"),
+        ("src/selftest/Bist.cpp", r"^void Bist::tick\(", "BIST"),
+        ("src/ui/Commands.cpp", r"Commands::handle", "console commands"),
+        ("src/hal/HalArduino.cpp", r"HalArduino::consoleBegin", "hardware access: console, I2C, reset cause"),
+        ("N2V8.ino", r"^void setup\(\)", "this file: setup() and loop() glue (:%d)"),
+    ]
 
-sec("Includes and version", code(r"^#include <Arduino.h>"))
-sec("Types (DateTime, Level, Verdict, test steps)", code(r"^struct DateTime"))
-sec("Addresses and timing constants", banner(r"^// Addresses \(7-bit\)"))
-sec("Small helpers (say, reached)", banner(r"^// Small helpers"))
-sec("I2C access and bus recovery", banner(r"^// I2C access, with bus recovery"))
-sec("Calendar helpers, compile time", banner(r"^// Calendar helpers"))
-sec("DS3231 RTC driver", banner(r"^// DS3231 real-time clock"))
-sec("TM1650 LED driver", banner(r"^// TM1650 4-digit LED display"))
-sub("ledService (refresh 4x per second)", code(r"^static void ledService"))
-sec("20x4 LCD driver (PCF8574 backpack)", banner(r"^// 20x4 LCD"))
-sub("lcdInit", code(r"^static bool lcdInit"))
-sub("lcdService (start delay, one row per pass)", code(r"^static void lcdService"))
-sec("POST: one quick check per device", banner(r"^// POST: one quick hands-off check"))
-p = code(r"^static void postLcd")
-sub("postLcd", p); sub("postRtc (sets the RTC from the compile time)", code(r"^static void postRtc", p)); sub("postLed", code(r"^static void postLed", p)); sub("postO2", code(r"^static void postO2", p))
-sec("O2 sensor: one read-only query", banner(r"^// O2 sensor \(DFRobot SEN0465\)"))
-sub("o2Query", code(r"^static bool o2Query"))
-sec("Reset cause and the RESET-button test", banner(r"^// Reset cause, and the RESET-button test"))
-sub("readResetCause", code(r"^static void readResetCause"))
-sub("resetTestEvaluate (at boot)", code(r"^static void resetTestEvaluate"))
-sec("TBS and TOB (switch inputs)", banner(r"^// TBS and TOB: read with debounce"))
-sub("switchService", code(r"^static void switchService"))
-sec("BIST: the guided test (all steps)", banner(r"^// BIST: guided test"))
-st = code(r"^static void bistStartStep")
-sub("bistStartStep (what each step starts)", st)
-sv = code(r"^static void bistService")
-sub("bistService (what each step does)", sv)
-steps = []
-for name, rx in (("LCD step", r"gBistStep == B_LCD\)"), ("RTC step", r"gBistStep == B_RTC\)"), ("LED step (the last branch)", r"else \{  // B_LED"),
-                 ("O2 step", r"gBistStep == B_O2\)"), ("TBS / TOB steps", r"gBistStep == B_TBS \|\| gBistStep == B_TOB"), ("RESET step", r"gBistStep == B_RST\)")):
-    steps.append((2, name, code(rx, sv, 300)))
-entries.extend(sorted(steps, key=lambda e: e[2]))
-sub("bistBegin (starts a run: all steps or one)", code(r"^static void bistBegin"))
-sec("What the LCD and the LED show", banner(r"^// What the LCD and the LED show"))
-sub("updateDisplays", code(r"^static void updateDisplays"))
-sec("Serial Monitor console", banner(r"^// Serial Monitor console"))
-sub("printHelp", code(r"^static void printHelp"))
-sub("printStatus", code(r"^static void printStatus"))
-sub("printScan", code(r"^static void printScan"))
-sub("handleLine (the commands)", code(r"^static void handleLine"))
-sub("consoleService (banner, input)", code(r"^static void consoleService"))
-sec("setup()", code(r"^void setup\(\)"))
-sec("loop()", code(r"^void loop\(\)"))
+    def make(offset):
+        out = [START + "   (file:line, relative to this folder. In the Arduino IDE 2: open the file, then Ctrl+L = go to line)",
+               "// COMMON EDITS (air and N2-high PSI x10, N2-low PSI x100, times in ms)"]
+        for f, rx, what in common:
+            n = find(f, rx) + (offset if f == os.path.basename(path) else 0)
+            out.append("//   %-26s %s" % ("%s:%d" % (f, n), what))
+        out.append("// CODE BY AREA")
+        for f, rx, what in areas:
+            n = find(f, rx) + (offset if f == os.path.basename(path) else 0)
+            if f == os.path.basename(path):
+                what = what % (find(f, r"^void loop\(\)") + offset)
+            out.append("//   %-34s %s" % ("%s:%d" % (f, n), what))
+        out.append("// To refresh these line numbers after editing, run:   python3 deliverables/update_sketch_toc.py N2V8/N2V8.ino")
+        out.append(END)
+        return out
 
-common = [
-    ("LCD I2C address (0x23, A2 bridged)", [code(r"^static const uint8_t ADDR_LCD")]),
-    ("LCD start delay after power-up (2500 ms)", [code(r"^static const uint32_t LCD_START_MS")]),
-    ("TBS and TOB pins (D0, D1)", [code(r"^static const uint8_t PIN_TBS")]),
-    ("Time to wait for a p / f answer (8000 ms; LCD and LED)", code_all(r"gAskUntil = now \+ 8000")),
-    ("Time to wait at the TBS / TOB / RESET steps (20000 ms)", code_all(r"gPhaseAt = now \+ 20000", st)),
-    ("Pause between automatic test runs (45000 ms)", code_all(r"gAutoAt = now \+ 45000")),
-    ("LED refresh period (250 ms)", code_all(r"gLedNext = now \+ 250")),
-    ("O2 sensor commands (read-only; never change these)", [code(r"uint8_t frame\[9\]")]),
-]
+    first_include = next(i for i, l in enumerate(lines) if l.startswith("#include"))
+    block_len = len(make(0)) + 1          # the table plus one blank line after it
+    block = make(block_len + 0)
+    # the table goes right after the header comment, with a blank line before the first #include
+    lines[first_include:first_include] = block + [""]
+    end_line = first_include + len(block)  # 1-based line number of the END marker
+    if end_line > MAX_END_LINE:
+        raise SystemExit("table ends at line %d; the limit is %d: shorten the entries" % (end_line, MAX_END_LINE))
+    open(path, "w").write("\n".join(lines))
+    print("N2V8.ino: table of contents written; it ends at line %d (limit %d)" % (end_line, MAX_END_LINE))
 
-# build the table text (final line numbers = number in the file now + the number of lines the table adds)
-def build(offset):
-    out = [START + "  (Arduino IDE 2: Ctrl+L = go to line; Cmd+L on a Mac)",
-           "//   line  what"]
-    for ind, label, n in entries:
-        out.append("//   %4d  %s%s" % (n + offset, "    " * ind, label))
-    out.append("//")
-    out.append("//   COMMON EDITS")
-    for label, n in common:
-        ns = n if isinstance(n, list) else [n]
-        extra = "" if len(ns) == 1 else "   (also at line " + ", ".join(str(x + offset) for x in ns[1:]) + ")"
-        out.append("//   %4d  %s%s" % (ns[0] + offset, label, extra))
-    out.append(END)
-    return out
+# ================================================================================================ the single-file test sketch (kept; not used)
+def do_single_file():
+    START = "// TABLE OF CONTENTS"
+    END = "// END OF TABLE OF CONTENTS"
+    remove_old(START, END)
 
-n_table = len(build(0)) + 1          # + the blank comment line placed before the table
-table = build(n_table)
-# insert after the 3-line title block (lines 1-3) of the header
-insert_at = 3
-lines[insert_at:insert_at] = ["//"] + table
-open(path, "w").write("\n".join(lines))
-print("table of contents written:", len(table), "lines; sketch now", len(lines), "lines")
+    def banner(title_regex):
+        for i, l in enumerate(lines):
+            if re.match(title_regex, l) and i > 0 and re.match(r"^// -{40,}$", lines[i - 1]):
+                return i
+        raise SystemExit("banner not found: " + title_regex)
+
+    def code(regex, after=0):
+        for i in range(max(after - 1, 0), len(lines)):
+            if re.search(regex, lines[i]):
+                return i + 1
+        raise SystemExit("code not found: " + regex)
+
+    entries = [("Includes and version", code(r"^#include <Arduino.h>")),
+               ("I2C access and bus recovery", banner(r"^// I2C access, with bus recovery")),
+               ("DS3231 RTC driver", banner(r"^// DS3231 real-time clock")),
+               ("TM1650 LED driver", banner(r"^// TM1650 4-digit LED display")),
+               ("20x4 LCD driver", banner(r"^// 20x4 LCD")),
+               ("POST", banner(r"^// POST: one quick hands-off check")),
+               ("O2 query", banner(r"^// O2 sensor \(DFRobot SEN0465\)")),
+               ("setup()", code(r"^void setup\(\)")),
+               ("loop()", code(r"^void loop\(\)"))]
+    def build(offset):
+        out = [START + "  (Arduino IDE 2: Ctrl+L = go to line)", "//   line  what"]
+        out += ["//   %4d  %s" % (n + offset, label) for label, n in entries]
+        out.append(END)
+        return out
+    n_table = len(build(0)) + 1
+    lines[3:3] = ["//"] + build(n_table)
+    open(path, "w").write("\n".join(lines))
+    print("single-file sketch: table of contents written")
+
+if os.path.basename(path) == "N2V8.ino":
+    do_n2v8()
+else:
+    do_single_file()

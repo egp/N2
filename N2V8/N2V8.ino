@@ -8,6 +8,41 @@
 // Objects are created on first use inside functions (not as globals) so that nothing touches hardware
 // before the Arduino core has finished initialising.
 
+// WHERE TO EDIT   (file:line, relative to this folder. In the Arduino IDE 2: open the file, then Ctrl+L = go to line)
+// COMMON EDITS (air and N2-high PSI x10, N2-low PSI x100, times in ms)
+//   src/ControlConfig.h:42     TOWER      airLowOff airLowOn towerFillMs towerOverlapMs
+//   src/ControlConfig.h:43     COMPRESSOR n2LowOff n2LowOn n2HighOn n2HighOff
+//   src/ControlConfig.h:44     O2         interval flush sample count retry timeout errorRetry warm-up mandatory
+//   src/ControlConfig.h:45     OUTPUTS/FAULTS  minHold sensorFaultSamples faultHold orderMargin orderHold
+//   src/Config.h:21            sensor valid window 0.5-4.5 V, fault window 0.4-4.6 V, full scales
+//   src/app/App.h:34           watchdog ms, LCD layout, LCD start delay, fault screen cycle, log level
+//   src/BuildConfig.h:20       build mode (DIAG default / FIELD), default log level, O2 mandatory
+//   src/BoardPins.h:92         pins, active levels (kLcdAddress = 0x23 just above the boards)
+// CODE BY AREA
+//   src/app/App.cpp:122                loop(): POST mode / BIST / RUN
+//   src/app/App.cpp:39                 setup(): outputs safe first, then the rest
+//   src/core/System.cpp:47             one pass: inputs, controllers, invariants, outputs
+//   src/core/Tower.cpp:43              TOWER controller
+//   src/core/Compressor.cpp:39         COMPRESSOR controller
+//   src/core/O2Controller.cpp:60       O2 controller (flush, sample, warm-up)
+//   src/drivers/O2SensorDfrobot.cpp:31 O2 sensor read (DFRobot library adapter)
+//   src/core/Sensors.cpp:16            pressure inputs, fault windows
+//   src/core/Invariants.cpp:14         SAFETY rules (INV-1 .. INV-10)
+//   src/core/OutputDriver.cpp:35       outputs: active levels, minimum hold
+//   src/core/Faults.cpp:8              fault table (codes, text, severity)
+//   src/ui/LcdScreens.cpp:68           LCD normal screen
+//   src/ui/LedText.cpp:10              LED text
+//   src/drivers/Lcd20x4.cpp:228        LCD driver
+//   src/drivers/Led1650.cpp:55         LED driver
+//   src/drivers/Rtc3231.cpp:7          RTC driver
+//   src/selftest/Post.cpp:35           POST
+//   src/selftest/Bist.cpp:522          BIST
+//   src/ui/Commands.cpp:14             console commands
+//   src/hal/HalArduino.cpp:98          hardware access: console, I2C, reset cause
+//   N2V8.ino:95                        this file: setup() and loop() glue (:96)
+// To refresh these line numbers after editing, run:   python3 deliverables/update_sketch_toc.py N2V8/N2V8.ino
+// END WHERE TO EDIT
+
 #include "src/BoardPins.h"
 #include "src/BuildConfig.h"
 #include "src/Config.h"
