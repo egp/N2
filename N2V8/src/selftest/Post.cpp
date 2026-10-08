@@ -135,10 +135,10 @@ void Post::showResult(uint32_t now, uint8_t firstFault, bool holdPrompt) {
     }
   }
   const Screen s = makeScreen(r0, lines[0] ? lines[0] : "", lines[1] ? lines[1] : "", holdPrompt ? "PRESS TOB TO PROCEED" : "");
+  // DSP-11: the LED says the verdict, 0000 = good, FFFF = a problem was found (the LCD names the faults).
   LedText led;
-  snprintf(led.digit, sizeof led.digit, "    ");
+  snprintf(led.digit, sizeof led.digit, "%s", level_ == PostLevel::kPass ? "0000" : "FFFF");
   led.dotAfter = -1;
-  if (problems_ > 0 && f.nth(firstFault % problems_, Severity::kInfo, id)) snprintf(led.digit, sizeof led.digit, " F%02X", static_cast<unsigned>(faultInfo(id).code));
   display_.setOverride(s, led, now);
 }
 
@@ -175,6 +175,7 @@ bool Post::step(uint32_t now) {
         return false;
       }
       display_.clearOverride();
+      if (level_ == PostLevel::kPass) display_.holdLed(LedText{{'0', '0', '0', '0', '\0'}, -1}, now, opt_.ledResultHoldMs);   // DSP-11
       phase_ = Phase::kDone;
       return true;
 

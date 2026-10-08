@@ -32,7 +32,8 @@ void DisplayManager::showNormal(const DisplayData& data, uint32_t now) {
       haveShownNormal_ = true;
     }
   }
-  led_.setText(renderLed(data, fault));
+  if (ledHold_ && (ledHoldUntil_.reached(now) || data.tbs)) ledHold_ = false;   // timed out, or the operator switched TBS on
+  led_.setText(ledHold_ ? ledHoldText_ : renderLed(data, fault));
 }
 
 void DisplayManager::service(uint32_t now) {

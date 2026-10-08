@@ -43,6 +43,9 @@ class DisplayManager {
   // Show exactly this. forMs == 0: until clearOverride().
   void setOverride(const Screen& screen, const LedText& led, uint32_t now, uint32_t forMs = 0);
   void clearOverride() { override_ = false; timer_.clear(); }
+  // Keep this text on the LED (only) for `ms`, or until TBS is turned ON, whichever is first; the LCD goes back to its normal screen at once.
+  // Used for the POST result (0000 = good) after POST has ended and the system is already running.
+  void holdLed(const LedText& text, uint32_t now, uint32_t ms) { ledHoldText_ = text; ledHoldUntil_.arm(now, ms); ledHold_ = true; }
   bool overriding() const { return override_; }
 
   // Drive the two drivers (bounded I2C work per call).
@@ -62,6 +65,9 @@ class DisplayManager {
   Deadline timer_;
   Deadline lcdStart_;
   bool override_ = false;
+  bool ledHold_ = false;
+  LedText ledHoldText_{{' ', ' ', ' ', ' ', '\0'}, -1};
+  Deadline ledHoldUntil_;
   uint32_t lcdMinChangeMs_ = 0;
   Screen shownNormal_;           // the last normal screen given to the LCD
   uint32_t shownNormalAt_ = 0;

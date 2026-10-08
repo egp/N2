@@ -26,6 +26,7 @@ enum class PostLevel : uint8_t { kPass, kWarn, kFail };
 struct PostOptions {
   Severity hangAt = Severity::kWarn;  // POST_HANG_SEVERITY: a fault at or above this holds POST until TOB
   uint32_t bannerMs = 1000;           // start-up banner (DSP-8)
+  uint32_t ledResultHoldMs = 10000;   // after a GOOD POST the LED keeps showing 0000 this long (or until TBS is switched ON)
   uint32_t okMs = 1000;               // "POST OK" screen when clean (POST-5)
   uint32_t problemMs = 5000;          // result screen when not clean
   uint32_t holdRotateMs = 3000;       // while held: step through the faults

@@ -554,3 +554,55 @@ TEST_CASE("POST-1: a TOB stuck down for 10 s does not stop the unit: POST starts
   CHECK(r.app->mode() != App::Mode::kPostArm);
   CHECK(r.has("TOB still held after 10 s"));
 }
+
+namespace {
+bool ledShows(AppRig& r, uint8_t segments) {
+  for (uint8_t d = 0; d < 4; ++d)
+    if ((r.app->display().led().shownSegments(d) & 0x7F) != segments) return false;
+  return true;
+}
+}  // namespace
+
+TEST_CASE("DSP-11: after a GOOD POST the LED shows 0000 for 10 s while the system already runs, then goes back to normal") {
+  AppRig r;
+  r.tob(true);
+  r.boot();
+  r.tob(false);
+  REQUIRE(r.runUntilMode(App::Mode::kRun, 4000));
+  r.run(500);
+  CHECK(ledShows(r, 0x3F));          // 0000
+  r.run(8000);
+  CHECK(ledShows(r, 0x3F));          // still held
+  r.run(3000);
+  CHECK(ledShows(r, 0x00));          // TBS is off: the normal LED is blank
+}
+
+TEST_CASE("DSP-11: TBS switched ON ends the 0000 hold at once") {
+  AppRig r;
+  r.tob(true);
+  r.boot();
+  r.tob(false);
+  REQUIRE(r.runUntilMode(App::Mode::kRun, 4000));
+  r.run(500);
+  REQUIRE(ledShows(r, 0x3F));
+  r.tbs(true);
+  r.run(600);
+  CHECK_FALSE(ledShows(r, 0x3F));
+}
+
+TEST_CASE("DSP-11: after a FAILED POST the LED shows FFFF while it holds, and the LCD names the fault") {
+  ControlConfig c = quickWarmConfig();
+  c.o2Mandatory = true;
+  AppRig r(c);
+  r.hal.i2cPresent.erase(0x74);       // no O2 sensor in production: an INHIBIT fault holds the POST
+  r.tob(true);
+  r.boot();
+  r.tob(false);
+  REQUIRE(r.runUntilMode(App::Mode::kPost, 1000));
+  r.run(2500);
+  CHECK(ledShows(r, 0x71));           // FFFF as soon as the verdict is known
+  r.run(6000);
+  CHECK(r.app->mode() == App::Mode::kPost);
+  CHECK(r.app->post().holding());
+  CHECK(ledShows(r, 0x71));           // and still FFFF while the POST holds for TOB
+}
