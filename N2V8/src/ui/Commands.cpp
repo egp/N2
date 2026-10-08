@@ -275,7 +275,7 @@ bool Commands::NvmInfo::line(uint8_t i, char* b, size_t n) {
   }
   const StoreReport& r = nv->report();
   switch (i) {
-    case 0: snprintf(b, n, "NVM %u bytes, block %u; settings copies A at 0x0000, B at 0x%04X; board id %u; this sketch 0x%04X",
+    case 0: snprintf(b, n, "NVM %u B, block %u; A at 0x0000, B at 0x%04X; board %u; sketch 0x%04X",
                      static_cast<unsigned>(nv->nvmSize()), static_cast<unsigned>(nv->nvmBlock()), static_cast<unsigned>(nv->nvmBlock()),
                      static_cast<unsigned>(nv->board()), static_cast<unsigned>(nv->sketchVersion())); return true;
     case 1: copyLine(b, n, 'A', r.checksA, r.a, r.seqA); return true;
