@@ -1,4 +1,4 @@
-tom_i2c_check  -  OPERATOR GUIDE                                   version 1.3
+tom_i2c_check  -  OPERATOR GUIDE                                   version 1.4
 =============================================================================
 
 WHAT THIS IS
@@ -8,6 +8,7 @@ WHAT THIS IS
       the 20x4 LCD            the real-time clock (RTC)
       the 4-digit LED         the O2 sensor (a read-only question; see below)
       the TBS switch          the TOB button
+      the RESET button
 
   It also sets the RTC to your computer's time (see "The RTC" below).
 
@@ -39,20 +40,22 @@ BEFORE YOU START  (read every time)
      test. This program only READS the two switch inputs (TBS and TOB) and
      talks on the two I2C wires. It never switches an output. Even so,
      SWITCH THE MACHINE OFF and take the air pressure off first.
-     Afterwards, upload the normal generator program again (your N2V7 or
-     whichever program normally runs it).
   3. The O2 sensor is only ASKED for a reading (the same question the
      generator program asks). Nothing in the sensor is ever changed. The
      sensor needs about 5 minutes after power-on before its reading is
      steady: a reading right after power-up may be off.
-  4. Unplug the USB cable while you check wiring.
+  4. REMOVE POWER from the Arduino whenever you check wiring or change
+     anything. The Arduino has its own power supply, so unplugging the USB
+     cable is NOT enough: switch off (or unplug) that power supply AND unplug
+     the USB cable. Apply power again only when you are ready to test.
 
 
 RUNNING THE TEST
   1. Start the Arduino IDE. File > Open... and choose tom_i2c_check.ino.
   2. Tools > Board > Arduino UNO R4 Boards > Arduino UNO R4 Minima.
-  3. Plug in the USB cable. Tools > Port > choose the Arduino's port (the one
-     that says "UNO R4 Minima").
+  3. Apply power to the Arduino (switch its power supply on) and plug in the
+     USB cable. Tools > Port > choose the Arduino's port (the one that says
+     "UNO R4 Minima").
   4. Click the Upload button (the arrow). Wait for "Done uploading".
      The time the program was compiled (your laptop's clock) is built in:
      it is what the RTC is set to.
@@ -67,8 +70,8 @@ WHAT HAPPENS, IN ORDER
   0 s      Power up. The LED shows "----" and the LCD is left alone.
   2.5 s    The LCD starts. It shows four lines (below).
   1-2 s    POST: a quick check that each device answers.
-  4 s      THE TEST starts (about 85 seconds). The LED shows the step number
-           (-001 ... -006) while a step runs:
+  4 s      THE TEST starts (about 105 seconds). The LED shows the step number
+           (-001 ... -007) while a step runs:
     1 LCD  (about 17 s): the whole LCD fills with ####, then the letters
            ABCDEFGHIJKLMNOPQRST, then 0123456789..., then #### again. Then
            the backlight blinks. Then the text vanishes and comes back
@@ -85,7 +88,14 @@ WHAT HAPPENS, IN ORDER
            what state the program sees. It passes as soon as it has seen
            both states. If you do nothing it goes on after 20 s (shown as ?).
     6 TOB  (up to 20 s): PRESS THE TOB BUTTON, THEN RELEASE IT. Same.
-  ~90 s    The result stays on the LCD (row 4) for 45 seconds, then the
+    7 RESET (up to 20 s): PRESS THE RESET BUTTON. The LCD shows PRESS RESET
+           NOW. The program restarts (the screens go through the start-up
+           again) and then reports the result: "RESET test: PASS" on row 4
+           of the LCD for 20 seconds, and in the Serial Monitor. If nobody
+           presses it the step ends after 20 s (shown as ?). If the power was
+           removed instead of pressing RESET, the report says so (shown as ?):
+           a power-up is not a reset-button press.
+  ~110 s   The result stays on the LCD (row 4) for 45 seconds, then the
            test runs again, over and over.
 
   THE LCD (4 rows of 20 characters), normal screen:
@@ -107,15 +117,16 @@ WHAT HAPPENS, IN ORDER
   second. (If the RTC is not working it shows the seconds since power-up.)
   If any device FAILED, FFFF alternates with the time.
 
-  THE RESULT (row 4 of the LCD when the test has finished). Two screens
+  THE RESULT (row 4 of the LCD when the test has finished). Three screens
   alternate every 3 seconds:
       TEST LCD? RTCP LED?
       TEST O2P TBSP TOB?
+      TEST RST?
       P   passed
       F   FAILED
       ?   no error was seen, but it is not confirmed (nobody looked at the
           LCD/LED; nobody touched the switch; the O2 sensor is not fitted)
-  The RTC, O2, TBS and TOB check themselves (P). The LCD and LED need YOUR
+  The RTC, O2, TBS, TOB and RST check themselves (P). The LCD and LED need YOUR
   eyes: you are the only one who can see that they look right.
 
 
@@ -134,13 +145,14 @@ WITH THE SERIAL MONITOR (optional)
   Type a command and press Enter (the box at the top must be set to
   "Both NL & CR" or "Newline"):
       help     the list of commands
-      run      the whole test now: LCD, RTC, LED, O2, TBS, TOB
+      run      the whole test now: LCD, RTC, LED, O2, TBS, TOB, RESET
       lcd      the LCD test only
       rtc      the RTC test only
       led      the LED test only
       o2       the O2 sensor test only (a read-only question)
       tbs      the TBS switch test only (flip it ON and OFF)
       tob      the TOB button test only (press and release it)
+      reset    the RESET button test only (press RESET within 20 s)
       scan     every device that answers on the I2C bus
       status   the results so far and the error counts
       time     the RTC date and time
@@ -151,7 +163,7 @@ WITH THE SERIAL MONITOR (optional)
       p    it looked right          f    it looked wrong (add a note, e.g.
                                          f missing segment on digit 2)
   (Typing p or f is optional. No answer is fine; the test goes on by itself.)
-  After you use lcd, led, rtc, o2, tbs or tob the repeating test is paused so
+  After you use lcd, led, rtc, o2, tbs, tob or reset the repeating test is paused so
   that it does not interrupt you. Type run to start the repeating test again.
   Every change of the switches is also written in the log: TBS ON / TBS off,
   TOB pressed / TOB released.
@@ -167,6 +179,7 @@ WHAT TO SEND BACK
         RTC   row 3 of the LCD showed today's date and the right time?
         TBS   row 1 changed TBS0 -> TBS1 -> TBS0 as you flipped the switch?
         TOB   row 1 changed TOB0 -> TOB1 -> TOB0 as you pressed the button?
+        RESET pressing RESET restarted the screens; "RESET test: PASS"?
         O2    the reading in the log (or "not found")
         Anything unusual (garbage, a dark digit, a flickering display ...).
   3. A photo of the LCD and LED at the end helps.
@@ -194,12 +207,17 @@ IF SOMETHING LOOKS WRONG
                                  switch: check the wiring to pins D0 (TBS)
                                  and D1 (TOB). Each switch connects the pin
                                  to ground when ON / pressed.
-  Nothing at all on the screens  Check USB and power; press the RESET button
-                                 on the Arduino.
+  Nothing at all on the screens  Check the Arduino's power supply and the USB
+                                 cable; press the RESET button.
+  RESET test says "power lost"   The program restarted because power was
+                                 removed, not because RESET was pressed (or
+                                 the RESET button also cuts the power).
+  RESET test never restarts      Pressing RESET does nothing: check the RESET
+                                 button wiring to the Arduino's reset pin.
 
   To start again at any time, press the RESET button on the Arduino.
 
 
 WHEN YOU ARE FINISHED
-  Unplug the USB cable, then upload the normal generator program again
-  before running the machine.
+  Remove power from the Arduino: switch off its power supply AND unplug the
+  USB cable.

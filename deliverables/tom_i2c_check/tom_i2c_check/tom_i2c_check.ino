@@ -1,5 +1,5 @@
 // ===========================================================================================
-// tom_i2c_check  VERSION 1.3   (2026-10-08)     <-- if you do not see this line, the IDE has an older copy
+// tom_i2c_check  VERSION 1.4   (2026-10-08)     <-- if you do not see this line, the IDE has an older copy
 //                                                   (minor versions are written in HEX: 1.A = 1.10)
 //
 // Tests the three I2C parts of the N2 generator on the REAL I2C bus: the 20x4 LCD, the DS3231 real-time clock (RTC) and the 4-digit LED display.
@@ -15,21 +15,24 @@
 //   * The RTC is set from the time this sketch was COMPILED (your computer's clock at that moment) if it lost power or is behind that time.
 //   * The TEST (about 85 s): an LCD step (full-screen patterns, backlight blink, display blink), an RTC step (the clock must advance in step with
 //     the board's own timer), an LED step (8888 with one dot, a count 0-9 on all four digits, one blink), an O2 step (a read-only query of the O2
-//     sensor, if it is fitted), then a TBS step and a TOB step (you flip
-//     the switch ON and OFF / press and release the button within 20 s each). Any I2C write error during a step is a FAIL.
+//     sensor, if it is fitted), then a TBS step, a TOB step and a RESET step (you flip
+//     the switch ON and OFF / press and release TOB / press RESET within 20 s each). Any I2C write error during a step is a FAIL.
 //     What the LCD and LED SHOULD show is written in README.txt; you judge it by eye.
 //
 // LCD:  row 0 name and version   row 1 one status per device   row 2 the RTC date and time   row 3 what the test is doing / the result
 // LED:  the time HHMM with the middle dot blinking once a second (or the seconds since power-up if the RTC is not set); FFFF alternates with it if a device FAILED
 // Row 1 codes:  + ok   i info (noted, not a problem)   F FAIL   - not tested yet.        Device names: LCD RTC LED O2
 // Row 0 shows the switches live: TBS1 = TBS is ON, TOB1 = TOB is pressed (0 = off / released).
-// Result row (row 3 when the TEST is done, alternating every 3 s with the switch result):  "TEST LCD? RTCP LED?" and "TEST O2P TBSP TOB?"
+// Result row (row 3 when the TEST is done, alternating every 3 s with the switch result):  "TEST LCD? RTCP LED?", "TEST O2P TBSP TOB?" and "TEST RST?"
 //   P = passed   F = FAILED   ? = no I2C error / nothing seen, but not confirmed (nobody looked, or nobody touched the switch)
 //
-// Serial Monitor commands (optional, 115200 baud):  help  status  scan  time  post  run  lcd  rtc  led  o2  tbs  tob  stop  note <text>
+// Serial Monitor commands (optional, 115200 baud):  help  status  scan  time  post  run  lcd  rtc  led  o2  tbs  tob  reset  stop  note <text>
 //   During a step that asks, type  p (looks right)  or  f (looks wrong, add a note)  to record what you saw; r repeats the step.
 //
 // Change log
+//   1.4  RESET test: press the RESET pushbutton within 20 s; the program restarts and at the next boot reports whether the reset cause is the button. The
+//        marker that survives the restart is one spare byte inside the DS3231 (alarm-2 minutes register, alarms are off). The boot always logs the reset cause
+//        and the raw reset-status registers. Command  reset.
 //   1.3  O2 sensor test (read-only): the same query the generator program uses (command 0x86, read the concentration); reports the O2 % and checks
 //        the reply (header, checksum, gas type = O2, a plausible value; exactly 0 is a fault). Command  o2.
 //   1.2  TBS and TOB tests: the two switches are read (D0, D1, with pull-ups, like the generator program) and shown live on LCD row 1; two new test
@@ -40,7 +43,7 @@
 #include <Arduino.h>
 #include <Wire.h>
 
-#define SKETCH_VERSION "1.3"
+#define SKETCH_VERSION "1.4"
 
 // ---- Types are declared first on purpose: the Arduino IDE inserts automatic function prototypes above the first function, and a prototype that
 // ---- mentions DateTime or Verdict fails to compile if the type is defined further down.
@@ -50,7 +53,7 @@ struct DateTime {
 };
 enum Level : uint8_t { LV_NONE, LV_PASS, LV_INFO, LV_FAIL };
 enum Verdict : uint8_t { V_NONE, V_PASS, V_FAIL, V_SKIP, V_UNSURE };  // V_UNSURE: no I2C error, but nobody answered p/f
-enum BistStep : uint8_t { B_LCD, B_RTC, B_LED, B_O2, B_TBS, B_TOB, B_COUNT };
+enum BistStep : uint8_t { B_LCD, B_RTC, B_LED, B_O2, B_TBS, B_TOB, B_RST, B_COUNT };
 
 // ---------------------------------------------------------------------------------------------------------------------------
 // Addresses (7-bit). The LCD backpack's A2 solder pad is BRIDGED, so it is at 0x23: the LED module also answers 0x24-0x27, which a backpack left
@@ -516,6 +519,60 @@ static bool o2Query(uint16_t& hundredths, uint8_t& gasType, const char*& why) {
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------
+// Reset cause, and the RESET-button test. The RA4M1 keeps the cause of the last reset in three status registers. They persist until cleared, so they are
+// read ONCE at boot and cleared; RSTSR2 bit 0 is then set by us, so that any later reset that did not lose power reads "warm" (the power-on flag itself is
+// not visible after the bootloader). "Cold" = that bit was 0 = power was lost.
+// The test marker: one spare byte in the DS3231 (alarm-2 minutes register 0x0B; the alarms are never enabled) survives a reset AND a power loss.
+// ---------------------------------------------------------------------------------------------------------------------------
+static const uint8_t RTC_SCRATCH_REG = 0x0B;
+static const uint8_t RESET_MARKER = 0xA5;
+
+static bool gResetPowerOn = false, gResetWatchdog = false, gResetBrownout = false;
+static char gResetText[24] = "unknown";
+static char gResetRaw[40] = "";
+static char gResetTestMsg[28] = "";     // the result of a RESET test that ended with this boot, shown for a while on the LCD
+static uint32_t gResetTestMsgUntil = 0;
+static Verdict gResetTestVerdict = V_NONE;
+
+static void readResetCause() {
+  const uint8_t r0 = R_SYSTEM->RSTSR0;
+  const uint16_t r1 = R_SYSTEM->RSTSR1;
+  const uint8_t r2 = R_SYSTEM->RSTSR2;
+  gResetPowerOn = ((r2 & 0x01) == 0) || ((r0 & 0x01) != 0);
+  gResetBrownout = (r0 & 0x0E) != 0;
+  gResetWatchdog = (r1 & 0x03) != 0;
+  R_SYSTEM->RSTSR0 = 0;
+  R_SYSTEM->RSTSR1 = 0;
+  R_SYSTEM->RSTSR2 = 0x01;
+  snprintf(gResetRaw, sizeof gResetRaw, "RSTSR0=%02X RSTSR1=%04X RSTSR2=%02X", r0, r1, r2);
+  snprintf(gResetText, sizeof gResetText, "%s",
+           gResetPowerOn ? "power-on (cold start)" : (gResetWatchdog ? "watchdog" : (gResetBrownout ? "brown-out" : "reset button/other")));
+}
+
+// At boot, after the I2C bus is up: was a RESET test running when this restart happened?
+static void resetTestEvaluate(uint32_t now) {
+  uint8_t marker = 0;
+  if (!i2cReadReg(ADDR_RTC, RTC_SCRATCH_REG, &marker, 1)) return;  // no RTC: no RESET test possible
+  if (marker != RESET_MARKER) return;
+  const uint8_t clear[2] = {RTC_SCRATCH_REG, 0x00};
+  i2cWrite(ADDR_RTC, clear, 2);
+  if (gResetPowerOn) {
+    gResetTestVerdict = V_UNSURE;
+    snprintf(gResetTestMsg, sizeof gResetTestMsg, "RESET test: power lost");
+    say("RESET TEST: ? The RESET test was running, but this start was a POWER-ON, not a reset button press (power was removed).");
+  } else if (gResetWatchdog || gResetBrownout) {
+    gResetTestVerdict = V_FAIL;
+    snprintf(gResetTestMsg, sizeof gResetTestMsg, "RESET test: FAIL");
+    say("RESET TEST: FAIL The program restarted, but the cause was '%s', not the RESET button.", gResetText);
+  } else {
+    gResetTestVerdict = V_PASS;
+    snprintf(gResetTestMsg, sizeof gResetTestMsg, "RESET test: PASS");
+    say("RESET TEST: PASS The RESET button restarted the program (reset cause: %s).", gResetText);
+  }
+  gResetTestMsgUntil = now + 20000;
+}
+
+// ---------------------------------------------------------------------------------------------------------------------------
 // TBS and TOB: read with debounce (a level must hold for 30 ms), every change is logged. The test steps below use gSawOn / gSawOff.
 // ---------------------------------------------------------------------------------------------------------------------------
 static bool gTbsOn = false;
@@ -566,7 +623,7 @@ static uint8_t gBistLast = B_COUNT - 1;   // the last step of this run (a single
 static uint32_t gAskUntil = 0;      // a step that asks waits this long for an answer, then goes on by itself
 static uint32_t gErrAtStart = 0;    // I2C error count of the device under test when the step began
 
-static const char* kBistName[B_COUNT] = {"LCD", "RTC", "LED", "O2", "TBS", "TOB"};
+static const char* kBistName[B_COUNT] = {"LCD", "RTC", "LED", "O2", "TBS", "TOB", "RST"};
 
 static bool stepHadErrors() {  // did the device under test report an I2C write error since the step began?
   if (gBistStep == B_LCD) return gLcdErrors > gErrAtStart;
@@ -612,6 +669,15 @@ static void bistStartStep(uint32_t now) {
       gPhaseAt = now + 3000;
     } else {
       gPhase = 9;  // cannot read: fail at once
+    }
+  } else if (gBistStep == B_RST) {
+    const uint8_t mark[2] = {RTC_SCRATCH_REG, RESET_MARKER};
+    if (!i2cWrite(ADDR_RTC, mark, 2)) {
+      gPhase = 9;  // no RTC: the marker cannot be stored
+    } else {
+      gPhase = 1;
+      gPhaseAt = now + 20000;
+      say("   PRESS THE RESET BUTTON NOW (within 20 s). The program restarts; at the next start it reports the result.");
     }
   } else if (gBistStep == B_O2) {
     gPhaseAt = now;  // runs at once, in bistService
@@ -724,6 +790,17 @@ static void bistService(uint32_t now) {
       }
       return;
     }
+  } else if (gBistStep == B_RST) {
+    if (gPhase == 9) {
+      bistConclude(now, V_UNSURE, "needs the RTC (marker)");
+      return;
+    }
+    if (reached(now, gPhaseAt)) {
+      const uint8_t clear[2] = {RTC_SCRATCH_REG, 0x00};
+      i2cWrite(ADDR_RTC, clear, 2);  // nobody pressed it: take the marker away again
+      bistConclude(now, V_UNSURE, "not pressed");
+      return;
+    }
   } else if (gBistStep == B_O2) {
     if (!i2cProbe(ADDR_O2)) {
       say("   O2 sensor: no answer at 0x%02X (not fitted? it is not part of the I2C parts test)", ADDR_O2);
@@ -833,7 +910,7 @@ static void bistBegin(uint32_t now, uint8_t first = 0, uint8_t last = B_COUNT - 
   gBistStep = first;
   gBistLast = last;
   if (first == last) say("TEST: the %s only. Look at it; the Serial Monitor is optional (p = looks right, f = looks wrong).", kBistName[first]);
-  else say("TEST: %d steps (LCD, RTC, LED, TBS, TOB). Look at the displays; the Serial Monitor is optional (p = looks right, f = looks wrong).", B_COUNT);
+  else say("TEST: %d steps (LCD, RTC, LED, O2, TBS, TOB, RESET). Look at the displays; the Serial Monitor is optional (p = looks right, f = looks wrong).", B_COUNT);
   bistStartStep(now);
 }
 
@@ -860,7 +937,9 @@ static void updateDisplays(uint32_t now) {
   snprintf(row, sizeof row, "LCD%c RTC%c LED%c O2%c", kLevelChar[gPost[DEV_LCD].level], kLevelChar[gPost[DEV_RTC].level],
            kLevelChar[gPost[DEV_LED].level], kLevelChar[gPost[DEV_O2].level]);
   lcdSetRow(1, row);
-  if (gBist && (gBistStep == B_TBS || gBistStep == B_TOB)) {
+  if (gBist && gBistStep == B_RST) {
+    snprintf(row, sizeof row, "(the program restarts)");
+  } else if (gBist && (gBistStep == B_TBS || gBistStep == B_TOB)) {
     const bool on = (gBistStep == B_TBS) ? gTbsOn : gTobOn;
     snprintf(row, sizeof row, "now:%s seen:%s%s", on ? "ON" : "off", gSawOn ? "ON " : "", gSawOff ? "off" : "");
   } else if (gClockOk) {
@@ -869,7 +948,9 @@ static void updateDisplays(uint32_t now) {
     snprintf(row, sizeof row, "RTC: no time");
   }
   lcdSetRow(2, row);
-  if (gBist && gBistStep == B_TBS) {
+  if (gBist && gBistStep == B_RST) {
+    snprintf(row, sizeof row, "PRESS RESET NOW");
+  } else if (gBist && gBistStep == B_TBS) {
     snprintf(row, sizeof row, "FLIP TBS ON then off");
   } else if (gBist && gBistStep == B_TOB) {
     snprintf(row, sizeof row, "PRESS TOB, RELEASE");
@@ -880,11 +961,15 @@ static void updateDisplays(uint32_t now) {
     snprintf(row, sizeof row, "%s", gAsking ? "LED: p/f or wait" : caption[gPhase < 3 ? gPhase : 2]);
   } else if (gBist) {
     snprintf(row, sizeof row, "TEST %u/%u: %s", gBistStep + 1, B_COUNT, kBistName[gBistStep]);
+  } else if (gResetTestMsgUntil != 0 && !reached(now, gResetTestMsgUntil)) {
+    snprintf(row, sizeof row, "%s", gResetTestMsg);
   } else if (!gPostDone) {
     snprintf(row, sizeof row, "POST running...");
   } else if (gBistFinished) {
-    if ((now / 3000u) % 2u == 0) snprintf(row, sizeof row, "TEST LCD%c RTC%c LED%c", verdictChar(gVerdict[B_LCD]), verdictChar(gVerdict[B_RTC]), verdictChar(gVerdict[B_LED]));
-    else snprintf(row, sizeof row, "TEST O2%c TBS%c TOB%c", verdictChar(gVerdict[B_O2]), verdictChar(gVerdict[B_TBS]), verdictChar(gVerdict[B_TOB]));
+    const uint8_t screen = (now / 3000u) % 3u;
+    if (screen == 0) snprintf(row, sizeof row, "TEST LCD%c RTC%c LED%c", verdictChar(gVerdict[B_LCD]), verdictChar(gVerdict[B_RTC]), verdictChar(gVerdict[B_LED]));
+    else if (screen == 1) snprintf(row, sizeof row, "TEST O2%c TBS%c TOB%c", verdictChar(gVerdict[B_O2]), verdictChar(gVerdict[B_TBS]), verdictChar(gVerdict[B_TOB]));
+    else snprintf(row, sizeof row, "TEST RST%c", verdictChar(gVerdict[B_RST]));
   } else {
     snprintf(row, sizeof row, "test starts soon");
   }
@@ -942,6 +1027,7 @@ static void printHelp() {
   say("led       the LED test only");
   say("o2        the O2 sensor test only (a read-only query: it changes nothing in the sensor)");
   say("tbs       the TBS switch test only (flip it ON and OFF)");
+  say("reset     the RESET button test only (press RESET within 20 s; the program restarts and reports)");
   say("tob       the TOB button test only (press and release it)");
   say("stop      stop the test and the automatic repeat");
   say("note ...  write a remark of yours into this log, for example: note LED digit 3 was dim");
@@ -959,6 +1045,7 @@ static void printStatus() {
   } else {
     say("  RTC time now: cannot read");
   }
+  say("  last reset: %s (%s)", gResetText, gResetRaw);
   say("  switches now: TBS %s, TOB %s", gTbsOn ? "ON" : "off", gTobOn ? "pressed" : "released");
   say("  I2C: LCD errors %lu, LED errors %lu, bus recoveries %lu", static_cast<unsigned long>(gLcdErrors), static_cast<unsigned long>(gLedErrors),
       static_cast<unsigned long>(gBusRecoveries));
@@ -1032,12 +1119,12 @@ static void handleLine(const char* line, uint32_t now) {
     gAutoRun = true;
     if (gBist) say("The test is already running.");
     else bistBegin(now);  // the whole test
-  } else if (strcmp(cmd, "lcd") == 0 || strcmp(cmd, "rtc") == 0 || strcmp(cmd, "led") == 0 || strcmp(cmd, "o2") == 0 || strcmp(cmd, "tbs") == 0 || strcmp(cmd, "tob") == 0) {
+  } else if (strcmp(cmd, "lcd") == 0 || strcmp(cmd, "rtc") == 0 || strcmp(cmd, "led") == 0 || strcmp(cmd, "o2") == 0 || strcmp(cmd, "tbs") == 0 || strcmp(cmd, "tob") == 0 || strcmp(cmd, "reset") == 0) {
     if (gBist) {
       say("A test is already running: wait for it, or type stop.");
     } else {
       gAutoRun = false;  // a test you asked for is not interrupted by the automatic repeat; type run to start the repeating test again
-      const uint8_t step = strcmp(cmd, "lcd") == 0 ? B_LCD : (strcmp(cmd, "rtc") == 0 ? B_RTC : (strcmp(cmd, "led") == 0 ? B_LED : (strcmp(cmd, "o2") == 0 ? B_O2 : (strcmp(cmd, "tbs") == 0 ? B_TBS : B_TOB))));
+      const uint8_t step = strcmp(cmd, "lcd") == 0 ? B_LCD : (strcmp(cmd, "rtc") == 0 ? B_RTC : (strcmp(cmd, "led") == 0 ? B_LED : (strcmp(cmd, "o2") == 0 ? B_O2 : (strcmp(cmd, "tbs") == 0 ? B_TBS : (strcmp(cmd, "tob") == 0 ? B_TOB : B_RST)))));
       bistBegin(now, step, step);
     }
   } else if (strcmp(cmd, "stop") == 0) {
@@ -1075,6 +1162,7 @@ void setup() {
   const uint32_t start = millis();
   while (!Serial && millis() - start < 3000) {  // the Minima's USB serial appears when the Serial Monitor opens; do not wait forever
   }
+  readResetCause();  // once, at boot: the status registers persist until cleared
   pinMode(PIN_TBS, INPUT_PULLUP);  // inputs only, like the generator program; no output pin is ever driven
   pinMode(PIN_TOB, INPUT_PULLUP);
   Wire.begin();
@@ -1084,6 +1172,8 @@ void setup() {
   memset(gLedSeg, 0, sizeof gLedSeg);
   ledText("----", -1);
   printBanner();
+  say("Last reset: %s   (%s)", gResetText, gResetRaw);
+  resetTestEvaluate(millis());
   postBegin(millis());
 }
 
