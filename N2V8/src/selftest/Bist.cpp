@@ -283,6 +283,7 @@ void Bist::onLine(const char* line) {
     char which[8] = {};
     char value[16] = {};
     if (sscanf(rest, "%7s %15s", which, value) == 2) {
+      for (char* w = which; *w; ++w) if (*w >= 'A' && *w <= 'Z') *w = static_cast<char>(*w - 'A' + 'a');   // AIR = air
       uint32_t x100;
       int idx = -1;
       if (strcmp(which, "air") == 0) idx = 0;

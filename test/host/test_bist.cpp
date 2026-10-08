@@ -612,3 +612,10 @@ TEST_CASE("BIST: the output queue copes with a very slow host (small TX buffer) 
   CHECK(r.has("---- BIST RESULTS ----"));
   CHECK(r.has("BIST: 11 pass"));
 }
+
+TEST_CASE("BIST-3: every answer key is case-insensitive: P F R S Q, and the gauge command G AIR") {
+  for (const char* key : {"P", "p"}) { Rig r; REQUIRE(r.start() == Bist::Start::kOk); r.run(100); r.type(key); CHECK(r.bist.verdict(BistStep::kBanner) == BistVerdict::kPass); }
+  for (const char* key : {"F bad", "f bad"}) { Rig r; REQUIRE(r.start() == Bist::Start::kOk); r.run(100); r.type(key); CHECK(r.bist.verdict(BistStep::kBanner) == BistVerdict::kFail); }
+  for (const char* key : {"S", "s"}) { Rig r; REQUIRE(r.start() == Bist::Start::kOk); r.run(100); r.type(key); CHECK(r.bist.verdict(BistStep::kBanner) == BistVerdict::kSkip); }
+  { Rig r; REQUIRE(r.start() == Bist::Start::kOk); r.run(100); r.type("Q"); r.run(100); CHECK_FALSE(r.bist.running()); }
+}

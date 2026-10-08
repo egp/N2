@@ -1,5 +1,5 @@
 // ===========================================================================================
-// nvm_probe  VERSION 1.5   (2026-10-08)     <-- if you do not see this line, the IDE has an older copy
+// nvm_probe  VERSION 1.6   (2026-10-09)     <-- if you do not see this line, the IDE has an older copy
 //                                               (minor versions are written in HEX: 1.A = 1.10)
 //
 // Learns how the UNO R4's non-volatile memory (data flash, reached through the core's EEPROM library) behaves, and measures the
@@ -27,6 +27,7 @@
 // the switch has been still for 0.2 s), and operate each switch 20+ times, press AND release.
 //
 // Change log
+//   1.6  commands are case-insensitive (B = b, E Y = e y)
 //   1.5  nothing is printed and the LCD is not touched until 300 ms after the last edge (v1.4: right after the transition ended, so a quick
 //        re-press landed inside a long loop pass: one 10.8 ms 'bounce' was probably that). Console lines are queued and printed later.
 //        r also prints the TBS+TOB pooled numbers (for the WiFi bench, where both are identical buttons).
@@ -38,7 +39,7 @@
 //        20 on/off cycles per switch (c N changes it); the k command is gone (use  w TBS TOB  once you have decided the values)
 //   1.0  first version
 // ===========================================================================================
-#define PROBE_VERSION "1.5"
+#define PROBE_VERSION "1.6"
 #define PROBE_VERSION_HEX 0x0104   // stored in every record: the sketch that wrote it
 
 #include <Arduino.h>
@@ -125,6 +126,7 @@ static NvmSettings current(uint8_t tbs, uint8_t tob) { NvmSettings s; s.tbsDebou
 
 static void command(String c) {
   c.trim();
+  c.toLowerCase();   // everything typed at the console is case-insensitive
   if (!c.length()) return;
   if (c == "i") {
     Serial.print("nvm size "); Serial.print(nvm.size()); Serial.print(" bytes, block "); Serial.print(nvm.blockSize());

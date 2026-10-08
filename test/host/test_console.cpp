@@ -460,3 +460,22 @@ TEST_CASE("RTC-3: help describes the time command on one line") {
   CHECK(parseCommand("TIME set 2026-10-06 10:31:00").id == CommandId::kTime);
   CHECK(parseCommand("time").id == CommandId::kTime);
 }
+
+TEST_CASE("CON-1: EVERY command word and its arguments are case-insensitive, in any mix of case") {
+  for (const char* word : {"help", "ver", "status", "report", "log", "faults", "cfg", "display", "loop", "scan", "post", "bist", "time", "nvm", "debounce"}) {
+    std::string upper = word, mixed = word;
+    for (auto& ch : upper) ch = static_cast<char>(toupper(ch));
+    for (size_t i = 0; i < mixed.size(); i += 2) mixed[i] = static_cast<char>(toupper(mixed[i]));
+    const Command lower = parseCommand(word);
+    CHECK(parseCommand(upper.c_str()).id == lower.id);
+    CHECK(parseCommand(mixed.c_str()).id == lower.id);
+  }
+  Command c = parseCommand("LoG DeBuG");
+  CHECK(c.id == CommandId::kLog);
+  LogLevel level;
+  CHECK(Console::parseLevel(c.arg[0], level));
+  CHECK(level == LogLevel::kDebug);
+  c = parseCommand("DEBOUNCE SET 9 8");
+  CHECK(c.id == CommandId::kDebounce);
+  CHECK(std::string(c.arg[0]) == "set");
+}
