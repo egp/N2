@@ -9,6 +9,8 @@
 
 namespace n2 {
 
+namespace { uint32_t rtcSecondsOf(Rtc3231* rtc); }
+
 Commands::Commands(const ConsoleContext& ctx)
     : c_(ctx), ver_(c_), time_(c_), status_(c_), faults_(c_), cfg_(c_), nvmInfo_(c_), display_(c_), loop_(c_), scan_(c_), report_(*this) {}
 
@@ -53,7 +55,7 @@ Responder* Commands::handle(const Command& cmd) {
         if (nv == nullptr || !nv->available()) message_.set("no non-volatile memory in this build");
         else if (a < kMinDebounceMs || a > kMaxDebounceMs || b < kMinDebounceMs || b > kMaxDebounceMs) message_.set("times must be %u..%u ms", kMinDebounceMs, kMaxDebounceMs);
         else if (c_.sys->inputs().tbs) message_.set("switch TBS OFF first: saving stalls the program for about 50 ms");
-        else if (!nv->saveDebounce(static_cast<uint8_t>(a), static_cast<uint8_t>(b))) message_.set("SAVE FAILED (see nvm)");
+        else if (!nv->saveDebounce(static_cast<uint8_t>(a), static_cast<uint8_t>(b), rtcSecondsOf(c_.rtc))) message_.set("SAVE FAILED (see nvm)");
         else {
           c_.sys->setDebounce(nv->choice().tbsMs, nv->choice().tobMs);
           message_.set("saved: debounce TBS %u ms, TOB %u ms, write count %lu", static_cast<unsigned>(nv->choice().tbsMs),
@@ -144,7 +146,7 @@ bool Commands::Help::line(uint8_t i, char* b, size_t n) {
 
 bool Commands::Ver::line(uint8_t i, char* b, size_t n) {
   switch (i) {
-    case 0: snprintf(b, n, "N2V8 %s", c_.info.version); return true;
+    case 0: snprintf(b, n, "N2V8 %s  sub-version %s", c_.info.version, c_.info.sub); return true;
     case 1: snprintf(b, n, "built %s %s", c_.info.date, c_.info.time); return true;
     case 2: snprintf(b, n, "board %s  mode %s  adc %u bits", c_.info.board, c_.info.mode, static_cast<unsigned>(c_.info.adcBits)); return true;
   }
@@ -259,6 +261,13 @@ bool Commands::Faults::line(uint8_t i, char* b, size_t n) {
 }
 
 namespace {
+// RTC time now as seconds since 2000, or 0 when there is no clock or it does not hold a valid time.
+uint32_t rtcSecondsOf(Rtc3231* rtc) {
+  DateTime t;
+  bool valid = false;
+  if (rtc == nullptr || !rtc->read(t) || !rtc->timeValid(valid) || !valid) return 0;
+  return secondsSince2000(t);
+}
 const char* okFail(bool ok) { return ok ? "ok" : "FAIL"; }
 void copyLine(char* b, size_t n, char which, const RecordChecks& k, RecordStatus st, uint32_t seq) {
   if (st == RecordStatus::kOk) snprintf(b, n, "copy %c: magic ok  schema ok  length ok  checksum ok  write count %lu", which, static_cast<unsigned long>(seq));
@@ -287,7 +296,26 @@ bool Commands::NvmInfo::line(uint8_t i, char* b, size_t n) {
                     static_cast<unsigned>(r.settings.sketchVersion), static_cast<unsigned>(r.settings.tbsDebounceMs),
                     static_cast<unsigned>(r.settings.tobDebounceMs), static_cast<unsigned>(r.settings.board));
       return true;
-    case 4: snprintf(b, n, "debounce now: TBS %u ms, TOB %u ms (%s)", static_cast<unsigned>(nv->choice().tbsMs),
+    case 4: {
+      if (!r.valid) snprintf(b, n, "saved: never");
+      else if (r.settings.savedAtSec == 0) snprintf(b, n, "saved: time unknown (the RTC was not valid)");
+      else {
+        DateTime t;
+        char when[24] = "?";
+        if (dateTimeFromSeconds(r.settings.savedAtSec, t)) formatDateTime(when, t);
+        const uint32_t nowS = rtcSecondsOf(c_.rtc);
+        if (nowS >= r.settings.savedAtSec && nowS != 0) {
+          const uint32_t age = nowS - r.settings.savedAtSec;
+          if (age >= 2 * 86400u) snprintf(b, n, "saved %s (%lu days ago)", when, static_cast<unsigned long>(age / 86400u));
+          else if (age >= 7200u) snprintf(b, n, "saved %s (%lu hours ago)", when, static_cast<unsigned long>(age / 3600u));
+          else snprintf(b, n, "saved %s (%lu min ago)", when, static_cast<unsigned long>(age / 60u));
+        } else {
+          snprintf(b, n, "saved %s (age unknown: RTC not valid now)", when);
+        }
+      }
+      return true;
+    }
+    case 5: snprintf(b, n, "debounce now: TBS %u ms, TOB %u ms (%s)", static_cast<unsigned>(nv->choice().tbsMs),
                      static_cast<unsigned>(nv->choice().tobMs), nv->choice().why); return true;
   }
   return false;

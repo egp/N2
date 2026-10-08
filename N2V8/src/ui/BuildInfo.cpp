@@ -16,7 +16,7 @@ BuildInfo makeBuildInfo(const char* date, const char* time) {
 #else
   const char* mode = "HOST";
 #endif
-  return {N2_VERSION, date, time, kBoard.name, mode, kAdcBits};
+  return {N2_VERSION, date, time, kBoard.name, mode, kAdcBits, N2_SUBVERSION};
 }
 
 }  // namespace n2

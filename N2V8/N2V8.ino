@@ -1,4 +1,4 @@
-// N2V8.ino — PSA nitrogen generator controller (UNO R4 Minima / UNO R4 WiFi).
+// N2V8.ino — PSA nitrogen generator controller (UNO R4 Minima / UNO R4 WiFi).      SUB-VERSION 8.1.0  (N2_SUBVERSION in src/BuildConfig.h)
 //
 // All behaviour lives in src/ and is tested on the host; this file is only glue.
 //   build mode (src/BuildConfig.h): DIAG (default) = diagnostics only, no controllers;
@@ -16,10 +16,10 @@
 //   src/ControlConfig.h:45     OUTPUTS/FAULTS  minHold sensorFaultSamples faultHold orderMargin orderHold
 //   src/Config.h:21            sensor valid window 0.5-4.5 V, fault window 0.4-4.6 V, full scales
 //   src/app/App.h:35           watchdog ms, LCD layout, LCD start delay, fault screen cycle, log level
-//   src/BuildConfig.h:21       build mode (DIAG default / FIELD), default log level, O2 mandatory
+//   src/BuildConfig.h:22       build mode (DIAG default / FIELD), default log level, O2 mandatory
 //   src/BoardPins.h:92         pins, active levels (kLcdAddress = 0x23 just above the boards)
 // CODE BY AREA
-//   src/app/App.cpp:144                loop(): POST mode / BIST / RUN
+//   src/app/App.cpp:147                loop(): POST mode / BIST / RUN
 //   src/app/App.cpp:52                 setup(): outputs safe first, then the rest
 //   src/core/System.cpp:47             one pass: inputs, controllers, invariants, outputs
 //   src/core/Tower.cpp:43              TOWER controller
@@ -37,7 +37,7 @@
 //   src/drivers/Rtc3231.cpp:7          RTC driver
 //   src/selftest/Post.cpp:35           POST
 //   src/selftest/Bist.cpp:522          BIST
-//   src/ui/Commands.cpp:15             console commands
+//   src/ui/Commands.cpp:17             console commands
 //   src/hal/HalArduino.cpp:98          hardware access: console, I2C, reset cause
 //   N2V8.ino:103                       this file: setup() and loop() glue (:104)
 // To refresh these line numbers after editing, run:   python3 deliverables/update_sketch_toc.py N2V8/N2V8.ino

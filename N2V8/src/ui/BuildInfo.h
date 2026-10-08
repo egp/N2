@@ -14,6 +14,7 @@ struct BuildInfo {
   const char* board;
   const char* mode;   // HOST / BENCH / DIAG / FIELD
   uint8_t adcBits;
+  const char* sub = "";   // sub-version, e.g. 8.1.0; shown on the LCD while testing
 };
 
 // date/time are passed in from the sketch (so they change whenever the sketch is rebuilt).

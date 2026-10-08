@@ -30,13 +30,14 @@ void NvmSettingsService::load() {
   choice_ = chooseDebounce(report_, board_, defaultMs_);
 }
 
-bool NvmSettingsService::saveDebounce(uint8_t tbsMs, uint8_t tobMs) {
+bool NvmSettingsService::saveDebounce(uint8_t tbsMs, uint8_t tobMs, uint32_t savedAtSec) {
   if (!nvm_ || tbsMs < kMinDebounceMs || tbsMs > kMaxDebounceMs || tobMs < kMinDebounceMs || tobMs > kMaxDebounceMs) return false;
   NvmSettings s;
   s.tbsDebounceMs = tbsMs;
   s.tobDebounceMs = tobMs;
   s.board = board_;
   s.sketchVersion = version_;
+  s.savedAtSec = savedAtSec;
   const bool ok = SettingsStore(*nvm_).save(s);
   load();
   return ok;

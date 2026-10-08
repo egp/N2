@@ -30,6 +30,15 @@ TEST_CASE("record round trip and every single-bit flip is detected", "[nvm]") {
     }
 }
 
+TEST_CASE("the RTC time of the save is stored (0 = unknown) and covered by the checksum", "[nvm]") {
+  NvmSettings in = mk(10, 20); in.savedAtSec = 0x2A3B4C5Du;
+  uint8_t rec[kNvmRecordBytes]; encodeRecord(1, in, rec);
+  uint32_t seq; NvmSettings out;
+  REQUIRE(decodeRecord(rec, seq, out) == RecordStatus::kOk); REQUIRE(out.savedAtSec == 0x2A3B4C5Du);
+  rec[18] ^= 0x01; REQUIRE(decodeRecord(rec, seq, out) == RecordStatus::kBadCrc);
+  encodeRecord(1, mk(10, 20), rec); REQUIRE(decodeRecord(rec, seq, out) == RecordStatus::kOk); REQUIRE(out.savedAtSec == 0);
+}
+
 TEST_CASE("blank and zeroed flash are not records", "[nvm]") {
   uint8_t ff[kNvmRecordBytes], zero[kNvmRecordBytes] = {0};
   for (auto& b : ff) b = 0xFF;

@@ -109,6 +109,7 @@ Screen renderNormal(const DisplayData& d, LcdLayout layout) {
   formatX10(v, d.airX10);
   put(s, 3, 4, v);
   bits(s, 3, 16, d);
+  if (d.version[0] != '\0') put(s, 3, 10, d.version);   // row 4, columns 10-15: between the AIR value and the LRFS bits
   return s;
 }
 

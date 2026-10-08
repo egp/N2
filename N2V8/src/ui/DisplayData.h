@@ -20,6 +20,7 @@ struct DisplayData {
   uint16_t rawN2Low = 0;
   uint16_t rawN2High = 0;
   uint8_t adcBits = 10;
+  const char* version = "";   // sub-version for the LCD while testing (empty = not shown, FIELD builds)
 
   bool n2Valid = false;
   bool n2Stale = false;

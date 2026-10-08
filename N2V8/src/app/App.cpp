@@ -116,7 +116,10 @@ void App::announceConsole() {
 
 void App::runPass(uint32_t now) {
   sys_.step();
-  const DisplayData data = makeDisplayData(sys_, kAdcBits);
+  DisplayData data = makeDisplayData(sys_, kAdcBits);
+#if !defined(N2_BUILD_FIELD)
+  data.version = info_.sub;   // sub-version on the LCD while testing
+#endif
   display_.showNormal(data, now);
 
   // Report what the display side noticed (DSP-6: informational, never stops the system).

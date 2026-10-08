@@ -319,3 +319,13 @@ TEST_CASE("DSP-4: row 2 shows the last fault raised as two hex digits (LF 12), o
   d.lastFaultCode = 0x12;
   CHECK(std::string(renderNormal(d, LcdLayout::kClearLabels).row[2]).substr(0, 6) == "CMP LO");
 }
+
+TEST_CASE("the sub-version is shown on row 4, columns 10-14, when given, and not otherwise") {
+  DisplayData d;
+  Screen plain = renderNormal(d, LcdLayout::kClearLabels);
+  CHECK(std::string(plain.row[3]).substr(10, 5) == "     ");
+  d.version = "8.1.0";
+  Screen withVer = renderNormal(d, LcdLayout::kClearLabels);
+  CHECK(std::string(withVer.row[3]).substr(10, 5) == "8.1.0");
+  CHECK(std::string(withVer.row[3]).substr(0, 4) == "AIR ");
+}

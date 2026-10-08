@@ -31,7 +31,7 @@ RecordChecks inspectRecord(const uint8_t in[kNvmRecordBytes]) {
   c.magic = (static_cast<uint16_t>(in[1]) << 8 | in[0]) == kNvmMagic;
   c.schema = in[2] == kNvmSchema;
   c.length = in[3] == kNvmPayloadBytes;
-  c.crc = crc16(in, 16) == static_cast<uint16_t>(in[17] << 8 | in[16]);
+  c.crc = crc16(in, 20) == static_cast<uint16_t>(in[21] << 8 | in[20]);
   return c;
 }
 
@@ -48,9 +48,10 @@ void encodeRecord(uint32_t sequence, const NvmSettings& s, uint8_t out[kNvmRecor
   out[12] = static_cast<uint8_t>(s.sketchVersion & 0xFF);
   out[13] = static_cast<uint8_t>(s.sketchVersion >> 8);
   out[14] = out[15] = 0;
-  const uint16_t crc = crc16(out, 16);
-  out[16] = static_cast<uint8_t>(crc & 0xFF);
-  out[17] = static_cast<uint8_t>(crc >> 8);
+  for (int i = 0; i < 4; i++) out[16 + i] = static_cast<uint8_t>(s.savedAtSec >> (8 * i));
+  const uint16_t crc = crc16(out, 20);
+  out[20] = static_cast<uint8_t>(crc & 0xFF);
+  out[21] = static_cast<uint8_t>(crc >> 8);
 }
 
 RecordStatus decodeRecord(const uint8_t in[kNvmRecordBytes], uint32_t& sequence, NvmSettings& s) {
@@ -60,14 +61,16 @@ RecordStatus decodeRecord(const uint8_t in[kNvmRecordBytes], uint32_t& sequence,
   if ((static_cast<uint16_t>(in[1]) << 8 | in[0]) != kNvmMagic) return RecordStatus::kBadMagic;
   if (in[2] != kNvmSchema) return RecordStatus::kBadSchema;
   if (in[3] != kNvmPayloadBytes) return RecordStatus::kBadLength;
-  const uint16_t stored = static_cast<uint16_t>(in[17] << 8 | in[16]);
-  if (crc16(in, 16) != stored) return RecordStatus::kBadCrc;
+  const uint16_t stored = static_cast<uint16_t>(in[21] << 8 | in[20]);
+  if (crc16(in, 20) != stored) return RecordStatus::kBadCrc;
   sequence = 0;
   for (int i = 0; i < 4; i++) sequence |= static_cast<uint32_t>(in[4 + i]) << (8 * i);
   s.tbsDebounceMs = in[8];
   s.tobDebounceMs = in[9];
   s.board = static_cast<BoardId>(in[10]);
   s.sketchVersion = static_cast<uint16_t>(in[13] << 8 | in[12]);
+  s.savedAtSec = 0;
+  for (int i = 0; i < 4; i++) s.savedAtSec |= static_cast<uint32_t>(in[16 + i]) << (8 * i);
   return RecordStatus::kOk;
 }
 
