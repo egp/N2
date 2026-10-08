@@ -14,7 +14,7 @@ const Entry kEntries[] = {
     {"status", CommandId::kStatus}, {"report", CommandId::kReport}, {"log", CommandId::kLog},
     {"faults", CommandId::kFaults}, {"cfg", CommandId::kCfg},      {"display", CommandId::kDisplay},
     {"loop", CommandId::kLoop},     {"scan", CommandId::kScan},    {"post", CommandId::kPost},
-    {"bist", CommandId::kBist},     {"sim", CommandId::kSim},      {"time", CommandId::kTime},
+    {"bist", CommandId::kBist},     {"time", CommandId::kTime},
     {"nvm", CommandId::kNvm},       {"debounce", CommandId::kDebounce},
 };
 

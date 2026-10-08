@@ -97,8 +97,8 @@ TEST_CASE("CON-1: commands are case-insensitive and keep up to three arguments")
   c = parseCommand("loop\treset");
   CHECK(c.id == CommandId::kLoop);
   CHECK(std::string(c.arg[0]) == "reset");
-  c = parseCommand("sim a b c d e");
-  CHECK(c.id == CommandId::kSim);
+  c = parseCommand("loop a b c d e");
+  CHECK(c.id == CommandId::kLoop);
   CHECK(c.argc == 3);
 }
 
@@ -107,7 +107,7 @@ TEST_CASE("CON-1: every documented command parses, '?' is help, junk is unknown,
       {"help", CommandId::kHelp}, {"?", CommandId::kHelp}, {"ver", CommandId::kVer}, {"status", CommandId::kStatus},
       {"report", CommandId::kReport}, {"log", CommandId::kLog}, {"faults", CommandId::kFaults}, {"cfg", CommandId::kCfg},
       {"display", CommandId::kDisplay}, {"loop", CommandId::kLoop}, {"scan", CommandId::kScan}, {"post", CommandId::kPost},
-      {"bist", CommandId::kBist}, {"sim", CommandId::kSim}, {"frobnicate", CommandId::kUnknown}, {"", CommandId::kNone},
+      {"bist", CommandId::kBist}, {"sim", CommandId::kUnknown}, {"frobnicate", CommandId::kUnknown}, {"", CommandId::kNone},
       {"   ", CommandId::kNone}};
   for (const auto& c : cases) {
     INFO(c.text);
@@ -224,7 +224,7 @@ TEST_CASE("CON-2: a multi-line answer is deferred, not dropped, when TX space is
     r.gen.hal.consoleSpace = 120;
   }
   CHECK(contains(collected, "commands (case-insensitive):"));
-  CHECK(contains(collected, "bench simulation"));  // the LAST line arrived: nothing was lost
+  CHECK(contains(collected, "interactive self-test"));  // the LAST line arrived: nothing was lost
   CHECK(r.console.dropped() == 0);
 }
 
@@ -271,7 +271,7 @@ TEST_CASE("CON-5: 'log' shows and sets the level; a bad level prints usage") {
 }
 
 // ---------------------------------------------------------------------------- Commands
-TEST_CASE("CON-1: help lists the commands; unknown input is explained; post/bist/sim say not yet") {
+TEST_CASE("CON-1: help lists the commands; unknown input is explained; unknown and unavailable commands are explained") {
   Rig r;
   const std::string help = r.ask("help");
   for (const char* w : {"status", "faults", "cfg", "display", "loop", "log <level>", "scan", "report"}) CHECK(contains(help, w));

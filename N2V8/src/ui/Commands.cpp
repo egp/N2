@@ -95,9 +95,6 @@ Responder* Commands::handle(const Command& cmd) {
       }
       message_.set("'%s' is not available in this build", cmd.name);
       return &message_;
-    case CommandId::kSim:
-      message_.set("'sim' is not available in this build");
-      return &message_;
     case CommandId::kUnknown:
       message_.set("unknown command '%s' - try help", cmd.name);
       return &message_;
@@ -137,7 +134,6 @@ bool Commands::Help::line(uint8_t i, char* b, size_t n) {
       "  report             everything above in one block",
       "  post               run the power-on self-test again (disables the system while it runs)",
       "  bist               interactive self-test (needs TBS OFF)",
-      "  sim                bench simulation (not in this build)",
   };
   if (i >= sizeof kLines / sizeof kLines[0]) return false;
   snprintf(b, n, "%s", kLines[i]);

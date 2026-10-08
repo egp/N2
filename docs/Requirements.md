@@ -75,7 +75,7 @@ requirement shall be reused rather than rewritten (GOAL-8).
 | ID | Requirement |
 |---|---|
 | ARC-1 | All hardware access shall go through one HAL interface: millisecond and microsecond clock and a microsecond busy-wait (bit-banged protocols only), digital read/write/mode, analog read and resolution, I2C probe, write, read and register read (each returning success/failure), I2C clock selection and **bus recovery** (I2C-2), console begin/attach-state/byte read/write, watchdog begin/kick, reset-cause read. |
-| ARC-2 | Two HAL implementations exist: **Arduino** (real) and **Fake** (host tests; scriptable inputs, a register-file model of I2C devices, recorded outputs, controllable clock, and a pin-event model for bit-banged buses). A third, **Sim** (bench with simulated pins driven from the console), was planned and is **not built**; the `sim` console commands are deferred. [CHG 2026-10-08] |
+| ARC-2 | Two HAL implementations exist: **Arduino** (real) and **Fake** (host tests; scriptable inputs, a register-file model of I2C devices, recorded outputs, controllable clock, and a pin-event model for bit-banged buses). A third, **Sim** (bench with simulated pins driven from the console), was planned, is **not built**, and the `sim` console command has been removed (owner, 2026-10-08). [CHG 2026-10-08] |
 | ARC-3 | Controllers, scaling, invariants, faults, display formatting, console parsing, POST and BIST sequencing shall depend only on the HAL interface, never on Arduino headers. |
 | ARC-4 | The HAL shall be as thin as practical: no policy, no timing logic, no state machines. |
 | ARC-5 | Device drivers (LCD, LED, O2) shall sit behind small interfaces so each has a fake. |
@@ -382,7 +382,8 @@ text; commands are one line.
 | `i2c sweep [n]` | all | bus test at 100 and 400 kHz (I2C-4) |
 | `post` | all (system disabled while it runs) | run POST |
 | `bist` | all, only if TBS OFF and console attached | run BIST |
-| `sim <signal> <value>`, `sim off` | BENCH, HOST (not built) | simulated inputs |
+| `nvm` | all | non-volatile memory: both settings copies, each check (magic, schema, length, checksum), write count, saved-at time, sketch version |
+| `debounce`, `debounce set <TBS ms> <TOB ms>` | all (set: only with TBS OFF) | TBS/TOB debounce times in use; save new ones to NVM (2..100 ms) |
 
 ## 11. Power-on self-test (POST) [NEW]
 
