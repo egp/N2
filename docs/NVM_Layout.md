@@ -41,3 +41,14 @@ Measure on the R4 WiFi bench and again on the Minima production panel; each boar
 6. **Commissioning data**: unit serial number, firmware version at last save, date/time of the last debounce characterization.
 7. **Per-board options** that differ between the bench and production (LCD address, pin choices) — better left in BoardPins.h unless a site change must not need a recompile.
 Not for NVM: anything that changes every loop, run-hour counters updated continuously (use RAM + an hourly write, or an FRAM later), and anything safety-critical that must not depend on a stored value (limits stay compiled).
+
+## Tuning overrides and sketch versions (owner, 2026-10-08)
+Stored tuning values override the sketch's compiled values at power-up. When a NEW sketch is delivered its compiled values may have changed on purpose, so the
+settings record must carry the **sketch version** that wrote it (schema 2: add a version field, and per-value "source" so we can tell an operator override from a
+measured value). At boot: stored version == running version -> use the stored values; different -> do NOT silently apply or discard: log it, show it on the LCD, and
+use the sketch's values until the operator confirms (console command: keep stored / take sketch). Rule to decide: measured per-board values (debounce) are kept across
+versions unless the new sketch declares them obsolete; operator tuning overrides are asked about. Not implemented yet.
+
+## Debounce test (nvm_probe 1.1)
+20 on/off cycles per switch (command c N: 5..30); LCD shows cycle n of N and min / median / mean / max settle time in raw microseconds plus edges per operation.
+No rounding is applied or stored: the owner decides the debounce times after seeing the results (command w TBS TOB).

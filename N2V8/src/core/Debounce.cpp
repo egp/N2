@@ -26,6 +26,7 @@ void BounceMeter::finish() {
   if (stats_.operations == 0 || settle < stats_.settleMinUs) stats_.settleMinUs = settle;
   if (settle > stats_.settleMaxUs) stats_.settleMaxUs = settle;
   stats_.settleSumUs += settle;
+  if (stats_.operations < kMaxKept) kept_[stats_.operations] = settle;
   stats_.lastSettleUs = settle;
   stats_.lastEdges = edges_;
   stats_.operations++;
@@ -69,4 +70,19 @@ uint8_t BounceMeter::recommendedMs() const {
   return static_cast<uint8_t>(ms);
 }
 
+}  // namespace n2
+
+namespace n2 {
+uint32_t BounceMeter::settleMedianUs() const {
+  const uint8_t n = stats_.operations < kMaxKept ? static_cast<uint8_t>(stats_.operations) : kMaxKept;
+  if (n == 0) return 0;
+  uint32_t v[kMaxKept];
+  for (uint8_t i = 0; i < n; i++) v[i] = kept_[i];
+  for (uint8_t i = 1; i < n; i++) {  // insertion sort: n <= 64
+    const uint32_t x = v[i]; int j = i - 1;
+    while (j >= 0 && v[j] > x) { v[j + 1] = v[j]; j--; }
+    v[j + 1] = x;
+  }
+  return (n & 1) ? v[n / 2] : (v[n / 2 - 1] + v[n / 2]) / 2;
+}
 }  // namespace n2

@@ -160,3 +160,21 @@ TEST_CASE("BounceMeter recommendation is limited to 2..100 ms and 0 when nothing
   t += 100000; big.sample(false, t);
   REQUIRE(big.recommendedMs() == kMaxDebounceMs);
 }
+
+TEST_CASE("BounceMeter median, mean, min, max of the settle times", "[debounce]") {
+  BounceMeter m(1000);
+  uint32_t t = 0; bool lvl = false; m.sample(lvl, t);
+  const uint32_t settles[] = {100, 300, 200, 900};         // microseconds, first edge to last edge of each operation
+  for (uint32_t st : settles) {
+    t += 10000; lvl = !lvl; m.sample(lvl, t);               // first edge
+    t += st;    lvl = !lvl; m.sample(lvl, t);               // second edge st later ...
+    t += 1;     lvl = !lvl; m.sample(lvl, t);               // ... and a third (so the settle is st+1)
+    t += 5000;  m.sample(lvl, t);                           // quiet: closes the operation
+  }
+  const BounceStats& s = m.stats();
+  REQUIRE(s.operations == 4);
+  REQUIRE(s.settleMinUs == 101); REQUIRE(s.settleMaxUs == 901);
+  REQUIRE(m.settleMedianUs() == (201 + 301) / 2);
+  REQUIRE(m.settleMeanUs() == (101 + 301 + 201 + 901) / 4);
+  REQUIRE_FALSE(m.inOperation());
+}

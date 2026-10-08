@@ -49,6 +49,10 @@ class BounceMeter {
   const BounceStats& stats() const { return stats_; }
   // 2 x the longest settle time, rounded up to whole ms, limited to 2..100. 0 if nothing was measured.
   uint8_t recommendedMs() const;
+  bool inOperation() const { return inOp_; }       // an operation is open (the input moved less than quietUs ago)
+  // Median of the settle times kept (the first kMaxKept operations; plenty for 10-20 cycles = 20-40 operations).
+  uint32_t settleMedianUs() const;
+  static constexpr uint8_t kMaxKept = 64;
   uint32_t settleMeanUs() const { return stats_.operations ? stats_.settleSumUs / stats_.operations : 0; }
 
  private:
@@ -58,6 +62,7 @@ class BounceMeter {
   bool started_ = false, level_ = false, inOp_ = false;
   uint32_t lastSampleUs_ = 0, firstEdgeUs_ = 0, lastEdgeUs_ = 0;
   uint16_t edges_ = 0;
+  uint32_t kept_[kMaxKept] = {};
 };
 
 }  // namespace n2

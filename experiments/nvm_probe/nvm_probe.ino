@@ -1,5 +1,5 @@
 // ===========================================================================================
-// nvm_probe  VERSION 1.0   (2026-10-08)     <-- if you do not see this line, the IDE has an older copy
+// nvm_probe  VERSION 1.1   (2026-10-08)     <-- if you do not see this line, the IDE has an older copy
 //                                               (minor versions are written in HEX: 1.A = 1.10)
 //
 // Learns how the UNO R4's non-volatile memory (data flash, reached through the core's EEPROM library) behaves, and measures the
@@ -15,9 +15,11 @@
 //   w TBS TOB    save debounce times in ms (2..100), e.g.  w 20 30
 //   t            timing: how long a save takes (microseconds) and whether the loop is blocked meanwhile
 //   e            erase both copies (back to "nothing stored")  -- asks you to type  e y
-//   b            bounce measurement ON/OFF: operate TBS and TOB; each operation prints its edges and settle time
-//   r            bounce result so far (operations, edges, settle min/mean/max, recommended debounce)
-//   k            keep: save the recommended debounce times from the bounce measurement
+//   b            GUIDED BOUNCE TEST (b again cancels): first TBS, then TOB. The LCD shows the progress (cycle 3 of 20) and, live,
+//                min / median / mean / max settle time in microseconds and edges per operation. One cycle = switch ON, then OFF
+//                (so 2 operations). Each operation also prints a line on the console.
+//   c N          number of cycles per switch (5..30, default 20)
+//   r            result so far on the console (raw numbers; 2 x max shown unrounded, plus what rounding up to whole ms would give)
 //   z            clear the bounce statistics
 //   Which board am I?  Type  m 1  (Minima) or  m 2  (WiFi): stored with the times, so a value measured on one board is never
 //   applied to the other.
@@ -25,9 +27,11 @@
 // the switch has been still for 0.2 s), and operate each switch 20+ times, press AND release.
 //
 // Change log
+//   1.1  guided bounce test with progress and min/median/mean/max on the LCD (no rounding: raw microseconds, 2 x max in 0.1 ms);
+//        20 on/off cycles per switch (c N changes it); the k command is gone (use  w TBS TOB  once you have decided the values)
 //   1.0  first version
 // ===========================================================================================
-#define PROBE_VERSION "1.0"
+#define PROBE_VERSION "1.1"
 
 #include <Arduino.h>
 #include <EEPROM.h>
@@ -35,6 +39,9 @@
 #include "src/BoardPins.h"
 #include "src/core/Debounce.h"
 #include "src/core/SettingsStore.h"
+#include "src/drivers/Lcd20x4.h"
+#include "src/hal/HalArduino.h"
+#include "src/ui/LcdScreens.h"
 #include "src/hal/Nvm.h"
 
 using namespace n2;
@@ -57,6 +64,12 @@ static EepromNvm nvm;
 static SettingsStore store(nvm);
 static BoardId boardId = BoardId::kUnknown;
 
+static HalArduino hal;
+static Lcd20x4 lcd(hal, kLcdAddress);
+static bool lcdStarted = false;
+static uint8_t cyclesWanted = 20;
+static uint8_t stage = 0;               // 0 idle, 1 TBS, 2 TOB, 3 done
+static bool screenDirty = true;
 static const uint8_t kTbsPin = pin::kD0, kTobPin = pin::kD1;     // BoardPins.h: both on D0/D1, active LOW (pull-up)
 static BounceMeter tbsMeter, tobMeter;
 static bool measuring = false;
@@ -81,9 +94,9 @@ static void printMeter(const char* name, const BounceMeter& m) {
   if (!s.operations) { Serial.println(); return; }
   Serial.print(", edges/operation mean "); Serial.print(static_cast<float>(s.edgesTotal) / s.operations, 1);
   Serial.print(" max "); Serial.print(s.edgesMax);
-  Serial.print(", settle us min "); Serial.print(s.settleMinUs); Serial.print(" mean "); Serial.print(m.settleMeanUs());
-  Serial.print(" max "); Serial.print(s.settleMaxUs);
-  Serial.print("  -> recommended debounce "); Serial.print(m.recommendedMs()); Serial.println(" ms");
+  Serial.print("; settle us: min "); Serial.print(s.settleMinUs); Serial.print(" median "); Serial.print(m.settleMedianUs());
+  Serial.print(" mean "); Serial.print(m.settleMeanUs()); Serial.print(" max "); Serial.println(s.settleMaxUs);
+  Serial.print("    2 x max = "); Serial.print(2 * s.settleMaxUs); Serial.print(" us; rounded up to whole ms (NOT applied) = "); Serial.print(m.recommendedMs()); Serial.println(" ms");
 }
 
 static void dump() {
@@ -130,48 +143,95 @@ static void command(String c) {
     for (size_t b = 0; b < 2; b++) { for (size_t i = 0; i < 16; i++) EEPROM.update(static_cast<int>(b * 1024 + i), 0xFF); }
     Serial.println("both copies erased"); printReport(store.load());
   } else if (c == "b") {
-    measuring = !measuring;
-    if (measuring) { tbsMeter.reset(); tobMeter.reset(); tbsOps = tobOps = 0; passMaxUs = 0; }
-    Serial.println(measuring ? "bounce measurement ON: operate TBS and TOB (20+ times each, press and release)" : "bounce measurement OFF");
+    if (stage == 1 || stage == 2) { stage = 0; Serial.println("bounce test cancelled"); }
+    else { tbsMeter.reset(); tobMeter.reset(); tbsOps = tobOps = 0; passMaxUs = 0; stage = 1; Serial.print("BOUNCE TEST: operate TBS ON then OFF, "); Serial.print(cyclesWanted); Serial.println(" times (LCD shows progress)"); }
+    screenDirty = true;
   } else if (c == "r") {
     printMeter("TBS", tbsMeter); printMeter("TOB", tobMeter);
     Serial.print("longest loop pass "); Serial.print(passMaxUs); Serial.println(" us (edges closer than this could be missed)");
   } else if (c == "z") {
+    tbsMeter.reset(); tobMeter.reset(); tbsOps = tobOps = 0; passMaxUs = 0; stage = 0; screenDirty = true; Serial.println("cleared");
     tbsMeter.reset(); tobMeter.reset(); tbsOps = tobOps = 0; passMaxUs = 0; Serial.println("cleared");
-  } else if (c == "k") {
-    const uint8_t a = tbsMeter.recommendedMs(), b = tobMeter.recommendedMs();
-    if (!a || !b) { Serial.println("measure BOTH switches first (b, operate them, r)"); return; }
-    Serial.print("saving TBS "); Serial.print(a); Serial.print(" ms, TOB "); Serial.print(b); Serial.println(" ms");
-    Serial.println(store.save(current(a, b)) ? "saved" : "SAVE FAILED"); printReport(store.load());
+  } else if (c.startsWith("c ")) {
+    const int n = c.substring(2).toInt();
+    if (n < 5 || n > 30) { Serial.println("cycles must be 5..30"); return; }
+    cyclesWanted = static_cast<uint8_t>(n); Serial.print("cycles per switch: "); Serial.println(n);
   } else {
-    Serial.println("commands: i d l m 1|2 w TBS TOB t e b r z k");
+    Serial.println("commands: i d l m 1|2 w TBS TOB t e b c N r z");
   }
+}
+
+static void pad(char* out, const char* text) { size_t i = 0; for (; text[i] && i < 20; i++) out[i] = text[i]; for (; i < 20; i++) out[i] = ' '; out[20] = 0; }
+
+static void showScreen() {
+  char r[4][24], t[4][24];
+  const char* name = stage == 2 ? "TOB" : "TBS";
+  BounceMeter& m = stage == 2 ? tobMeter : tbsMeter;
+  const BounceStats& s = m.stats();
+  if (stage == 1 || stage == 2) {
+    snprintf(t[0], 24, "%s cycle %u of %u", name, static_cast<unsigned>(s.operations / 2), static_cast<unsigned>(cyclesWanted));
+    if (s.operations == 0) { snprintf(t[1], 24, "operate %s ON, OFF", name); t[2][0] = t[3][0] = 0; }
+    else {
+      snprintf(t[1], 24, "min%5lu med%5lu us", static_cast<unsigned long>(s.settleMinUs), static_cast<unsigned long>(m.settleMedianUs()));
+      snprintf(t[2], 24, "mean%4lu max%5lu us", static_cast<unsigned long>(m.settleMeanUs()), static_cast<unsigned long>(s.settleMaxUs));
+      snprintf(t[3], 24, "edges avg %u.%u max %u", static_cast<unsigned>(s.edgesTotal / s.operations), static_cast<unsigned>((s.edgesTotal * 10 / s.operations) % 10), static_cast<unsigned>(s.edgesMax));
+    }
+  } else if (stage == 3) {
+    snprintf(t[0], 24, "DONE %u cycles each", static_cast<unsigned>(cyclesWanted));
+    snprintf(t[1], 24, "max us %5lu %5lu", static_cast<unsigned long>(tbsMeter.stats().settleMaxUs), static_cast<unsigned long>(tobMeter.stats().settleMaxUs));
+    const unsigned long a = (2 * tbsMeter.stats().settleMaxUs + 50) / 100, b = (2 * tobMeter.stats().settleMaxUs + 50) / 100;
+    snprintf(t[2], 24, "2xmax ms %lu.%lu %lu.%lu", a / 10, a % 10, b / 10, b % 10);
+    snprintf(t[3], 24, "TBS then TOB; r=detail");
+  } else {
+    snprintf(t[0], 24, "nvm_probe %s", PROBE_VERSION); snprintf(t[1], 24, "b = bounce test"); t[2][0] = t[3][0] = 0;
+  }
+  for (int i = 0; i < 4; i++) pad(r[i], t[i]);
+  lcd.setScreen(makeScreen(r[0], r[1], r[2], r[3]));
 }
 
 void setup() {
   Serial.begin(115200);
   pinMode(kTbsPin, INPUT_PULLUP);
   pinMode(kTobPin, INPUT_PULLUP);
+  hal.i2cBegin();
 }
 
 void loop() {
   const uint32_t nowUs = micros();
-  if (measuring) {                                   // the fast part: read both pins, timestamp, nothing else
-    const bool tbs = digitalRead(kTbsPin) == LOW, tob = digitalRead(kTobPin) == LOW;
+  const uint32_t nowMs = millis();
+  if (!lcdStarted && nowMs >= 2500) { lcdStarted = true; lcd.begin(nowMs); }   // the LCD needs 2.5 s after power-up
+  const bool active = stage == 1 || stage == 2;
+  BounceMeter& m = stage == 2 ? tobMeter : tbsMeter;
+  uint16_t& ops = stage == 2 ? tobOps : tbsOps;
+  if (active) {                                      // the fast part: read the pin, timestamp, nothing else
+    const uint8_t pinNo = stage == 2 ? kTobPin : kTbsPin;
     const uint32_t gap = nowUs - lastPassUs;
     if (lastPassUs && gap > passMaxUs) passMaxUs = gap;
-    tbsMeter.sample(tbs, nowUs); tobMeter.sample(tob, nowUs);
-    tbsMeter.flush(nowUs); tobMeter.flush(nowUs);
-    if (tbsMeter.stats().operations != tbsOps) { tbsOps = tbsMeter.stats().operations; Serial.print("TBS #"); Serial.print(tbsOps); Serial.print(" edges "); Serial.print(tbsMeter.stats().lastEdges); Serial.print(" settle us "); Serial.println(tbsMeter.stats().lastSettleUs); }
-    if (tobMeter.stats().operations != tobOps) { tobOps = tobMeter.stats().operations; Serial.print("TOB #"); Serial.print(tobOps); Serial.print(" edges "); Serial.print(tobMeter.stats().lastEdges); Serial.print(" settle us "); Serial.println(tobMeter.stats().lastSettleUs); }
+    m.sample(digitalRead(pinNo) == LOW, nowUs);
+    m.flush(nowUs);
+    if (m.stats().operations != ops) {
+      ops = m.stats().operations; screenDirty = true;
+      Serial.print(stage == 2 ? "TOB #" : "TBS #"); Serial.print(ops); Serial.print(" edges "); Serial.print(m.stats().lastEdges);
+      Serial.print(" settle us "); Serial.println(m.stats().lastSettleUs);
+      if (ops / 2 >= cyclesWanted) {
+        Serial.println(stage == 1 ? "TBS done; now TOB" : "TOB done"); 
+        if (stage == 1) stage = 2; else { stage = 3; printMeter("TBS", tbsMeter); printMeter("TOB", tobMeter); }
+        screenDirty = true; lastPassUs = 0;
+      }
+    }
   }
   lastPassUs = nowUs;
+  // The LCD is touched only while no operation is open (a row write takes ~10 ms, longer than typical bounce).
+  if (lcdStarted && !(active && m.inOperation())) {
+    if (screenDirty) { showScreen(); screenDirty = false; }
+    lcd.service(nowMs);
+  }
   while (Serial.available()) {
     const char ch = static_cast<char>(Serial.read()); heardHost = true;
     if (ch == '\n' || ch == '\r') { command(line); line = ""; } else if (line.length() < 40) line += ch;
   }
-  if (!heardHost && millis() - bannerMs > 5000) {
-    bannerMs = millis();
+  if (!heardHost && nowMs - bannerMs > 5000) {
+    bannerMs = nowMs;
     Serial.print("==== nvm_probe version " PROBE_VERSION " | built " __DATE__ " " __TIME__ " ====  type ? for the commands\n");
   }
 }
