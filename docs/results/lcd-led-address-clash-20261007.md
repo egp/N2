@@ -28,3 +28,12 @@ Removing the external pull-ups changed nothing. Neither POST nor `scan` could te
 ## What the firmware does now
 * `scan` labels 0x24-0x27 and 0x34-0x37 as the TM1650, and `status` warns "WARNING: LCD address 0x27 is inside the LED module's range" while they collide.
 * Stage 2 can be built without the LCD (`-DSTAGE2_NO_LCD`) so nothing is ever sent to 0x27 (LED + RTC verified: LED healthy, 0 errors, shows the clock).
+
+## Result of the A2 bridge (2026-10-08, bench, UNO R4 WiFi)
+* LCD backpack with **A2 bridged = address 0x23**, nothing else on the bus: `scan` = 0x23 only; Stage 2 built with `-DN2_LCD_ADDRESS=0x23`: LCD ok, 0 I2C errors, 3 of 3 resets
+  clean.
+* **LCD at 0x23 + LED module (0x24-0x27, 0x34-0x37) on the same hardware bus**: LCD 0 errors, 0 bus recoveries; LED healthy, 0 errors; `i2c sweep` 0 bad at 100 and 400 kHz for the LCD
+  read-back; 3 of 3 resets clean (log: `POST ... LED ok`, `LED ready`, `LCD ready` 2.5 s later); both displays show the right content.
+  This is the combination that failed every character write at 0x27.
+* Still to do: the RTC back on the same bus (all four devices), then the O2 sensor (0x74, no overlap).
+* Tom's identical LCD backpack needs the same A2 bridge before `kLcdAddress` can default to 0x23 for everyone; the default stays 0x27 until he agrees.
