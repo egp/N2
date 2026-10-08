@@ -1,4 +1,4 @@
-tom_i2c_check  -  WHAT A GOOD RUN LOOKS LIKE                       version 1.3
+tom_i2c_check  -  WHAT A GOOD RUN LOOKS LIKE                       version 1.4
 =============================================================================
 Compare what you see with this. Times are approximate. The date and time
 will be yours. Lines starting with "BIST" and "POST" are in the Serial
@@ -6,8 +6,9 @@ Monitor (optional); the screens are on the LCD and the LED.
 
 
 1. SERIAL MONITOR, FIRST SECONDS
-   ==== tom_i2c_check version 1.3 | built Oct  8 2026 11:31:56 | board UNO R4 Minima ====
+   ==== tom_i2c_check version 1.4 | built Oct  8 2026 11:31:56 | board UNO R4 Minima ====
    Type help for the commands.
+   Last reset: power-on (cold start)   (RSTSR0=00 RSTSR1=0000 RSTSR2=00)
    POST 1/4 LCD  ok   answers at 0x23
    POST 2/4 RTC  info was 2020-01-01 00:00:03; SET from compile time to 2026-10-08 11:31:56
    POST 3/4 LED  ok   0x24 + digits 0x34-0x37 answer
@@ -16,6 +17,9 @@ Monitor (optional); the screens are on the LCD and the LED.
 
    - RTC line "info ... SET from compile time" appears the FIRST time (the RTC
      was out of date). On later runs it reads:   POST 2/4 RTC  ok   2026-10-08 11:35:10
+   - "Last reset:" says what restarted the program: "power-on (cold start)"
+     after power was applied, "reset button/other" after the RESET button.
+     The three register values are for the record.
    - If a device is missing the line says FAIL (or "info" for the O2 sensor)
      and POST ends with "POST: PROBLEMS FOUND".
 
@@ -54,48 +58,62 @@ Monitor (optional); the screens are on the LCD and the LED.
    TOB step (up to 20 s): the LED shows -006. Row 4: PRESS TOB, RELEASE.
      Same.
 
+   RESET step (up to 20 s): the LED shows -007. Row 3: (the program
+     restarts)   Row 4: PRESS RESET NOW. Press the RESET button: the
+     screens go through the start-up again (LED ----, the LCD blank for a
+     moment, then the status lines) and row 4 shows for 20 s:
+         RESET test: PASS
+
    The result (row 4 of the LCD), the two screens alternating every 3 s:
        TEST LCD? RTCP LED?
        TEST O2P TBSP TOB?
+       TEST RST?
      A good run with nobody typing p or f and the switches operated:
        LCD?  (looked right to you, not typed)    RTCP   LED?
-       O2P   TBSP   TOBP
+       O2P   TBSP   TOBP   RSTP
      If you type p after the LCD and LED steps those show P instead of ?.
      A "?" is not a failure. An "F" is.
 
 
 3. SERIAL MONITOR, THE TEST (what each step prints)
-   TEST: 6 steps (LCD, RTC, LED, O2, TBS, TOB). Look at the displays; ...
-   BIST 1/6 LCD
+   TEST: 7 steps (LCD, RTC, LED, O2, TBS, TOB, RESET). Look at the displays; ...
+   BIST 1/7 LCD
       LCD: backlight blinking
       LCD: display blinking (the text should vanish and return)
       Did you see 4 readable rows, then the backlight blink, then the display blink?  (p = yes, f = no; no answer is fine)
-   BIST 1/6 LCD  OK? (no I2C error; judge by eye)          <- or "PASS" if you typed p
-   BIST 2/6 RTC
+   BIST 1/7 LCD  OK? (no I2C error; judge by eye)          <- or "PASS" if you typed p
+   BIST 2/7 RTC
       RTC reads 2026-10-08 11:32:16; waiting 3 s to see it advance
       RTC advanced 3 s while the clock of this board advanced 3 s; chip 23.25 C
-   BIST 2/6 RTC  PASS  23.25 C
-   BIST 3/6 LED
+   BIST 2/7 RTC  PASS  23.25 C
+   BIST 3/7 LED
       LED: 8888 with one decimal point (all segments)
       LED: counting 0000 .. 9999
       LED: display off for 1 s, then on
       Did you see 8888 with one dot, the count 0-9 on all digits, and one blink?  (p = yes, f = no; no answer is fine)
-   BIST 3/6 LED  OK? (no I2C error; judge by eye)          <- or "PASS"
-   BIST 4/6 O2
+   BIST 3/7 LED  OK? (no I2C error; judge by eye)          <- or "PASS"
+   BIST 4/7 O2
       O2 raw reply: FF 86 08 3A 05 02 00 00 xx             <- the 9 bytes the sensor sent
       O2 sensor reads 20.90 %  (gas type 0x05; 0x05 = O2)
-   BIST 4/6 O2  PASS  20.90 %
-   BIST 5/6 TBS
+   BIST 4/7 O2  PASS  20.90 %
+   BIST 5/7 TBS
       TBS is off now. Flip TBS ON and then OFF within 20 s.
    TBS ON
    TBS off
-   BIST 5/6 TBS  PASS  both states seen
-   BIST 6/6 TOB
+   BIST 5/7 TBS  PASS  both states seen
+   BIST 6/7 TOB
       TOB is released now. Press TOB and then release it within 20 s.
    TOB pressed
    TOB released
-   BIST 6/6 TOB  PASS  both states seen
-   TEST complete: 4 pass, 0 fail, 2 OK-to-the-eye (no answer), 0 skipped. It repeats in 45 s ...
+   BIST 6/7 TOB  PASS  both states seen
+   BIST 7/7 RST
+      PRESS THE RESET BUTTON NOW (within 20 s). The program restarts; at the next start it reports the result.
+   ... (you press RESET: the program restarts, the log starts again with the banner) ...
+   ==== tom_i2c_check version 1.4 | built ... | board UNO R4 Minima ====
+   Last reset: reset button/other   (RSTSR0=00 RSTSR1=0000 RSTSR2=01)
+   RESET TEST: PASS The RESET button restarted the program (reset cause: reset button/other).
+   POST ...                                (the normal start-up, then the test starts again)
+   TEST complete: 5 pass, 0 fail, 2 OK-to-the-eye (no answer), 0 skipped. It repeats in 45 s ...
 
    Notes:
    - The O2 reading depends on what the sensor is breathing: about 20.9 %
@@ -104,6 +122,10 @@ Monitor (optional); the screens are on the LCD and the LED.
      settle. "reads exactly 0.00 %" is reported as a FAIL (a fault).
    - If the O2 sensor is not fitted: "O2 sensor: no answer at 0x74" and the
      step shows O2?  (not a failure).
+   - If power is removed instead of pressing RESET, the report says:
+        RESET TEST: ? The RESET test was running, but this start was a POWER-ON ...
+     and the step shows RST?  (the Arduino lost power: not a button press).
+   - If nobody presses RESET the step ends after 20 s: "BIST 7/7 RST  not pressed".
    - If you do nothing at the TBS / TOB steps they end after 20 s with
      "TBS ... not exercised" and show ? in the result.
 
