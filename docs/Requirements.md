@@ -1,6 +1,6 @@
-# Nitrogen Generator Controller — Requirements (v2.6 DRAFT)
+# Nitrogen Generator Controller — Requirements (v3.0 DRAFT)
 
-**Status:** DRAFT for iteration (v2.6). Host work for M2–M5 exists and is under test; **M6 (bench bring-up) is in progress**. Findings made while building are marked **[found]**. v2.3 folded in the author's reviews of v2.0–v2.2.
+**Status:** DRAFT for iteration (v3.0, 2026-10-08). Revised after the bring-up of the LCD, RTC, LED, switches and reset (R4 WiFi bench) and the owner's review of 2026-10-08 (`Requirements_Review_20261008.md` lists every change and its reason). Findings made while building are marked **[found]**.
 **Supersedes:** `N2V6/N2V6_Requirements.md` v1.1 (2026-06-10)
 **Behavioral reference:** `N2V7/N2V7.ino` (2026-07-13). Where V6 text and V7 code disagree, V7 is
 treated as the more recent intent and the difference is called out. Code from V5–V7 that meets a
@@ -21,8 +21,8 @@ requirement shall be reused rather than rewritten (GOAL-8).
 | GOAL-3 | Nearly all logic shall be testable on a **host** (macOS and Ubuntu CI) without hardware. A thin Hardware Access Layer (HAL) is the only code that touches Arduino APIs. [CHG] V6 forbade abstraction. |
 | GOAL-4 | One code base shall build for UNO R4 Minima and UNO R4 WiFi. The board is detected with the macros the Arduino IDE/CLI defines: `ARDUINO_UNOR4_MINIMA` and `ARDUINO_UNOR4_WIFI`. |
 | GOAL-5 | No dynamic allocation. No floating point in control logic (permitted only inside the O2 sensor adapter, because the DFRobot library returns `float`). |
-| GOAL-6 | After the end of `setup()`, no blocking waits and no `delay()`. All timing derives from `millis()` with unsigned subtraction (rollover-safe). POST and BIST are the exceptions (§11, §12): they run instead of normal operation. |
-| GOAL-7 | The DFRobot Multigas library shall be used **unmodified**. All libraries (DFRobot, any other public library, the board core) shall be the **latest available release** at the time work starts, and the versions used shall be recorded in `BuildInfo` (§10). |
+| GOAL-6 | After the end of `setup()`, no blocking waits and **no `delay()`, anywhere** (POST and BIST included). All timing derives from `millis()` with unsigned subtraction (rollover-safe); the wall clock (RTC) is for log stamps only and is never used for scheduling (RTC-7). The only documented exception is the DFRobot library read (about 10 ms) when `N2_O2_DRIVER=LIBRARY` is selected (O2-3b). [CHG 2026-10-08: POST and BIST are no longer exceptions; they are non-blocking state machines.] |
+| GOAL-7 | The DFRobot Multigas library, **when it is used**, shall be used **unmodified**. Library and core versions shall be the latest available release at the time work starts and shall be recorded in `BuildInfo` (§10). The O2 sensor may instead be read by this project's own read-only driver (O2-3b); the build macro `N2_O2_DRIVER` selects `OWN` or `LIBRARY`, so both can be compared on the same hardware. [CHG 2026-10-08] |
 | GOAL-8 | **Reuse over rewrite.** Working code from earlier iterations (V5 controllers and tests, V6/V7 state machines, V7 mini-libraries) shall be used where it meets these requirements, after it has host tests. Earlier iterations worked in parts but never all at once. |
 | GOAL-9 | **Diagnostics first.** The first firmware taken to the field shall be the diagnostic-only build (§2, DIAG) that exercises all hardware and **guarantees the pinouts** before any production logic runs. |
 | GOAL-10 | **Design priorities, in this order: testability, readability, maintainability.** Where requirements or designs conflict, this order decides. Concretely: small single-purpose modules; pure functions where possible; names that say what a thing is; one place for each fact (pins, constants, text); no clever code; every behavior reachable from a host test. |
@@ -34,7 +34,7 @@ requirement shall be reused rather than rewritten (GOAL-8).
 | Phase | Purpose | Console | Logging default |
 |---|---|---|---|
 | **Debug** (now) | Find software and hardware faults. BIST is the most important feature. | **Guaranteed attached** | Verbose |
-| **Production** (later) | Run headless. POST is quick and hands-off. | May or may not be attached | Quiet (faults and state changes only) |
+| **Production** (later) | Run headless. A normal boot runs no self-test; POST mode (TOB at power-up) is quick. | May or may not be attached | Quiet (faults and state changes only) |
 
 | Build | Board macro | Real devices | Simulated | Purpose |
 |---|---|---|---|---|
@@ -51,24 +51,56 @@ requirement shall be reused rather than rewritten (GOAL-8).
 | CFG-4 | `DIAG` shall share all sources with `FIELD` (same `src/` tree, same HAL, same `BoardPins.h`), differing only in which top-level logic `loop()` runs. |
 | CFG-5 | `Config.h` shall `static_assert` that every `…On`/`…Off` pair has the correct hysteresis ordering. |
 
+### 2.1 Staged bring-up [NEW 2026-10-08]
+
+| ID | Requirement |
+|---|---|
+| STG-1 | The firmware is brought up in **stages** (`Bringup_Stages.md`): each stage adds devices to a base that already works on the bench, with the same host-tested source tree. Stage 1: reset cause, LCD, RTC, console, WiFi matrix. Stage 2: + LED. Stage 3: TBS/TOB and the pressure inputs. Stage 4: O2 sensor. Stage 5: valves, SSR, controllers. |
+| STG-2 | A device enters a stage in this order: a solo experiment sketch on the bench, its `DeviceCheck` (CHK-1) with host tests, the stage sketch, a results file in `docs/results/`. |
+
 ## 3. Architecture and HAL
 
 ```
- loop():  Hal ──► Inputs ──► Faults/Invariants ──► Controllers ──► OutputDriver ──► Hal
-                                   │                                  │
-                                   └──────────► Display + Console ◄───┘
+ loop():  Hal ─► fast reads (GPIO, ADC) ─┐
+          I2C read steps (O2, RTC) ───────┴─► InputSnapshot (const during the pass, stamped)
+                                                   │
+                    previous pass's OutputSnapshot ┤ (cross-controller facts, CTL-2)
+                                                   ▼
+                                  Controllers (update) ─► Invariants ─► OutputDriver ─► Hal
+                                                   │
+                                                   ▼
+                       OutputSnapshot (stamped) ─► Displays, Console (status/report/log)
 ```
 
 | ID | Requirement |
 |---|---|
-| ARC-1 | All hardware access shall go through one HAL interface: millisecond clock, digital read/write/mode, analog read and resolution, I2C probe and transfer (returning success/failure), console byte read/write and attach-state, watchdog kick, reset-cause read. |
-| ARC-2 | Three HAL implementations: **Arduino** (real), **Fake** (host tests; scriptable inputs, recorded outputs, controllable clock), **Sim** (bench; real I2C, simulated pins, driven from the console). |
+| ARC-1 | All hardware access shall go through one HAL interface: millisecond and microsecond clock and a microsecond busy-wait (bit-banged protocols only), digital read/write/mode, analog read and resolution, I2C probe, write, read and register read (each returning success/failure), I2C clock selection and **bus recovery** (I2C-2), console begin/attach-state/byte read/write, watchdog begin/kick, reset-cause read. |
+| ARC-2 | Two HAL implementations exist: **Arduino** (real) and **Fake** (host tests; scriptable inputs, a register-file model of I2C devices, recorded outputs, controllable clock, and a pin-event model for bit-banged buses). A third, **Sim** (bench with simulated pins driven from the console), was planned and is **not built**; the `sim` console commands are deferred. [CHG 2026-10-08] |
 | ARC-3 | Controllers, scaling, invariants, faults, display formatting, console parsing, POST and BIST sequencing shall depend only on the HAL interface, never on Arduino headers. |
 | ARC-4 | The HAL shall be as thin as practical: no policy, no timing logic, no state machines. |
 | ARC-5 | Device drivers (LCD, LED, O2) shall sit behind small interfaces so each has a fake. |
-| ARC-6 | Controllers shall use the V6/V7 **timed state machine** (state, deadline, `setup()`, `update()`, `enable()`, `disable()`). It has worked well (owner) and is kept **robust and resilient**: rollover-safe deadline math, no state reachable without a defined transition, every `switch` handles every state, unknown states recover to DISABLED and log. |
-| ARC-7 | Every controller state transition shall log one line: timestamp, delta since that controller's previous transition, controller name, old→new (short names), next deadline or `-`. |
+| ARC-6 | Controllers use the V6/V7 **timed state machine** (state, deadline, `enable()`, `disable()`, `update()`), kept **robust and resilient**: rollover-safe deadline math, no state reachable without a defined transition, every `switch` handles every state, unknown states recover to DISABLED and log. The common interface is CTL-1. |
+| ARC-7 | Every controller state transition shall be logged by the base class (CTL-3) as one line in the standard format (LOG-1) whose text is `<NAME> <from>-><to> +<delta> next:<deadline|->`: delta = ms since that controller's previous transition, next = the deadline in `millis()` or `-`. |
 | ARC-8 | **Output driver.** All digital outputs shall pass through a single `OutputDriver` that applies the active level from `BoardPins.h` (no code outside it uses `HIGH`/`LOW` for an output) and enforces `OUTPUT_MIN_HOLD_MS` (OUT-1). |
+
+### 3.1 The controller interface [NEW 2026-10-08]
+
+| ID | Requirement |
+|---|---|
+| CTL-1 | The **Tower**, **Compressor** and **O2** controllers shall each implement one abstract base class `Controller` (one level of inheritance, no templates): `name()`, `enable(now)`, `disable(now)`, `update(const InputSnapshot&)`, `stateName()`, `enabled()`, `nextDeadlineMs()`. `System` holds the three as `Controller*` and drives them through this interface only. |
+| CTL-2 | A controller reads **only** the `InputSnapshot` passed to `update()`. It never reads another controller, the HAL or a driver. Facts one controller needs from another (for example *the O2 sensor is warm and answering*) are published in the **previous pass's** `OutputSnapshot` and copied into the `InputSnapshot` at the start of the pass: one pass of latency, no dependence on update order. The `InputSnapshot` is `const` during a pass. |
+| CTL-3 | The base class owns `transition(to, now, ...)`; every state change of every controller is logged by it with the same line format (ARC-7). A controller cannot change state without logging. |
+| CTL-4 | `update()` never blocks and never calls `delay()`. All waiting is a deadline compared with unsigned subtraction. `nextDeadlineMs()` exposes it for the log and for host tests. |
+| CTL-5 | A controller commits no output itself: it exposes what it wants (`OutputRequest`); the invariants (§6) and the `OutputDriver` decide what is driven. |
+
+### 3.2 Snapshots [NEW 2026-10-08]
+
+| ID | Requirement |
+|---|---|
+| SNP-1 | `InputSnapshot`: `ms` (the `millis()` of the pass), a pass counter `seq`, TBS, TOB, the three pressures (raw counts, scaled values, per-sensor ok flags and the sensor-order fault), and for each I2C device that is read by a background step (INP-9) its **latest value and its age in ms** (O2 %, RTC time). Cross-controller facts from CTL-2 are copied in at the start of the pass. |
+| SNP-2 | `OutputSnapshot`: `ms`, `seq`, each controller's state name, the outputs **requested**, the outputs **actually driven**, the invariants mask, the active faults and the **last fault code** (FLT-5), N2 % and its validity, warm-up time remaining. Built once per pass, after the invariants and the `OutputDriver`. |
+| SNP-3 | The displays (LCD, LED, matrix) and the console (`status`, `report`, `display`) read **only** the `OutputSnapshot`. They never read inputs, controllers or drivers directly. |
+| SNP-4 | Both snapshots are plain data (no pointers), copyable, and printable as text for the console and for host tests. Snapshot time stamps are `millis()` values (scheduling clock). The wall clock never appears in a snapshot; it is added only when a line is logged (LOG-5). |
 
 **Display and sensor drivers (Q2 resolved: DIY).** LED (TM1650) and LCD (20×4 PCF8574) drivers shall
 be minimal-footprint DIY drivers, starting from the author's V7 mini-libraries, refactored behind an
@@ -81,13 +113,16 @@ may be reused for any tested logic that meets these requirements. The DFRobot li
 | DRV-1 | Drivers shall report I2C success/failure for every transaction (V7 ignores `endTransmission()` results). A failed transaction shall feed fault F10/F11. |
 | DRV-2 | Driver unit tests shall use a fake I2C transport that records bytes, with golden byte sequences for init, clear, set-cursor, write-string, backlight, display on/off, brightness, digit/segment/decimal point writes. |
 | DRV-3 | Because the displays need a human to judge, every display write shall also be describable as text: the **display model** (what the LCD's 4×20 characters and the LED's 4 digits *should* show) shall be printable on the console (`display` command; and in BIST steps) so the operator compares the console with the real display and confirms. |
+| DRV-4 | **LCD behavior [found 2026-10-06/08].** (a) The LCD is not touched for **2.5 s after boot**; earlier starts left it showing random characters after a reset. (b) A running LCD is **never re-initialised** (it made the display worse, 0 of 6 clean); initialisation happens once, after the start delay, and again only after an I2C failure. (c) The HD44780 cannot be read back through the PCF8574 backpack (R/W is tied to ground), so corruption is invisible to the firmware: the driver **rewrites the whole screen periodically** (early full rewrites after start-up, then every few seconds). |
+| DRV-5 | The LED (TM1650) likewise cannot be read back: the driver rewrites the control byte and all four digits periodically (at least 4 Hz in bring-up builds) so a missing or confused module is noticed within about a second. |
+| DRV-6 | The driver's record of the display (`shown()`, `inSync()`) shall stay truthful during a periodic rewrite. |
 
 ## 4. Pinout — single file
 
 | ID | Requirement |
 |---|---|
 | PIN-1 | Every pin number, I2C address, I2C bus selection, **direction**, **pull configuration** and **active level** shall be defined in **one header file**, `BoardPins.h` (header-only, `constexpr`; **not** a `.cpp`). No other file shall contain a pin number, I2C address, or `HIGH`/`LOW` meaning for a signal. |
-| PIN-2 | `BoardPins.h` shall select the pin set from the board macro (`ARDUINO_UNOR4_MINIMA`, `ARDUINO_UNOR4_WIFI`, or a host fake set) and fail to compile on anything else. |
+| PIN-2 | `BoardPins.h` shall hold **one signal table per board** (Minima = production, WiFi = home bench, host = tests), so one can be corrected without touching the others; the board macro (`ARDUINO_UNOR4_MINIMA`, `ARDUINO_UNOR4_WIFI`, or a host set) selects the table and any other board fails to compile. [CHG 2026-10-08] |
 | PIN-3 | `BoardPins.h` shall hold a single **signal table**; `setup()` shall configure every pin's mode (input, input-pullup, output) **from that table** and drive every output to its safe level. |
 | PIN-4 | Pin assignments shall be checked at compile time: no duplicate pins; no signal on an I2C bus pin; every signal has a declared direction and (for binary signals) a declared **active level**. [NEW] |
 | PIN-5 | `BoardPins.h` shall contain only wiring facts. Tunable thresholds and timings live in `Config.h` (§7). |
@@ -119,19 +154,29 @@ Initial contents, from V7 (**V6 and V7 agree on every pin, active level and I2C 
 | PIN-10 | **[Q1]** In the installed R4 core (renesas_uno 1.6.0) `Wire` is bound to core pins 18/19 = **A4/A5** on *both* boards, and V6/V7 read the high-N2 sensor on **A5**, the I2C SCL line. The owner wants V6/V7 pinouts used (V5 is obsolete and ignored), but A5 cannot be both, so `BoardPins.h` carries **A1 as a provisional pin** for N2-high, with the V6/V7 value recorded in its note. A1 and A2 are unused by V6/V7. The owner is finding out which analog pin the sensor is really wired to; PIN-4 enforces whichever is chosen. |
 | PIN-11 | The author reports I2C SDA/SCL are on D18/D19 on the WiFi board and on A4/A5 on the Minima. The installed core defines both as 18/19 (= A4/A5). `BoardPins.h` shall record the bus pins per board; the author will confirm the production wiring. |
 | PIN-12 | TBS and TOB roles: **TBS** is the system on/off; it determines whether the generator is enabled and producing N2 and affects the displays (the LCD shows its state if there is room: DSP-9). **TOB** is available in Debug and Production as needed: single-step during diagnosis, confirm/acknowledge an event. |
+| PIN-13 | **I2C address map [found 2026-10-07].** LCD **0x23** (backpack A2 solder pad bridged), RTC 0x68 (its module's EEPROM 0x57 is unused), O2 sensor 0x74, LED module: **it answers 0x24-0x27 and 0x34-0x37** (it ignores the low address bits of its control range). An LCD backpack left at its default 0x27 shares an address with the LED module and every LCD character write fails; hence 0x23. The LCD address is one setting (`kLcdAddress`). `BoardPins.h` carries a compile-time/host check that the LCD address is outside the LED module's range. The identical LCD and LED on Tom's unit need the same A2 bridge. |
+| PIN-14 | A fallback exists, unused by default: the LED on its own two wires (`BoardDef::ledSdaPin/ledSclPin`, D2/D3) driven by a software I2C master (`SoftI2c`). |
+
+| ID | Requirement |
+|---|---|
+| I2C-1 | One hardware bus (`Wire`, A4/A5) shared by the LCD, RTC, LED and O2 sensor. The R4 core implements only **100 kHz and 400 kHz**; any other `setClock` value is silently ignored. The firmware runs at 100 kHz (`kI2cClockHz`, checked at compile time). |
+| I2C-2 | **Bus recovery [found].** A reset in the middle of a transaction, or a refused write, can leave the bus or the controller wedged (every later transaction fails until something resets it). `Hal::i2cRecover()` ends `Wire`, clocks SCL up to nine times until SDA is released, sends a STOP, restarts `Wire` and **calls `setClock`** (on the R4 core only `setClock` reopens the controller). It runs at boot, on each LCD retry, and when the RTC does not answer. This answers WDT-4. |
+| I2C-3 | A driver reports failure for every transaction (DRV-1) and never blocks the loop; an unanswered device is retried about once per second. |
+| I2C-4 | A diagnostic (`i2c sweep`) runs the LCD read-back, RTC reads and probes at both real clock speeds and restores the clock. It blocks for a fraction of a second and is a documented exception to NFR-1a. |
 
 ## 5. Inputs and scaling
 
 | ID | Requirement |
 |---|---|
-| INP-1 | Inputs shall be read once per `loop()` pass into an `InputSnapshot` stamped with `millis()`. |
+| INP-1 | **Fast inputs are read on every `loop()` pass** (TBS, TOB, the three pressures) into the `InputSnapshot`, stamped with `millis()` (SNP-1). [CHG 2026-10-08] |
 | INP-2 | **ADC resolution** shall be a single constant `ADC_BITS` in `Config.h`, initially **10** (`0x0A`); `setup()` shall call `analogReadResolution(ADC_BITS)` (via the HAL). All code shall work for `ADC_BITS` = 10, 12 or 14. All raw-value limits (valid window, fault window) shall be **derived** from `ADC_BITS` and the 0.5/4.5 V sensor window, never hardcoded. Host tests shall run at all three. After the system works at 10 bits, the author will decide whether higher resolution helps. |
 | INP-3 | Scaling shall map the valid window (0.5–4.5 V of the full-scale range) to 0…full scale, fixed-point: air ×10 (0–1500), N2 low ×100 (0–3000), N2 high ×10 (0–1500). At 10 bits the valid window is raw 102…921. |
 | INP-4 | [NEW] **Sensor fault detection.** A raw value outside a fault window around the valid window (proposed: below 0.4 V or above 4.6 V) shall mark that sensor **faulty**, shall not be clamped silently into a valid reading, and shall raise a fault (§9). |
 | INP-5 | [NEW] A sensor shall be declared faulty only after N consecutive out-of-window samples (proposed N = 3). |
-| INP-6 | TBS and TOB shall be read without debounce (as V6). TBS ON at power-up shall be treated as an OFF→ON transition so the system starts. |
+| INP-6 | TBS and TOB were read without debounce in V6 (TBS ON at power-up is treated as an OFF→ON transition so the system starts). The bring-up builds debounce both by 30 ms. **[open: choose one; review R-8]** |
 | INP-7 | [NEW] **Sensor consistency.** The N2-low reading shall always be lower than the N2-high reading (compared in common units). If N2-low exceeds N2-high by more than a margin (proposed 1.0 PSI, so that two sensors both near zero do not trip) for a hold time (proposed 5 s), with both sensors valid, fault **F04** shall be raised. |
 | INP-8 | The system shall show the **raw ADC value, volts and scaled PSI** for each sensor so they can be compared with the production gauges. The gauges are needed **only in the diagnostic phase**, to confirm the sensors agree within a tolerance; they are not required for operation (they are just easier to read than the LCD). BIST-9 shall prompt for the gauge reading and report the difference. |
+| INP-9 | **I2C devices are read by non-blocking background steps** (O2 sensor: send the query, wait on a deadline, read, validate; RTC: read and re-anchor the wall clock). A step starts on its own deadline, advances a little on each pass, and **publishes** its result into the next `InputSnapshot` when complete, with the value's **age in ms**. No step blocks `loop()` (NFR-1a); a step that does not finish in time is a failure of that device. [NEW 2026-10-08] |
 
 ## 6. Safety invariants, outputs and reset behavior [NEW]
 
@@ -153,9 +198,9 @@ in addition to being implemented inside each controller — defense in depth):
 | INV-5 | **Safety actions are never delayed.** Turning an output OFF because of an invariant, fault, TBS-off, POST or BIST abort shall happen immediately regardless of `OUTPUT_MIN_HOLD_MS`. |
 | INV-6 | If an invariant is violated by a controller's output, the firmware shall force the safe state, log the violation with the controller name, and raise F20. On host this is a test failure (it indicates a bug). |
 | INV-7 | On host, property tests shall drive randomized sensor/TBS/clock sequences through all controllers and assert INV-1…INV-4 and INV-8…INV-10 after every step. |
-| INV-10 | **Tower held off until the O2 sensor is warm (FIELD, interim, HQ6).** While the O2 sensor is still warming up (O2-6), the tower controller stays DISABLED (both tower valves closed). The compressor remains governed by the sensor rules (INV-4 and its own thresholds). |
 | INV-8 | **F04 inhibits.** While F04 (N2-low reads above N2-high) is active, INV-3 and INV-4 apply as if both N2 sensors were faulty: towers closed, SSR off. |
 | INV-9 | **O2 mandatory in `FIELD`.** While F12 (O2 sensor missing or failed) is active in a `FIELD` build, **all outputs are off** (towers, SSR, flush valve) until it clears. `BENCH`, `HOST` and `DIAG` builds do not apply this (the home bench has no O2 sensor), selected by `O2_MANDATORY` in `BuildConfig.h`. |
+| INV-10 | **Tower held off until the O2 sensor is warm (FIELD, interim, HQ6).** While the O2 sensor is still warming up (O2-6), the tower controller stays DISABLED (both tower valves closed). The compressor remains governed by the sensor rules (INV-4 and its own thresholds). |
 | OUT-1 | **Minimum hold time.** Every output shall have a minimum time since its last change before a *non-safety* change is made (anti-buzz, short-cycle protection). `OUTPUT_MIN_HOLD_MS` = **1000 ms** (decided by the author). The state-machine rules shall guarantee this anyway (tower valves change at most every ~60 s); the OutputDriver enforces it as a backstop and logs when it defers a change. BIST toggling (≥ 500 ms per half-cycle) is the one **documented exception** (the BIST output steps toggle at ~2 Hz). |
 
 **Reset behavior:**
@@ -167,9 +212,10 @@ in addition to being implemented inside each controller — defense in depth):
 | RST-3 | At boot every controller starts DISABLED. If TBS is ON, the normal enable path runs on the first loop pass and sensor rules choose the state. |
 | RST-4 | Compressor initial state on enable shall be chosen from sensors: N2 high above `n2HighOn` → STOPPED_HIGH; else N2 low below `n2LowOn` → STOPPED_LOW; else RUNNING (subject to OUT-1). [CHG] |
 | RST-5 | Reset cause (power-on, external, watchdog, brown-out) shall be read at boot if the core exposes it, and logged. |
-| RST-6 | The two pushbuttons are: the board RESET button (hardware; not readable by software) and TOB. TOB held during reset/power-up selects BIST (§12). |
+| RST-6 | The two pushbuttons are the board **RESET** button (a hardware reset; the program sees the resulting reset cause, RST-9) and **TOB**. **TOB held during reset or power-up selects POST mode** (POST-1). BIST is never selected by a button: only by the console command `bist` (BIST-1). [CHG 2026-10-08, owner] |
 | RST-7 | Running POST or BIST means normal operation is **disabled**: controllers DISABLED, outputs OFF (except those BIST is exercising). |
 | RST-8 | **Hardware default.** Output lines should default to OFF while the MCU is in reset or before `pinMode`. The hardware team assumes outputs are OFF while the MCU is in reset (HQ3), which is why RST-2 matters; if verification shows otherwise, a pull resistor shall be added. |
+| RST-9 | **Reset cause [found 2026-10-06/08].** It is read once at boot from the RA4M1 status registers (RSTSR0/1/2) and cleared; the power-on flag itself is not visible after the bootloader, so the chip's cold/warm flag `RSTSR2.CWSF` (set by the firmware at boot) separates power loss from a reset. The cause and the raw register values are logged at every boot (RST-5) and shown by `status`. A **RESET-button test** exists: a marker byte in a spare DS3231 register survives the restart, and the next boot reports PASS only if the cause is a reset-button restart (a power-on instead is `?`). Verified on the R4 WiFi; **to be verified on the Minima**. |
 
 ## 7. Controllers and configuration
 
@@ -231,6 +277,7 @@ N2% ×100 = 10000 − O2% ×100, clamped to 9999 (and 0 if O2 ≥ 100%).
 | O2-2 | ERROR shall not be permanent: it shall retry via UNKNOWN after a delay (proposed 60 s), showing the fault while it persists. [CHG] |
 | O2-3 | A failed read shall be detected from the library's actual failure signaling, not only from an I2C address probe. **[found]** The unmodified DFRobot library has **no error signal**: `readGasConcentrationPPM()` returns exactly `0.0` when the reply's checksum fails (and `readTempC()` likewise), so a garbled reply looks like a genuine zero. The adapter (`O2SensorDfrobot`) therefore accepts any **non-zero** reading (a bad reply cannot produce one) and accepts a **zero** only after it repeats three times *and* the library's checksum-validated `queryGasType()` answers "O2"; otherwise it reports a failure. The library also blocks about 10 ms inside every call (`delay(10)`), a documented exception to GOAL-6 that NFR-1 will measure. Other failure modes (stuck bus, wrong address) shall still be characterized at the bench. |
 | O2-3a | A reading of **exactly 0.00 % O2** is not a real measurement (air is 20.9 %, even very pure N2 leaves a trace) and shall be treated as a sensor failure like any other: the O2 controller goes to ERROR (F-code for O2 communication), N2 % becomes invalid, and recovery follows O2-2/O2-6 (retry, then a fresh warm-up). |
+| O2-3b | **Own read-only driver and the read rule [found 2026-10-08].** The O2 sensor may be read by the project's own driver (`N2_O2_DRIVER=OWN`): the 9-byte frame `FF 01 86 00 00 00 00 00 <cs>` written after register 0; the 9-byte reply read back after at least 10 ms **by deadline, never by `delay`**; validated for header `FF 86`, checksum `(~sum of bytes 1..7)+1`, gas type `0x05` (O2), decimals, and range (0 < % <= 100; exactly 0 is a fault, O2-3a). **Only read commands are ever sent**: never `0x78` (acquire mode), `0x89` (thresholds) or `0x92` (I2C address). `N2_O2_DRIVER=LIBRARY` selects the DFRobot library path (GOAL-7). The two shall be compared on the same sensor before a production default is chosen; the site test package contains a first own-driver query (its log prints the raw reply bytes). |
 | O2-4 | The flush valve shall be closed whenever the O2 controller is not in FLUSHING. |
 | O2-5 | N2% shall be marked invalid (`--.--`) until the first complete cycle, after any ERROR, after `disable()`, and **while warming up**. |
 | O2-6 | **Warm-up (5 minutes).** Samples shall not be taken or displayed until `O2_WARMUP_MS` (5 min) of warm-up has elapsed, counted from sensor power-on (thermal settling). During warm-up the LCD/console show `WARM mm:ss` and N2% is invalid. **Baseline rule:** if the firmware cannot know that the warm-up completed, it assumes it did not and waits the full 5 minutes from boot. |
@@ -242,27 +289,27 @@ N2% ×100 = 10000 − O2% ×100, clamped to 9999 (and 0 if O2 ≥ 100%).
 
 | ID | Requirement |
 |---|---|
-| DSP-1 | Displays render from the output snapshot and fault state only, after controllers update. |
-| DSP-2 | Writes to LCD/LED occur only when a rendered field has changed (fixed per-field positions, V6 Layout C). |
-| DSP-3 | **LED:** TBS on and N2% valid → `nn.nn`; TBS on and invalid → `--.--`; TBS off → blank. |
-| DSP-4 | **LCD layout** (owner review 2026-10-02; details and options in `LCD_Layouts.md`): the normal screen shows N2%, N2-low and N2-high (on one line, with the compressor state if it fits), the tower and O2 states, the four actual outputs as a **vertical** `LRFS` over `1001` block, and AIR (the first item to drop if space is needed, since the system has a physical gauge). **TBS is not shown** (DSP-9). Only N2% is shown, never O2%. During O2 warm-up the **countdown `mm:ss` is shown in place of N2%**. |
+| DSP-1 | Displays render from the **OutputSnapshot** only (SNP-3), after the controllers, invariants and OutputDriver have run. |
+| DSP-2 | Writes to LCD/LED occur when a rendered field has changed (fixed per-field positions, V6 Layout C), **plus** the periodic full rewrites of DRV-4 and DRV-5, because the displays cannot be read back. |
+| DSP-3 | **LED:** TBS on and N2% valid → `nn.nn`; TBS on and invalid → `--.--`; TBS off → blank. **Bring-up builds** show instead the time `HHMM` with the middle dot blinking once a second (or the uptime in seconds without an RTC), `FFFF` alternating when a device failed, and the step number during a test. |
+| DSP-4 | **LCD layout** (owner decision 2026-10-06/08; renders in `LCD_Layouts.md`): Option 1, clear labels. Row 0: `N2%` and its value (or `WRM mm:ss` during warm-up) and the O2 state; row 1: `N2L` and `N2H` values; row 2: `CMP LO` or `CMP HI` **only while the compressor is stopped for that reason**, otherwise **`LF xx`** (the hex code of the last fault raised, `LF --` if none since power-up), then the tower state and the `LRFS` letters; row 3: `AIR` and the four actual output bits under `LRFS`. **TBS is not shown** (DSP-9). Only N2 % is shown, never O2 %. |
 
 ```
-....5....0....5....0
-AIR 123.4  TWR  LB
-N2L 12.34  CMP  ON
-N2H 123.4  O2   S
-N2% 99.99  LRFS 1001
+N2% 99.99  O2 S
+N2L 12.34 N2H  98.7
+LF --   TWR LB  LRFS
+AIR 123.4       1001
 ```
 
 | ID | Requirement |
 |---|---|
 | DSP-5 | **Fault screen.** While any fault of severity ≥ WARN is active, the LCD **alternates** between the normal screen and a **full 20×4 fault screen** on a cycle of `LCD_FAULT_CYCLE_MS` (3000–4000 ms; default 4000), because a fault may make the system inoperable while the sensor readings are still useful. With several faults the fault screen steps through them (fault 1, normal, fault 2, normal, …). The fault screen shows: row 0 `FAULT n OF m <severity>`; row 1 `Fnn` and the fault name (≤ 16 characters); row 2 the measurement behind it (raw counts and volts, the two N2 readings, the O2 state); row 3 what the system does about it (the table's `effect` text). The LED shows `Fnn` of the first active fault. This is the fault channel when no console is attached. [Q9] |
 | DSP-6 | A display failure (no ACK) shall never stop the control loop; it raises an INFO fault logged to the console. |
-| DSP-7 | LCD and LED initialization shall tolerate an absent or slow device and re-initialize when a later probe finds it. |
+| DSP-7 | LCD and LED initialization shall tolerate an absent or slow device and re-initialize when a later probe finds it. A running LCD shall **not** be re-initialised (DRV-4). |
 | DSP-9 | **Withdrawn (owner):** the TBS state is not shown on the LCD; `LRFS 0000` and the tower state `OF` already show a disabled system, and the physical switch is at least as visible. The LED still blanks when TBS is off (DSP-3). |
 | DSP-10 | **R4 WiFi LED matrix (optional, BENCH/DIAG on the WiFi board only).** The WiFi board has a built-in 12×8 LED matrix (`ArduinoLEDMatrix`; the Minima has none, so production cannot depend on it). It may be used as an extra status display on the bench, e.g. a glyph for the mode (P = POST, B = BIST, R = run), the fault count, and a heartbeat pixel proving `loop()` is alive. Code for it shall be compiled only for `ARDUINO_UNOR4_WIFI`, shall sit behind the display interface (not in the controllers), and shall never be needed for any other requirement. Frame format (verified against the library's own example): 96 bits, 12 columns × 8 rows, row by row, most significant bit first, in three 32-bit words. Used first by `experiments/reset_probe`. |
 | DSP-8 | **Startup banner.** At startup the LCD shall show the firmware version and build date for about 1 s (user request); the console prints the full build identity (§10). |
+| DSP-11 | **POST mode indication [proposal 2026-10-08].** While POST mode runs (POST-1), LCD row 0 shows `POST MODE` and the version, and the LED shows `8888` blinking once a second (a lamp test that also names the mode); on a fault hold the LED shows `FFFF` steady and the LCD names the fault; the console prints each check. |
 
 ## 9. Faults [NEW]
 
@@ -275,6 +322,7 @@ N2% 99.99  LRFS 1001
 | F10 | LCD no ACK | INFO | log only |
 | F11 | LED no ACK | INFO | log only |
 | F12 | O2 sensor missing/failed | **INHIBIT** in `FIELD` (WARN elsewhere) | INV-9: all outputs off; O2 ERROR; N2% invalid |
+| F13 | RTC missing, unreadable or lost power | INFO | log only; log lines carry no wall time |
 | F20 | Invariant violation | **INHIBIT** | forced safe state (INV-6); latches until reset |
 | F30 | Watchdog reset occurred | WARN | cleared after first normal cycle |
 | F31 | Brown-out reset occurred | WARN | same |
@@ -285,7 +333,8 @@ N2% 99.99  LRFS 1001
 | FLT-1 | Faults are **self-clearing** when the condition clears for a hold time (proposed 5 s), except F20. |
 | FLT-2 | Raise and clear each log one console line with timestamp and code. |
 | FLT-3 | TOB pressed during normal run acknowledges and hides WARN/INFO fault display for 60 s. It never clears an INHIBIT condition. Anything beyond a single acknowledgment is done by console command. [Q11] |
-| FLT-4 | The fault table is one static table; adding a fault is one row plus one test. |
+| FLT-4 | The fault table is one static table; adding a fault is one row plus one test. **Fault codes are hexadecimal** (two digits, `Fxx`; the high digit is the group). `docs/Fault_List.md` is the canonical list and a host test fails if it differs from the code table. |
+| FLT-5 | The LCD normal screen shows the hex code of the **last fault raised** (`LF 12`; `LF --` if none since power-up), even after it has cleared (DSP-4). |
 
 ## 10. Console (USB serial) and closed-loop log capture
 
@@ -312,10 +361,11 @@ text; commands are one line.
 
 | ID | Requirement |
 |---|---|
-| LOG-1 | The Arduino has no storage. Capture is by the laptop. Every console log line is `<L> <ms> <text>`: a level letter (E, W, I, D), then the milliseconds since boot, then the text (controller transitions are `<L> <ms>+<delta> <NAME> <from>-><to> next:<deadline>`). Typed commands are echoed as `> command`, so a pasted log shows what was asked. |
+| LOG-1 | **One line format for every console log line** (POST, BIST, faults, controllers, commands): `[<wall> | ]<ms> <L> <text>`. `<wall>` = `YYYY-MM-DD HH:MM:SS`, present only when an RTC is present and trusted, followed by the delimiter ` | `; `<ms>` = `millis()` (the scheduling clock), always present; `<L>` = level letter E, W, I, D. With no RTC (or an untrusted one) the wall part **and its delimiter are omitted**, with no placeholder: `912345 I TWR LB->R +60000 next:913000`. Typed commands are echoed as `> command`, so a pasted log shows what was asked. [CHG 2026-10-08, owner] |
 | LOG-2 | A `report` command shall print one delimited block (`==== N2 REPORT BEGIN ====` … `==== N2 REPORT END ====`) with: build identity, uptime, reset cause, POST results, config, inputs (raw/volts/scaled), controller states, outputs, active faults, loop-time statistics, and the display model. |
 | LOG-3 | **Baseline capture is copy/paste from the Arduino IDE Serial Monitor** into a text file; the output format (LOG-1, LOG-2) shall make that sufficient: short sessions (a BIST run, a `report`) fit in the Monitor's buffer, and every file starts with a build-identity header. The Monitor's own timestamp option may be turned on. An optional host-side capture tool (`tools/n2log`) is a later convenience for long sessions, because only one program can hold the port at a time. [Q19 resolved] |
 | LOG-4 | The `time <iso>` command (optional) may set a wall-clock reference stored in RAM only; the capture tool also prefixes host wall-clock time, so captured files are datable without it. |
+| LOG-5 | The wall time comes from a software clock (`WallClock`) anchored to the RTC at boot and every 60 s (no I2C per line). It is for people only: **scheduling never reads it** (RTC-7), and a missing RTC never stops anything (RTC-8). `status`/`report` answer lines are not log lines and carry no stamp; the report header carries the wall time and `ms`. |
 
 | Command | Builds | Purpose |
 |---|---|---|
@@ -326,21 +376,23 @@ text; commands are one line.
 | `display` | all | print what the LCD and LED should currently show |
 | `loop` | all | loop-time statistics (min/mean/median/max); `loop reset` |
 | `scan` | all | I2C scan |
+| `time`, `time set <date> <time>` | all | RTC date/time; set it only when untrusted or more than 2 s off (RTC-3, RTC-8) |
+| `lcd`, `lcd reinit`, `lcd bus [n]` | all | LCD state; restart its controller; I2C link read-back test |
+| `i2c sweep [n]` | all | bus test at 100 and 400 kHz (I2C-4) |
 | `post` | all (system disabled while it runs) | run POST |
 | `bist` | all, only if TBS OFF and console attached | run BIST |
-| `sim <signal> <value>`, `sim off` | BENCH, HOST | simulated inputs |
+| `sim <signal> <value>`, `sim off` | BENCH, HOST (not built) | simulated inputs |
 
 ## 11. Power-on self-test (POST) [NEW]
 
-POST is **hands-off, quick, and does not require a console**. It runs at every boot (Production) and
-disables normal operation while it runs (RST-7).
+POST is **hands-off and does not require a console**. [CHG 2026-10-08, owner] It runs **only in POST mode**: when **TOB is held at power-up or reset** (sampled at the start of `setup()` once the outputs are driven safe). A **normal boot runs no self-test** (POST-1).
 
 | ID | Requirement |
 |---|---|
-| POST-1 | POST shall be quick (proposed ≤ 3 s) and shall not wait for anyone **unless a fault occurs**. |
-| POST-2 | Checks: (1) outputs verified safe; (2) reset cause logged; (3) I2C scan against expected addresses (LCD, LED, O2): each OK/MISSING, unexpected responders listed; (4) each pressure sensor within the valid window; (5) TBS/TOB read; (6) config sanity; (7) build identity. |
+| POST-1 | **POST mode** is selected by TOB held during power-up or reset. A **normal boot** only drives the outputs safe (RST-2), logs the reset cause (RST-5) and goes straight to normal operation: the sensor rules and invariants (§6, RST-1) and the fault logic (§9) protect the machine as always, and an O2 sensor missing in production still turns everything off (INV-9) with the fault on the LCD. POST mode is quick (proposed <= 3 s) and shows itself (DSP-11). |
+| POST-2 | Checks, each as a non-blocking `DeviceCheck::post()` (CHK-1): every device (LCD, RTC, LED, O2 sensor, TBS/TOB) plus: outputs verified safe, reset cause logged, each pressure sensor within the valid window, config sanity, build identity. Unexpected I2C responders are listed. |
 | POST-3 | Result: one summary line (`POST PASS`, `POST WARN n`, `POST FAIL n`) plus one line per check, to the console if attached, and on the LCD. |
-| POST-4 | **POST shall hang if and only if a fault occurs.** On a fault of severity ≥ `POST_HANG_SEVERITY` (WARN) the system stays disabled with the fault shown on the LCD (and console if attached) until the operator presses **TOB** (a fresh press: a TOB held since power-up must be released first). The matching faults stay active, so the invariants still protect production. **F30/F31 (a watchdog or brown-out reset happened) do not hold POST**: they only record history, and holding on them would keep an unattended unit down after the very reset the watchdog exists to recover from [Q25]. A missing O2 sensor in production is an INHIBIT fault and holds POST. |
+| POST-4 | **In POST mode, POST shall hang if and only if a fault occurs.** On a fault of severity ≥ `POST_HANG_SEVERITY` (WARN) the system stays disabled with the fault shown on the LCD (and console if attached) until the operator presses **TOB** (a fresh press: a TOB held since power-up must be released first). The matching faults stay active, so the invariants still protect production. **F30/F31 (a watchdog or brown-out reset happened) do not hold POST**: they only record history, and holding on them would keep an unattended unit down after the very reset the watchdog exists to recover from [Q25]. A missing O2 sensor in production is an INHIBIT fault and holds POST. |
 | POST-5 | A clean POST shall show `N2 vX.Y POST OK` on the LCD for ~1 s and continue. |
 | POST-6 | `post` on the console re-runs POST; it shall disable the controllers while it runs and re-enable them after, per RST-3. |
 
@@ -351,7 +403,7 @@ most important feature during Debug. It **requires an attached console**.
 
 | ID | Requirement |
 |---|---|
-| BIST-1 | BIST runs **only on request**: TOB held during reset/power-up, or `bist` on the console with TBS OFF. It shall refuse to start without an attached console (LCD shows `BIST: NO CONSOLE`). [CHG] V6/V7 run BIST on every boot and block, which hangs an unattended unit. |
+| BIST-1 | BIST runs **only on the console command `bist`**, with TBS OFF, so a console is always attached. It is never selected by a button or by TOB at power-up (that selects POST mode, POST-1). A refused request (TBS on) leaves the system undisturbed. [CHG 2026-10-08, owner] V6/V7 ran BIST on every boot and blocked, which hangs an unattended unit. |
 | BIST-2 | BIST disables normal operation (RST-7). Steps are numbered in HEX; the LED shows the step (except in the LED test), the LCD shows the step (except in the LCD test), the console logs every step and observation. |
 | BIST-3 | **Operator confirmation.** Each step ends with a prompt on the console; the operator types one letter and Enter (or presses **TOB = `p`**). The result is printed as one line per step and a final table, all in the captured log; nothing is stored on the board. |
 
@@ -368,11 +420,16 @@ most important feature during Debug. It **requires an attached console**.
 | BIST-6 | The watchdog (if enabled) is kicked from every BIST wait loop. |
 | BIST-7 | After BIST, normal operation resumes without a reset after re-running RST-2/RST-3. |
 | BIST-8 | BIST sequencing and formatting shall be host-testable; only HAL calls touch hardware. |
+| CHK-1 | **One class per device.** Each device (reset cause, LCD, RTC, LED, O2 sensor, TBS/TOB, RESET button; later the pressures and outputs) implements `DeviceCheck`, which provides its POST check and its BIST step together. Adding a device is one class plus one line in the list; `SelfTest` runs POST and BIST over the list. [found 2026-10-07] |
+| CHK-2 | Where a step can decide by itself it does (I2C acknowledge and error counts, the RTC advancing in step with `millis()`, a valid O2 reply, a switch seen in both states); operator p/f is asked only where eyes or ears are needed (LCD, LED, valves). |
+| CHK-3 | Results are visible on the LCD/LED where present, so a console is helpful but never the only place to see a result (the site test package, ENV-8, works with no console at all). |
 | BIST-11a | **[found]** The vetoes applied to BIST output steps are INV-2, INV-3, INV-4 and INV-8, evaluated on the **raw** ADC reading as well as the debounced fault flag (a dead sensor must not be able to pass during the first samples). INV-9 and INV-10 (O2 sensor missing / warming up) are **not** vetoes: they protect production, and the BIST is the tool for diagnosing exactly that sensor. The flush valve is not vetoed by pressures. A refused `bist` request leaves a running system undisturbed. |
 | BIST-11 | **No BIST step shall create an unsafe condition.** Every output step is subject to the invariants (INV-2…INV-4, INV-8…INV-10) as **vetoes**: it refuses to start, and aborts at once with all outputs OFF, if its action would violate one (for example the SSR step requires N2-high below `n2HighOn`, N2-low above `n2LowOff`, and valid sensors; valves one at a time; TBS must be OFF). Which steps the hardware team may run unattended is their decision; the firmware guarantees the veto. |
 | BIST-10 | **Usable by a second person.** The BIST prompts shall be self-explanatory (what to look at, what the right answer looks like, which key to press) so that a colleague who is not the author can run it from a written package (ENV-3) and email back the captured text. |
 | BIST-9a | The `g air|n2l|n2h <psi>` line in the pressure step prints the difference between the entered production-gauge reading and the sensor. The compressor SSR step gives **one 1 s pulse** by default (hardware question HQ8 pending); `BistConfig` selects the 2 Hz toggle. |
 | BIST-9 | The sensor step shall show raw ADC, volts, scaled PSI and the in-window flag, and ask the operator to enter (or confirm) the **production gauge reading** for the gauges that exist (INP-8). |
+
+The step list is the `DeviceCheck` list (CHK-1). Built and bench-validated so far: **reset cause, LCD, RTC, LED**, plus O2 (own read-only query), TBS/TOB and the RESET button in the site test package. The table is the original plan; the pressure, valve and SSR steps (5, 7-A) are still to be built as `DeviceCheck`s.
 
 | Step | Test | Operator confirms |
 |---|---|---|
@@ -408,10 +465,10 @@ most important feature during Debug. It **requires an attached console**.
 | WDT-4 | Whether `Wire` can hang on a stuck bus shall be tested at the bench; `Wire.setWireTimeout` or an equivalent shall be used; the watchdog is the backstop. |
 | WDT-5 | Debug builds allow the watchdog to be disabled by a macro. |
 | NFR-1 | **Loop timing.** The firmware shall measure and report loop time: min, mean, **median** and max (median from a fixed-bucket histogram, no dynamic allocation), via `loop` and in `report`. Goal: **max `loop()` < 1 s** (and normally ≪ that); display writes may be spread across passes to meet it. The watchdog timeout is chosen from this data. |
-| NFR-2 | Flash and RAM shall be reported at every build for both boards; initial budget **60 %** of each, raised if necessary. **Current full firmware (core 1.6.0, 2026-10-02):** Minima 36 % flash / 28 % RAM; WiFi 37 % / 39 % (with the DFRobot library; without it 33 % / 34 %). **Baseline (N2V7, core 1.6.0, 2026-10-02):** Minima 67 288 B flash (25 %), 5 648 B RAM (17 %); WiFi 70 816 B flash (27 %), 9 180 B RAM (28 %). |
 | NFR-1a | **A normal loop pass shall take well under a second: target < 100 ms at the maximum.** The slow parts are spread over passes: LCD writes (at most 6 characters per pass), the console (paced by a byte budget), and I2C sensor reads (one per scheduled deadline). Documented exceptions: the DFRobot library blocks about 10 ms per O2 read, and the diagnostic console command `lcd bus` blocks for up to 0.3 s when typed. Measured on the bench (Stage 1, UNO R4 WiFi): mean 14 µs, median 100 µs, max about 25 ms. |
-| NFR-9 | **Non-volatile memory (NVM).** The RA4M1 has a small data-flash area, reachable through the core's `EEPROM` library. It is **not used yet**. If it is used later (console-set thresholds, the O2 warm-up record), writes shall be rare and counted, a stored block shall carry a version and a checksum, and a missing or invalid block shall fall back to the compiled defaults, so the machine always starts safely. |
+| NFR-2 | Flash and RAM shall be reported at every build for both boards; initial budget **60 %** of each, raised if necessary. **Current full firmware (core 1.6.0, 2026-10-02):** Minima 36 % flash / 28 % RAM; WiFi 37 % / 39 % (with the DFRobot library; without it 33 % / 34 %). **Baseline (N2V7, core 1.6.0, 2026-10-02):** Minima 67 288 B flash (25 %), 5 648 B RAM (17 %); WiFi 70 816 B flash (27 %), 9 180 B RAM (28 %). |
 | NFR-3 | The current production sketch shall be kept as a known-good fallback for the field trip. |
+| NFR-9 | **Non-volatile memory (NVM).** The RA4M1 has a small data-flash area, reachable through the core's `EEPROM` library. It is **not used yet**. If it is used later (console-set thresholds, the O2 warm-up record), writes shall be rare and counted, a stored block shall carry a version and a checksum, and a missing or invalid block shall fall back to the compiled defaults, so the machine always starts safely. |
 | FUT-1 | **Reserved for a later version:** changing pressure thresholds from the console (`cfg set`). The runtime `Config` struct (§7) shall make this a small change. |
 
 ## 14b. Real-time clock (DS3231, optional) [NEW — draft, 2026-10-06]
@@ -427,9 +484,10 @@ A battery-backed DS3231 at I2C address 0x68 (the same bus as the displays and th
 | RTC-4 | The driver shall read the chip's temperature (0.25 °C steps) for diagnostics (BIST, `status`). |
 | RTC-5 | When fitted and trusted, the date/time shall appear in the boot banner and at the top of the `report` block, so a captured log can be dated (LOG-4). A missing RTC or an untrusted time shall be reported as INFO fault **F13**, never inhibit anything, and never delay POST. |
 | RTC-6 | Module safety (hardware, for the owner): many DS3231 boards (ZS-042 style) have a charging circuit meant for a rechargeable LIR2032; with a non-rechargeable CR2032 the cell can overheat. Fit an LIR2032, remove the charging resistor/diode, or use a board without it. |
+| RTC-7 | The RTC shall be used **only to time-stamp console log lines** (LOG-1, LOG-5), never for scheduling or control. A software wall clock (`WallClock`) is anchored to the RTC at start-up and every 60 s, so stamping costs no I2C traffic. If the RTC is absent or untrusted the clock is "not synced" and lines carry no wall time. |
+| RTC-8 | The RTC is read-only except that `time set` writes it when it is untrusted, unreadable, or differs from the given reference by more than 2 s. A missing RTC shall never stop POST or normal operation. |
 
-Status: driver and helpers are written and tested on the host (`test_rtc.cpp`, `test_datetime.cpp`); bench validation with
-`experiments/rtc_test`; console commands, F13 and the banner/report integration follow the bench validation.
+Status (2026-10-08): RTC-1…RTC-8 implemented and host-tested; the driver, the battery backup, the console commands, F13, the banner and the periodic re-anchoring validated on the R4 WiFi bench (`docs/results/rtc-test-wifi-20261006.md`, `lcd-led-address-clash-20261007.md`). RTC-6 is a hardware action for the owner. The year range is 2000-2199 in the register layout (the helpers' 32-bit seconds reach 2136).
 
 ## 14a. Reproducible environment and remote testing [NEW]
 
@@ -446,6 +504,7 @@ That only works if both sides build from the **same versions**.
 | ENV-5 | The firmware banner and `ver` shall print enough to trace a returned log to its package: firmware version, build date/time, git commit (supplied by `make_package`), board, ADC_BITS and the locked versions (ID-1). |
 | ENV-6 | The remote test shall be **DIAG only** (no controllers), and the package README shall say which steps move valves or the compressor and what the system must look like (for example air supply isolated) before they are run. [Q24] |
 | ENV-7 | *Option to verify:* an `arduino-cli` **sketch profile** (`sketch.yaml`) can pin the core and libraries; DFRobot_MultiGasSensor is **not** in the Library Manager index (searched 2026-10-02), so it would have to be supplied as a local directory or git URL. Whether the profile mechanism accepts that shall be checked before relying on it. |
+| ENV-8 | **Site test package [found 2026-10-08].** For a person who is not the author, the package is a `.zip` with ONE self-contained sketch in a same-named folder (only the core's `Wire`; no libraries to install), a plain-text `README.txt` operator guide for Windows and the Arduino IDE (it says to remove the Arduino's own power supply as well as USB, because the unit has a separate supply), and an `EXPECTED_RESULTS.txt`. The sketch needs no console (results on the LCD and LED), sets the RTC from the compile time, reads the switch inputs but never drives an output. First one: `deliverables/tom_i2c_check.zip` (LCD, RTC, LED, O2 query, TBS, TOB, RESET). Its source is separate from the firmware tree, so it is checked by compiling, not by the host tests. |
 
 ## 15. Owner-supplied facts still to confirm
 See `Owner_TODO.md`. Highlights: complete pinout with active levels; which production gauges exist; I2C
@@ -483,6 +542,14 @@ Hardware questions are kept separately in §17 and in `Owner_TODO.md` part 1.
 | Q26 | BIST vetoes exclude INV-9/INV-10 (O2 missing/warming) because the BIST is how that is diagnosed (BIST-11a) | Proposed: yes |
 | Q24 | BIST steps run by the hardware team | **Resolved:** the hardware team decides which steps to run; the firmware guarantees BIST never creates an unsafe condition (BIST-11) |
 | Q23 | Power-on vs reset discrimination and warm-up credit | **Resolved: yes** (O2-6a/6b), enabled only after bench tests |
+| Q27 | Which inputs are read per pass | **Resolved 2026-10-08:** GPIO and ADC every pass; I2C devices by non-blocking background steps with age (INP-9) |
+| Q28 | How controllers see each other | **Resolved:** through the previous pass's OutputSnapshot (CTL-2) |
+| Q29 | O2 driver | **Resolved:** both, selectable (`N2_O2_DRIVER`, O2-3b); compare on real hardware |
+| Q30 | Boot modes | **Resolved:** normal boot runs nothing; TOB at power-up = POST mode; `bist` on the console = BIST (POST-1, BIST-1) |
+| Q31 | Log format | **Resolved:** `[wall | ]ms L text`, wall omitted without an RTC (LOG-1) |
+| Q32 | Controller interface | **Resolved:** abstract base class `Controller`, `update()` (CTL-1) |
+| Q33 | LCD and LED on one bus | **Resolved:** LCD at 0x23, A2 bridged (PIN-13) |
+| Q34 | TBS/TOB debounce (INP-6) | open |
 
 ## 17. Questions for the hardware team (answers recorded 2026-10-02)
 
@@ -535,7 +602,4 @@ ignored** (owner, 2026-10-02): V8 uses the standard hardware `Wire` on SDA/SCL.
 The one V6/V7 value that cannot be used as-is is the high-pressure N2 sensor on **A5** (the I2C SCL
 line); see PIN-10. Still to confirm in production: which analog pin that sensor is really on, and that
 the output modules' active level is as V6/V7 assume.
-| RTC-7 | The RTC shall be used **only to time-stamp console log lines**, never for scheduling or control. The firmware anchors a software wall clock (`WallClock`) to the RTC at start-up and every 60 s, so stamping costs no I2C traffic. If the RTC is absent or untrusted the clock is "not synced" and lines carry no stamp. |
-| RTC-8 | The RTC shall be treated as read-only except that `time set` writes it when it is untrusted, unreadable, or differs from the given reference by more than 2 s. A missing RTC shall never stop POST or normal operation. |
 
-**RTC status:** RTC-1…RTC-5 implemented and host-tested (350 tests, Clang and GCC); RTC-1/2/4 and the battery backup validated on the R4 WiFi bench (`docs/results/rtc-test-wifi-20261006.md`). Firmware integration not yet flashed to hardware. RTC-6 is a hardware action for the owner.

@@ -64,4 +64,24 @@ Review of `Requirements.md` (v2.6 draft, 541 lines) against (1) the owner's stat
 | Q-A | **Everything fast is read on every pass; slow I2C devices (O2 sensor, RTC) are read by a non-blocking background step** (start on a deadline, finish over several passes, publish when complete). | INP-1 amended: GPIO and ADC every pass into the `InputSnapshot`; each I2C device has a read state machine whose latest value and **age (ms)** appear in the snapshot. New INP-9. |
 | Q-B | **Controllers learn about each other through the previous pass's `OutputSnapshot`**, copied into the `InputSnapshot` at the start of the pass. | CTL-2: a controller reads only the `InputSnapshot`; the `InputSnapshot` is `const` during a pass; one pass of latency is accepted; invariants run every pass on the final outputs. |
 | Q-C | **Both O2 read paths, selectable at compile time** (library, or our own non-blocking read-only query). | GOAL-7 amended; new `N2_O2_DRIVER` build macro; a comparison on the same hardware (Tom's run provides the first real-sensor data). |
-| Q-D | Owner's variation: **BIST runs on the console command `bist`; POST runs if TOB is pressed during power-up, with LCD and LED showing "POST mode".** | RST-6, BIST-1, POST-1 and POST-4 change; details to settle in the next round (below). |
+| Q-D | **Final:** a normal boot runs **nothing** (outputs safe, reset cause logged); **TOB held at power-up/reset = POST mode** (LCD and LED show it); **BIST only on the console command `bist`** (TBS off). | POST-1, POST-2, POST-4, DSP-11, RST-6, BIST-1 rewritten. |
+| Q-E | **`[wall | ]ms L text`**: wall time and a delimiter ` | ` only when the RTC is present and trusted; nothing (no placeholder) otherwise. | LOG-1, LOG-5, ARC-7. |
+| Q-F | **Abstract base class `Controller`, method `update()`.** | CTL-1…CTL-5. |
+
+
+`Requirements.md` is now **v3.0 DRAFT** (106 lines added, 42 changed). Still open: INP-6 (debounce TBS/TOB or not, Q34), and the exact POST-mode indication (DSP-11 is marked a proposal).
+
+## F. Code changes the new requirements imply (backlog, test first)
+
+| # | Change | Requirements | Today |
+|---|---|---|---|
+| F1 | `Controller` abstract base class; Tower, Compressor, O2Controller derive; the base owns `transition()` and the transition log line | CTL-1…CTL-4, ARC-7 | three classes with different `enable()`/`disable()` signatures, each logging via `TransitionLogger` |
+| F2 | Rename `Inputs` → `InputSnapshot`; add `seq`; make it `const` during the pass; remove the in-pass writes of `o2CommOk`/`o2Warm` | SNP-1, CTL-2 | `System::step()` mutates `in_` after `o2_.update()` |
+| F3 | `OutputSnapshot` (rename/extend `DisplayData`): stamp, `seq`, requested and actual outputs, invariants mask, last fault code; displays and console read only it; previous pass's copy feeds the next `InputSnapshot` | SNP-2, SNP-3, CTL-2 | `DisplayData` has no stamp; the actual outputs live in `OutputDriver` |
+| F4 | Background read steps for the O2 sensor and the RTC with an age in the snapshot | INP-9 | O2 read inside the controller with a deadline; RTC read by `Bringup`/`App` ad hoc |
+| F5 | `N2_O2_DRIVER` (`OWN`/`LIBRARY`): non-blocking own query next to the library adapter; zero reading = fault in both | O2-3a, O2-3b, GOAL-6/7 | library adapter only (3-zeros workaround) |
+| F6 | One log line format with the optional wall prefix; every `logf` goes through it; transition text `<NAME> <from>-><to> +<delta> next:<d>` | LOG-1, LOG-5, ARC-7 | `StampedLog` prefixes the wall time; ms appears only in some lines |
+| F7 | Normal boot runs nothing; TOB sampled at the start of `setup()` selects POST mode; `bist` only from the console; POST-mode indication on LCD/LED | POST-1, BIST-1, RST-6, DSP-11 | `App` runs POST at every boot; TOB at power-up selects BIST |
+| F8 | `FaultId` F13 in the docs table (done in the code), `LF xx` on the LCD (done) | FLT-5, DSP-4 | done |
+| F9 | The full `App` adopts the `DeviceCheck`/`SelfTest` framework (replacing the monolithic POST/BIST) and the bring-up `Bringup` app converges with `App` | CHK-1…CHK-3, STG-1 | two parallel implementations |
+| F10 | Check `delay()` is absent: grep + host test that fails if `delay(` appears under `N2V8/src` (except the library adapter) | GOAL-6 | true today in `src/`; not enforced |
