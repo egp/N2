@@ -1,5 +1,5 @@
 // ===========================================================================================
-// tom_i2c_check  VERSION 1.4   (2026-10-08)     <-- if you do not see this line, the IDE has an older copy
+// tom_i2c_check  VERSION 1.5   (2026-10-08)     <-- if you do not see this line, the IDE has an older copy
 //                                                   (minor versions are written in HEX: 1.A = 1.10)
 //
 // Tests the three I2C parts of the N2 generator on the REAL I2C bus: the 20x4 LCD, the DS3231 real-time clock (RTC) and the 4-digit LED display.
@@ -30,6 +30,9 @@
 //   During a step that asks, type  p (looks right)  or  f (looks wrong, add a note)  to record what you saw; r repeats the step.
 //
 // Change log
+//   1.5  from the first bench log: the banner (with the last reset cause) prints once when the Serial Monitor connects on the Minima, and at most 10 times
+//        on the WiFi board; p / f typed when no step is asking get a helpful reply; a step that was not exercised (O2 not fitted, switch not touched,
+//        RESET not pressed) prints '?' with its reason
 //   1.4  RESET test: press the RESET pushbutton within 20 s; the program restarts and at the next boot reports whether the reset cause is the button. The
 //        marker that survives the restart is one spare byte inside the DS3231 (alarm-2 minutes register, alarms are off). The boot always logs the reset cause
 //        and the raw reset-status registers. Command  reset.
@@ -43,7 +46,7 @@
 #include <Arduino.h>
 #include <Wire.h>
 
-#define SKETCH_VERSION "1.4"
+#define SKETCH_VERSION "1.5"
 
 // ---- Types are declared first on purpose: the Arduino IDE inserts automatic function prototypes above the first function, and a prototype that
 // ---- mentions DateTime or Verdict fails to compile if the type is defined further down.
@@ -700,7 +703,8 @@ static void bistConclude(uint32_t now, Verdict v, const char* note) {
   gVerdict[gBistStep] = v;
   snprintf(gNote[gBistStep], sizeof gNote[0], "%s", note);
   say("BIST %d/%d %-3s %s%s%s", gBistStep + 1, B_COUNT, kBistName[gBistStep],
-      v == V_PASS ? "PASS" : (v == V_FAIL ? "FAIL" : (v == V_UNSURE ? "OK? (no I2C error; judge by eye)" : "skipped")), note[0] ? "  " : "", note);
+      v == V_PASS ? "PASS" : (v == V_FAIL ? "FAIL" : (v == V_UNSURE ? (note[0] ? "?" : "OK? (no I2C error; judge by eye)") : "skipped")), note[0] ? "  " : "",
+      note);
   ++gBistStep;
   if (gBistStep > gBistLast) {
     gBist = false;
@@ -714,10 +718,10 @@ static void bistConclude(uint32_t now, Verdict v, const char* note) {
     }
     const bool fullRun = (gBistLast == B_COUNT - 1) && gVerdict[B_LCD] != V_NONE;
     if (gAutoRun && fullRun) {
-      say("TEST complete: %u pass, %u fail, %u OK-to-the-eye (no answer), %u skipped. It repeats in 45 s (type stop to end the repeats).", pass, fail, unsure, skip);
+      say("TEST complete: %u pass, %u fail, %u not confirmed (?), %u skipped. It repeats in 45 s (type stop to end the repeats).", pass, fail, unsure, skip);
       gAutoAt = now + 45000;
     } else {
-      say("TEST complete: %u pass, %u fail, %u OK-to-the-eye (no answer), %u skipped.", pass, fail, unsure, skip);
+      say("TEST complete: %u pass, %u fail, %u not confirmed (?), %u skipped.", pass, fail, unsure, skip);
       gAutoAt = 0xFFFFFFFFu;
     }
   } else {
@@ -1013,6 +1017,7 @@ static void printBanner() {
 #endif
   );
   say("Type help for the commands.");
+  say("Last reset: %s   (%s)", gResetText, gResetRaw);
 }
 
 static void printHelp() {
@@ -1089,6 +1094,10 @@ static void handleLine(const char* line, uint32_t now) {
       return;
     }
   }
+  if (gBist && !gAsking && (line[1] == '\0' || line[1] == ' ') && strchr("pfrs", tolower(*line)) != nullptr) {
+    say("(No step is asking right now. p / f are taken while an LCD or LED step waits for your answer; no answer is fine.)");
+    return;
+  }
   if (gBist && (tolower(*line) == 'q') && line[1] == '\0') {
     gKey = 'q';
     return;
@@ -1148,12 +1157,22 @@ static void consoleService(uint32_t now) {
       gLine[gLineLen++] = static_cast<char>(c);
     }
   }
-  // Until the PC has typed something, repeat the banner every 5 s: the Serial Monitor may have been opened after the board started.
-  static uint32_t nextBanner = 0;
-  if (!gHeardHost && reached(now, nextBanner)) {
+#if defined(ARDUINO_UNOR4_MINIMA)
+  // The Minima's USB serial knows when a Serial Monitor connects: print the banner then (and again if it is closed and opened again).
+  static bool wasConnected = false;
+  const bool connected = static_cast<bool>(Serial);
+  if (connected && !wasConnected) printBanner();
+  wasConnected = connected;
+#else
+  // The WiFi board cannot tell whether a Serial Monitor is open: repeat the banner every 5 s, at most 10 times, until the PC has typed something.
+  static uint32_t nextBanner = 5000;
+  static uint8_t bannersLeft = 10;
+  if (!gHeardHost && bannersLeft > 0 && reached(now, nextBanner)) {
     nextBanner = now + 5000;
+    --bannersLeft;
     printBanner();
   }
+#endif
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------
@@ -1172,7 +1191,6 @@ void setup() {
   memset(gLedSeg, 0, sizeof gLedSeg);
   ledText("----", -1);
   printBanner();
-  say("Last reset: %s   (%s)", gResetText, gResetRaw);
   resetTestEvaluate(millis());
   postBegin(millis());
 }
