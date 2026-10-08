@@ -11,6 +11,7 @@ void DisplayManager::begin(uint32_t now, uint32_t lcdStartMs) {
 
 void DisplayManager::setOverride(const Screen& screen, const LedText& led, uint32_t now, uint32_t forMs) {
   override_ = true;
+  haveShownNormal_ = false;   // when the override ends, the next normal screen goes out at once
   if (forMs > 0) timer_.arm(now, forMs);
   else timer_.clear();
   lcd_.setScreen(screen);
@@ -22,7 +23,15 @@ void DisplayManager::showNormal(const DisplayData& data, uint32_t now) {
   if (override_) return;
   cycle_.update(now, data.faultCount);
   const bool fault = cycle_.showFault();
-  lcd_.setScreen(fault ? renderFault(data, cycle_.faultIndex()) : renderNormal(data, layout_));
+  const Screen next = fault ? renderFault(data, cycle_.faultIndex()) : renderNormal(data, layout_);
+  if (!haveShownNormal_ || !(next == shownNormal_)) {
+    if (!haveShownNormal_ || static_cast<uint32_t>(now - shownNormalAt_) >= lcdMinChangeMs_) {   // output debounce: at most one change per lcdMinChangeMs_
+      lcd_.setScreen(next);
+      shownNormal_ = next;
+      shownNormalAt_ = now;
+      haveShownNormal_ = true;
+    }
+  }
   led_.setText(renderLed(data, fault));
 }
 

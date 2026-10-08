@@ -19,7 +19,7 @@
 //   src/BuildConfig.h:22       build mode (DIAG default / FIELD), default log level, O2 mandatory
 //   src/BoardPins.h:92         pins, active levels (kLcdAddress = 0x23 just above the boards)
 // CODE BY AREA
-//   src/app/App.cpp:147                loop(): POST mode / BIST / RUN
+//   src/app/App.cpp:148                loop(): POST mode / BIST / RUN
 //   src/app/App.cpp:52                 setup(): outputs safe first, then the rest
 //   src/core/System.cpp:47             one pass: inputs, controllers, invariants, outputs
 //   src/core/Tower.cpp:43              TOWER controller

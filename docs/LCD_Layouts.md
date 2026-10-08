@@ -240,3 +240,6 @@ startup
   N2% invalid                  [----] dot after 1
   fault F03 shown              [ F03] dot after -1
 ```
+
+## Update rate (DSP-12, owner decision 2026-10-08)
+The NORMAL screen is sent to the LCD at most once per second (`kDefaultLcdMinChangeMs` in ui/DisplayManager.h, `AppOptions::lcdMinChangeMs`; 0 = every pass). A changed value (the last digit of a pressure that wanders by one ADC count) therefore does not flicker; the display shows the newest value once a second. Anything on the normal screen, including the valve/SSR bits, can be up to 1 s behind. Start-up, POST and BIST screens (overrides) are not held back. The LED is not limited.

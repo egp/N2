@@ -58,6 +58,7 @@ void App::setup() {
   sys_.setControllersEnabled(opt_.controllersEnabled);
   resetInfo_ = hal_.readResetCause();
   const uint32_t credit = credit_.begin(resetInfo_, now);
+  display_.setLcdMinChangeMs(opt_.lcdMinChangeMs);
   nvmSvc_.load();  // NVM-1: read only. The stored debounce times (if valid for this board) replace the compiled default.
   sys_.setDebounce(nvmSvc_.choice().tbsMs, nvmSvc_.choice().tobMs);
   sys_.begin(resetInfo_, credit);

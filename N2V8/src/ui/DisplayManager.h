@@ -21,12 +21,17 @@
 namespace n2 {
 
 constexpr uint32_t kDefaultLcdStartMs = 2500;    // see DisplayManager::begin
+constexpr uint32_t kDefaultLcdMinChangeMs = 1000;  // the normal LCD screen changes at most once a second (no flicker from a wandering last digit)
 constexpr uint32_t kDefaultFaultCycleMs = 4000;  // LCD_FAULT_CYCLE_MS (3000..4000)
 
 class DisplayManager {
  public:
   DisplayManager(Hal& hal, const BoardDef& board, LcdLayout layout, uint32_t faultCycleMs = kDefaultFaultCycleMs)
       : layout_(layout), lcd_(hal, board.addrLcd), led_(hal, board.addrLed, board.addrLedDigits), cycle_(faultCycleMs) {}
+
+  // Output "debounce": a changed NORMAL screen is sent to the LCD at most once every minMs (0 = at once). Overrides (start-up, POST, BIST)
+  // are never held back. The LED is not limited.
+  void setLcdMinChangeMs(uint32_t minMs) { lcdMinChangeMs_ = minMs; }
 
   // The LCD is not touched until lcdStartMs after boot (bench finding 2026-10-06: initialising it within the first ~2 s after a
   // reset left it showing random characters; waiting 2.5 s gave 5 clean resets in 5). The LED has no such problem.
@@ -57,6 +62,10 @@ class DisplayManager {
   Deadline timer_;
   Deadline lcdStart_;
   bool override_ = false;
+  uint32_t lcdMinChangeMs_ = 0;
+  Screen shownNormal_;           // the last normal screen given to the LCD
+  uint32_t shownNormalAt_ = 0;
+  bool haveShownNormal_ = false;
 };
 
 }  // namespace n2

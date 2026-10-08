@@ -4,6 +4,7 @@
 
 #include "TestSupport.h"
 #include "core/Scaling.h"
+#include "ui/DisplayManager.h"
 #include "ui/LcdScreens.h"
 #include "ui/LedText.h"
 #include "ui/ScreenCycle.h"
@@ -328,4 +329,28 @@ TEST_CASE("the sub-version is shown on row 4, columns 10-14, when given, and not
   Screen withVer = renderNormal(d, LcdLayout::kClearLabels);
   CHECK(std::string(withVer.row[3]).substr(10, 5) == "8.1.0");
   CHECK(std::string(withVer.row[3]).substr(0, 4) == "AIR ");
+}
+
+TEST_CASE("DSP-12: the normal LCD screen changes at most once a second (output debounce); overrides are not held back") {
+  FakeHal hal;
+  hal.i2cPresent = {kLcdAddress, 0x24, 0x34, 0x35, 0x36, 0x37};
+  DisplayManager dm(hal, kHostBoard, LcdLayout::kClearLabels);
+  dm.setLcdMinChangeMs(1000);
+  dm.begin(0, 0);
+  DisplayData d;
+  std::string at[36];
+  for (uint32_t t = 0; t <= 3500; t += 10) {
+    d.airX10 = static_cast<uint16_t>(300 + t / 10);   // the AIR value changes on EVERY pass
+    dm.showNormal(d, t);
+    dm.service(t);
+    if (t % 100 == 0) at[t / 100] = dm.lcd().shown(3);
+  }
+  CHECK(at[11] == at[19]);   // steady within a second, although the data changed on every pass
+  CHECK(at[11] != at[21]);   // and updated about once a second
+  CHECK(at[21] == at[29]);
+  // an override (start-up, POST, BIST) goes out at once
+  Screen o = makeScreen("OVERRIDE");
+  dm.setOverride(o, LedText(), 3500);
+  for (uint32_t t = 3500; t < 3600; t += 10) dm.service(t);
+  CHECK(std::string(dm.lcd().shown(0)).substr(0, 8) == "OVERRIDE");
 }

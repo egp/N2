@@ -36,6 +36,7 @@ struct AppOptions {
   LcdLayout layout = LcdLayout::kClearLabels;
   uint32_t lcdStartMs = kDefaultLcdStartMs;  // the LCD is left alone this long after boot (see DisplayManager::begin)
   uint32_t faultCycleMs = kDefaultFaultCycleMs;
+  uint32_t lcdMinChangeMs = kDefaultLcdMinChangeMs;  // normal LCD screen changes at most this often (1 Hz); 0 = every pass
   bool controllersEnabled = true;    // false in the DIAG build
   bool warmCreditEnabled = false;    // O2-6b: false until the reset probe has proven the credit logic on both boards
   LogLevel logLevel = LogLevel::kDebug;
