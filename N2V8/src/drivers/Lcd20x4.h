@@ -105,6 +105,11 @@ class Lcd20x4 {
   void serviceHealing(uint32_t now);
   bool healOn_ = false;
   bool alwaysRewrite_ = false;
+  // Each scheduled full rewrite is preceded by 'entry mode' (0x06) and 'return home' (0x02). Return home also cancels a display SHIFT that a
+  // stray command or a reset in mid-transaction left behind (bench 2026-10-08: the whole screen sat one column to the right, the last column
+  // lost and the first column showing the end of another row). It does not clear DDRAM and does not blink: not a re-initialisation.
+  bool homePending_ = false;
+  uint32_t homeUntil_ = 0;
   Healing heal_;
   bool healStarted_ = false;
   uint32_t healReadyAt_ = 0;

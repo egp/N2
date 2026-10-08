@@ -8,7 +8,7 @@
 //          the newer of A/B has the higher count. Carried forward on every save, never reset. Each block is erased about half of
 //          this number of times; the part is rated 100,000 erases per block, so the count must stay far below 200,000 (kNvmWearWarnWrites).
 //   8..19  payload: tbsDebounceMs, tobDebounceMs, boardId, reserved (0), sketchVersion u16 (the sketch that wrote it, e.g. 0x0801),
-//           reserved u16 (0), savedAt u32 (RTC time of the save, seconds since 2000-01-01 00:00:00; 0 = unknown, no valid RTC)
+//           reserved u16 (0), savedAt u32 (RTC time of the save, seconds since 2026-01-01 00:00:00; 0 = unknown, no valid RTC)
 //   20..21 CRC-16/CCITT-FALSE over bytes 0..19
 // A CRC-16 catches every single-bit error, every double-bit error, every burst up to 16 bits and 99.998 % of anything else, so a
 // record left behind by another program passes by chance about 1 time in 65536 — and only if the magic, schema and length also match.
@@ -33,7 +33,7 @@ struct NvmSettings {
   uint8_t tbsDebounceMs = 0;
   uint8_t tobDebounceMs = 0;
   BoardId board = BoardId::kUnknown;
-  uint32_t savedAtSec = 0;      // RTC time of the save (secondsSince2000); 0 = unknown
+  uint32_t savedAtSec = 0;      // RTC time of the save (secondsSince2026); 0 = unknown
   uint16_t sketchVersion = 0;   // the sketch version that wrote the record (hex-style: 0x0103 = 1.3)
 };
 

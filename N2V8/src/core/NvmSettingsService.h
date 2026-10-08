@@ -31,7 +31,7 @@ class NvmSettingsService {
 
   void load();                                       // read only; never writes
   bool saveDebounce(uint8_t tbsMs, uint8_t tobMs, uint32_t savedAtSec = 0);   // validates 2..100, writes (one erase), reloads. Blocks ~50 ms.
-  // savedAtSec: RTC time now (secondsSince2000), or 0 if the clock is not valid.
+  // savedAtSec: RTC time now (secondsSince2026), or 0 if the clock is not valid.
   bool available() const { return nvm_ != nullptr; }
   const DebounceChoice& choice() const { return choice_; }
   const StoreReport& report() const { return report_; }

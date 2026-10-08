@@ -84,3 +84,15 @@ TEST_CASE("RTC-1: secondsSince2000 counts correctly across days, months, leap ye
   CHECK(secondsSince2000({2026, 10, 6, 10, 31, 2}) - secondsSince2000({2026, 10, 6, 10, 30, 2}) == 60);
   CHECK(secondsSince2000({2024, 3, 1, 0, 0, 0}) - secondsSince2000({2024, 2, 28, 0, 0, 0}) == 2u * 86400u);  // leap day in between
 }
+
+TEST_CASE("seconds since 2026-01-01: round trip, zero for earlier times") {
+  DateTime epoch{2026, 1, 1, 0, 0, 1};
+  CHECK(secondsSince2026(epoch) == 1);
+  DateTime t{2026, 10, 8, 15, 0, 6};
+  const uint32_t s = secondsSince2026(t);
+  CHECK(s == (31 + 28 + 31 + 30 + 31 + 30 + 31 + 31 + 30 + 7) * 86400u + 15 * 3600u + 6);
+  DateTime back;
+  REQUIRE(dateTimeFromSecondsSince2026(s, back));
+  CHECK(back.year == 2026); CHECK(back.month == 10); CHECK(back.day == 8); CHECK(back.hour == 15); CHECK(back.second == 6);
+  CHECK(secondsSince2026(DateTime{2025, 12, 31, 23, 59, 59}) == 0);
+}

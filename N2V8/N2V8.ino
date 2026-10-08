@@ -32,7 +32,7 @@
 //   src/core/Faults.cpp:8              fault table (codes, text, severity)
 //   src/ui/LcdScreens.cpp:68           LCD normal screen
 //   src/ui/LedText.cpp:10              LED text
-//   src/drivers/Lcd20x4.cpp:228        LCD driver
+//   src/drivers/Lcd20x4.cpp:237        LCD driver
 //   src/drivers/Led1650.cpp:55         LED driver
 //   src/drivers/Rtc3231.cpp:7          RTC driver
 //   src/selftest/Post.cpp:35           POST

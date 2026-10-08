@@ -21,8 +21,8 @@ Two copies in two blocks: a power failure while one is being written damages at 
 number, wrap-safe) is used; each save goes to the older one, then is read back and compared. Identical settings are never rewritten.
 Several values share ONE record so one save = one erase. A future record kind gets its own block (so its erases do not age the settings).
 
-## Record (18 bytes, little-endian, schema 2)
-`4E 32` magic · schema (2) · payload length (8) · **write count** (u32) · TBS ms · TOB ms · board id (1 Minima, 2 WiFi) · reserved · **sketch version** (u16, e.g. 0x0801) · reserved (u16) · CRC-16/CCITT over the first 16 bytes.
+## Record (22 bytes, little-endian, schema 2)
+`4E 32` magic · schema (2) · payload length (8) · **write count** (u32) · TBS ms · TOB ms · board id (1 Minima, 2 WiFi) · reserved · **sketch version** (u16, e.g. 0x0801) · reserved (u16) · **saved-at** (u32: RTC time of the save, seconds since 2026-01-01 00:00:00, 0 = unknown) · CRC-16/CCITT over the first 20 bytes.
 The write count is the number of saves (each = one block erase of A or B) and is carried forward on every save; each block is erased about half that many times; rated 100,000 per block, so a warning is logged at 50,000 (`kNvmWearWarnWrites`).
 The `nvm` console command (and the probe's `l`) shows every check for each copy separately — **a never-set region fails the magic and the checksum** (blank flash also shows `blank`).
 Check bits: a CRC-16 instead of one parity bit — parity passes half of all garbage, the magic+schema+length+CRC pass about 1 in 2^40 (tested on 20,000 random records, and every single-bit flip of a good record is rejected).

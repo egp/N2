@@ -410,3 +410,19 @@ TEST_CASE("DSP-7: an LCD that dies mid-run is detected, then recovers") {
   CHECK(lcd.healthy());
   CHECK(std::string(lcd.shown(0)).substr(0, 3) == "two");
 }
+
+TEST_CASE("DRV-3: each scheduled full rewrite starts with entry mode and return home, which cancels a stuck display shift") {
+  FakeHal hal;
+  hal.i2cPresent = {kLcd};
+  Lcd20x4 lcd(hal, kLcd);
+  lcd.setScreen(screen("A"));
+  lcd.enableHealing();
+  uint32_t t = bringUp(hal, lcd);
+  hal.i2cWrites.clear();
+  for (uint32_t i = 0; i < 400; ++i) lcd.service(t + i);   // the first rewrite is due 250 ms after the display is up
+  int homes = 0;
+  for (const auto& w : hal.i2cWrites)
+    if (w.bytes == Bytes{0x0C, 0x08, 0x2C, 0x28}) ++homes;
+  CHECK(homes >= 1);
+  CHECK(std::string(lcd.shown(0)).substr(0, 1) == "A");
+}

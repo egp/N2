@@ -261,12 +261,12 @@ bool Commands::Faults::line(uint8_t i, char* b, size_t n) {
 }
 
 namespace {
-// RTC time now as seconds since 2000, or 0 when there is no clock or it does not hold a valid time.
+// RTC time now as seconds since 2026-01-01, or 0 when there is no clock or it does not hold a valid time.
 uint32_t rtcSecondsOf(Rtc3231* rtc) {
   DateTime t;
   bool valid = false;
   if (rtc == nullptr || !rtc->read(t) || !rtc->timeValid(valid) || !valid) return 0;
-  return secondsSince2000(t);
+  return secondsSince2026(t);
 }
 const char* okFail(bool ok) { return ok ? "ok" : "FAIL"; }
 void copyLine(char* b, size_t n, char which, const RecordChecks& k, RecordStatus st, uint32_t seq) {
@@ -302,7 +302,7 @@ bool Commands::NvmInfo::line(uint8_t i, char* b, size_t n) {
       else {
         DateTime t;
         char when[24] = "?";
-        if (dateTimeFromSeconds(r.settings.savedAtSec, t)) formatDateTime(when, t);
+        if (dateTimeFromSecondsSince2026(r.settings.savedAtSec, t)) formatDateTime(when, t);
         const uint32_t nowS = rtcSecondsOf(c_.rtc);
         if (nowS >= r.settings.savedAtSec && nowS != 0) {
           const uint32_t age = nowS - r.settings.savedAtSec;

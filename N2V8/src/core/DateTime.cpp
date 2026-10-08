@@ -99,3 +99,21 @@ bool parseDateTime(const char* date, const char* time, DateTime& out) {
 }
 
 }  // namespace n2
+
+namespace n2 {
+
+namespace {
+constexpr DateTime kEpoch2026 = {2026, 1, 1, 0, 0, 0};
+}
+
+uint32_t secondsSince2026(const DateTime& t) {
+  const uint32_t base = secondsSince2000(kEpoch2026);
+  const uint32_t s = secondsSince2000(t);
+  return s > base ? s - base : 0;
+}
+
+bool dateTimeFromSecondsSince2026(uint32_t seconds, DateTime& out) {
+  return dateTimeFromSeconds(secondsSince2000(kEpoch2026) + seconds, out);
+}
+
+}  // namespace n2

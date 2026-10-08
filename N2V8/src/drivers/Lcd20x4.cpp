@@ -163,6 +163,7 @@ void Lcd20x4::serviceHealing(uint32_t now) {
   }
   if (nextRewrite_.reached(now)) {
     refresh();
+    homePending_ = true;
     rewriteGapMs_ = rewriteGapMs_ * 2 < heal_.rewriteEveryMs ? rewriteGapMs_ * 2 : heal_.rewriteEveryMs;
     nextRewrite_.arm(now, rewriteGapMs_);
   }
@@ -193,6 +194,14 @@ bool Lcd20x4::serviceInit(uint32_t now) {
 }
 
 void Lcd20x4::serviceContent(uint32_t now) {
+  if (!deadlineReached(now, homeUntil_)) return;   // 'return home' takes 1.5 ms: write nothing until it is done
+  if (homePending_) {
+    if (!writeByte(0x06, false) || !writeByte(0x02, false)) return fail(now);
+    homePending_ = false;
+    homeUntil_ = now + 2;
+    curRow_ = curCol_ = -1;
+    return;
+  }
   if (backlightDirty_) {
     if (!writeRaw(backlight_ ? kBl : 0)) return fail(now);
     backlightDirty_ = false;

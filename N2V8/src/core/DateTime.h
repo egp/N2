@@ -34,6 +34,11 @@ uint32_t secondsSince2000(const DateTime& t);
 // The inverse of secondsSince2000. 32-bit seconds reach February 2136, so it only returns false if a year beyond 2199 were reached.
 bool dateTimeFromSeconds(uint32_t seconds, DateTime& out);
 
+// Seconds since 2026-01-01 00:00:00 (the epoch of the NVM save time). 0 means "unknown": it is also returned for any time before
+// 2026-01-01 00:00:01, which the project has no use for. 32-bit seconds from 2026 reach the year 2162.
+uint32_t secondsSince2026(const DateTime& t);
+bool dateTimeFromSecondsSince2026(uint32_t seconds, DateTime& out);
+
 // a - b in seconds (negative if a is earlier).
 int32_t secondsBetween(const DateTime& a, const DateTime& b);
 
