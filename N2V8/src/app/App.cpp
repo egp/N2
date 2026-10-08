@@ -64,7 +64,7 @@ void App::setup() {
   sys_.begin(resetInfo_, credit);
   post_.setResetInfo(resetInfo_);
   display_.begin(now, opt_.lcdStartMs);
-  tobAtBoot_ = tobPressed();  // TOB held at power-up asks for the BIST (RST-6)
+  tobAtBoot_ = tobPressed();  // TOB held at power-up or reset selects POST mode (RST-6, POST-1); a normal boot runs no self-test
 
   logf(console_, LogLevel::kInfo, "%lu BOOT N2V8 %s %s mode %s reset: %s", static_cast<unsigned long>(now), info_.version,
        info_.board, info_.mode,
@@ -76,8 +76,13 @@ void App::setup() {
          nvmSvc_.choice().source == DebounceSource::kStored ? (r.settings.sketchVersion == nvmSvc_.sketchVersion() ? "" : " (written by another sketch version: see `nvm`)") : "");
     if (r.wearWarning()) logf(console_, LogLevel::kWarn, "%lu NVM write count %lu is high (rated life about 200000)", static_cast<unsigned long>(now), static_cast<unsigned long>(r.sequence));
   }
-  post_.begin(now);
-  mode_ = Mode::kPost;
+  if (tobAtBoot_) {
+    logf(console_, LogLevel::kInfo, "%lu POST mode (TOB held at start)", static_cast<unsigned long>(now));
+    post_.begin(now);
+    mode_ = Mode::kPost;
+  } else {
+    mode_ = Mode::kRun;   // normal boot: outputs are safe, the sensor rules and invariants protect the machine as always
+  }
 }
 
 // When a console attaches (the Serial Monitor is opened) it missed the boot messages: say who we are.
@@ -158,10 +163,6 @@ void App::loop() {
       if (post_.step(now)) {
         sys_.resume();
         mode_ = Mode::kRun;
-        if (tobAtBoot_) {
-          tobAtBoot_ = false;
-          if (bist_.begin(now, false) == Bist::Start::kOk) mode_ = Mode::kBist;
-        }
       }
       break;
 

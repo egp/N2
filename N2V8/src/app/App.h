@@ -3,10 +3,10 @@
 // Everything the sketch does lives here and depends only on the Hal, so the complete firmware (boot, POST, run,
 // BIST, console, watchdog) runs on the host under test. The .ino is just glue.
 //
-//   setup(): outputs safe -> watchdog -> reset cause -> displays -> POST            (RST-2, WDT-1)
+//   setup(): outputs safe -> watchdog -> reset cause -> displays; then RUN, or POST if TOB is held (RST-2, WDT-1, POST-1)
 //   loop():  watchdog refresh, console, then one of:
-//              POST  (hands-off self-test, may hold on a fault)
-//              BIST  (operator self-test; started by the `bist` command, or by TOB held at power-up)
+//              POST  (hands-off self-test, only when TOB was held at power-up/reset or on the `post` command; may hold on a fault)
+//              BIST  (operator self-test; started ONLY by the `bist` command)
 //              RUN   (the system: System::step + displays)
 #pragma once
 

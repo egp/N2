@@ -1,4 +1,4 @@
-// Whole-firmware tests through App: boot order, POST -> RUN, `post`/`bist` commands, TOB-at-boot BIST, DIAG build,
+// Whole-firmware tests through App: boot order, POST -> RUN, `post`/`bist` commands, TOB-at-boot POST mode, DIAG build,
 // watchdog, loop statistics, display faults, warm-up credit (Requirements §3, §4, §6, §11, §12, §14).
 #include <catch2/catch_test_macros.hpp>
 #include <memory>
@@ -102,8 +102,22 @@ TEST_CASE("WDT-5: the watchdog can be disabled for debugging") {
   CHECK(r.hal.watchdogTimeoutMs == 0);
 }
 
-TEST_CASE("§4: boot -> POST -> RUN by itself, within 3 s, without a console or a button press") {
+TEST_CASE("POST-1: a normal boot runs no self-test: outputs safe, then straight to RUN, with or without a console") {
+  for (bool console : {false, true}) {
+    AppRig r(quickWarmConfig(), AppOptions(), console);
+    r.boot();
+    CHECK(r.app->mode() == App::Mode::kRun);
+    r.run(500);
+    CHECK(r.app->mode() == App::Mode::kRun);
+    CHECK_FALSE(r.has("POST"));
+    CHECK_FALSE(r.has("BIST"));
+    CHECK_FALSE(r.anyOutputOn());
+  }
+}
+
+TEST_CASE("POST-1/RST-6: TOB held at power-up or reset selects POST mode, which ends by itself within 3 s and then runs") {
   AppRig r(quickWarmConfig(), AppOptions(), /*consoleAttached=*/false);
+  r.tob(true);
   r.boot();
   CHECK(r.app->mode() == App::Mode::kPost);
   REQUIRE(r.runUntilMode(App::Mode::kRun, 3000));
@@ -114,7 +128,9 @@ TEST_CASE("§4: boot -> POST -> RUN by itself, within 3 s, without a console or 
 TEST_CASE("§11: outputs stay off for the whole POST even with TBS on and good pressures") {
   AppRig r;
   r.tbs(true);
+  r.tob(true);   // POST mode
   r.boot();
+  REQUIRE(r.app->mode() == App::Mode::kPost);
   while (r.app->mode() == App::Mode::kPost) {
     r.tick();
     REQUIRE_FALSE(r.anyOutputOn());
@@ -122,13 +138,12 @@ TEST_CASE("§11: outputs stay off for the whole POST even with TBS on and good p
   }
 }
 
-TEST_CASE("§4/RST-3: TBS ON at boot starts the system once POST is done") {
+TEST_CASE("§4/RST-3: TBS ON at a normal boot starts the system (after the sensor rules and warm-up allow it)") {
   AppRig r;
   r.tbs(true);
   r.boot();
-  r.run(3000);
   REQUIRE(r.app->mode() == App::Mode::kRun);
-  r.run(5000);
+  r.run(8000);
   CHECK(r.outputOn(Signal::kSsr));
   CHECK(r.outputOn(Signal::kLeftValve));
   CHECK(r.app->system().invariantViolations() == 0);
@@ -207,24 +222,20 @@ TEST_CASE("BIST-1: `bist` is refused while TBS is ON, and the system keeps runni
   CHECK(r.outputOn(Signal::kSsr));
 }
 
-TEST_CASE("RST-6/BIST-1: TOB held at power-up starts the BIST after POST (console attached)") {
+TEST_CASE("BIST-1: TOB held at power-up selects POST, never BIST; BIST starts only on the console command") {
   AppRig r;
   r.tob(true);
   r.boot();
-  REQUIRE(r.runUntilMode(App::Mode::kBist, 4000));
-  r.run(100);
-  CHECK(r.has("BIST 0: banner"));
-  CHECK_FALSE(r.anyOutputOn());
-}
-
-TEST_CASE("BIST-1: TOB held at power-up without a console does NOT start the BIST; the LCD says why") {
-  AppRig r(quickWarmConfig(), AppOptions(), /*consoleAttached=*/false);
-  r.tob(true);
-  r.boot();
+  CHECK(r.app->mode() == App::Mode::kPost);
   REQUIRE(r.runUntilMode(App::Mode::kRun, 4000));
-  r.run(300);
+  r.run(500);
   CHECK(r.app->mode() == App::Mode::kRun);
-  CHECK(std::string(r.app->display().lcd().shown(0)) == "BIST: NO CONSOLE    ");
+  CHECK_FALSE(r.has("BIST 0: banner"));
+  r.tob(false);
+  r.type("bist");
+  r.run(200);
+  CHECK(r.app->mode() == App::Mode::kBist);
+  CHECK(r.has("BIST 0: banner"));
 }
 
 TEST_CASE("§2 DIAG: with controllers disabled, no output ever turns on however good the conditions") {
