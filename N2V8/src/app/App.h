@@ -49,7 +49,7 @@ struct AppOptions {
 
 class App : public CommandLauncher {
  public:
-  enum class Mode : uint8_t { kPost, kBist, kRun };
+  enum class Mode : uint8_t { kPost, kBist, kRun, kPostArm };   // kPostArm: TOB was held at start; waiting for the operator to release it
 
   // `warmRecord` is the RAM record that survives a reset (nullptr: no credit, e.g. on the host).
   App(Hal& hal, const BoardDef& board, const ControlConfig& cfg, O2Reader& o2, const BuildInfo& info,
@@ -99,6 +99,9 @@ class App : public CommandLauncher {
   Mode mode_ = Mode::kPost;
   ResetInfo resetInfo_;
   bool tobAtBoot_ = false;
+  uint32_t postArmStart_ = 0;
+  uint32_t tobReleasedAt_ = 0;
+  bool tobReleased_ = false;
   bool postRequested_ = false;
   bool bistRequested_ = false;
   bool consoleWasAttached_ = false;

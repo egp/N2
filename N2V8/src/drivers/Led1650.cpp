@@ -10,6 +10,10 @@ uint8_t Led1650::segmentsFor(char c) {
   if (c >= '0' && c <= '9') return kHex[c - '0'];
   if (c >= 'A' && c <= 'F') return kHex[10 + (c - 'A')];
   if (c == '-') return 0x40;
+  if (c == 'P') return 0x73;   // for the POST-mode acknowledgement "PoSt"
+  if (c == 'o') return 0x5C;
+  if (c == 'S') return 0x6D;
+  if (c == 't') return 0x78;
   return 0x00;
 }
 

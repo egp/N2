@@ -119,7 +119,8 @@ TEST_CASE("POST-1/RST-6: TOB held at power-up or reset selects POST mode, which 
   AppRig r(quickWarmConfig(), AppOptions(), /*consoleAttached=*/false);
   r.tob(true);
   r.boot();
-  CHECK(r.app->mode() == App::Mode::kPost);
+  CHECK(r.app->mode() == App::Mode::kPostArm);
+  r.tob(false);
   REQUIRE(r.runUntilMode(App::Mode::kRun, 3000));
   CHECK(r.app->post().level() == PostLevel::kPass);
   CHECK_FALSE(r.anyOutputOn());
@@ -130,7 +131,8 @@ TEST_CASE("§11: outputs stay off for the whole POST even with TBS on and good p
   r.tbs(true);
   r.tob(true);   // POST mode
   r.boot();
-  REQUIRE(r.app->mode() == App::Mode::kPost);
+  r.tob(false);
+  REQUIRE(r.runUntilMode(App::Mode::kPost, 1000));
   while (r.app->mode() == App::Mode::kPost) {
     r.tick();
     REQUIRE_FALSE(r.anyOutputOn());
@@ -226,7 +228,8 @@ TEST_CASE("BIST-1: TOB held at power-up selects POST, never BIST; BIST starts on
   AppRig r;
   r.tob(true);
   r.boot();
-  CHECK(r.app->mode() == App::Mode::kPost);
+  CHECK(r.app->mode() == App::Mode::kPostArm);
+  r.tob(false);
   REQUIRE(r.runUntilMode(App::Mode::kRun, 4000));
   r.run(500);
   CHECK(r.app->mode() == App::Mode::kRun);
@@ -523,4 +526,31 @@ TEST_CASE("NVM-1: `debounce set` saves (one erase), takes effect, and is refused
   CHECK(nvm.erases == 1);
   r.type("debounce set 1 5");
   CHECK(r.has("times must be 2..100 ms"));
+}
+
+TEST_CASE("POST-1: TOB held at start is ACKNOWLEDGED (LED PoSt at once, LCD says release TOB) and POST waits for the release") {
+  AppRig r;
+  r.tob(true);
+  r.boot();
+  REQUIRE(r.app->mode() == App::Mode::kPostArm);
+  r.run(3000);   // longer than the LCD start delay
+  CHECK(r.app->mode() == App::Mode::kPostArm);   // still waiting: TOB is held
+  CHECK(r.has("TOB seen. Release TOB"));
+  CHECK(std::string(r.app->display().lcd().shown(0)).substr(0, 9) == "POST MODE");
+  CHECK(std::string(r.app->display().lcd().shown(2)).substr(0, 11) == "RELEASE TOB");
+  CHECK_FALSE(r.anyOutputOn());
+  r.tob(false);
+  r.run(200);
+  CHECK(r.app->mode() == App::Mode::kPost);   // the release starts the POST
+}
+
+TEST_CASE("POST-1: a TOB stuck down for 10 s does not stop the unit: POST starts anyway, with a warning") {
+  AppRig r;
+  r.tob(true);
+  r.boot();
+  r.run(9000);
+  CHECK(r.app->mode() == App::Mode::kPostArm);
+  r.run(1500);
+  CHECK(r.app->mode() != App::Mode::kPostArm);
+  CHECK(r.has("TOB still held after 10 s"));
 }

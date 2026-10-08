@@ -5,6 +5,7 @@
 namespace n2 {
 
 namespace {
+constexpr uint32_t kPostArmTimeoutMs = 10000;   // TOB held longer than this: start the POST anyway (a stuck button must not stop the unit)
 BoardId boardIdOf(const BoardDef& b) {
   const char* n = b.name;
   for (; *n; ++n) {
@@ -77,9 +78,13 @@ void App::setup() {
     if (r.wearWarning()) logf(console_, LogLevel::kWarn, "%lu NVM write count %lu is high (rated life about 200000)", static_cast<unsigned long>(now), static_cast<unsigned long>(r.sequence));
   }
   if (tobAtBoot_) {
-    logf(console_, LogLevel::kInfo, "%lu POST mode (TOB held at start)", static_cast<unsigned long>(now));
-    post_.begin(now);
-    mode_ = Mode::kPost;
+    // ACKNOWLEDGE the TOB: the LED shows PoSt at once; the LCD shows it when it starts (2.5 s after boot). POST begins when TOB is
+    // released (or after 10 s), so the operator knows when to let go.
+    logf(console_, LogLevel::kInfo, "%lu POST mode: TOB seen. Release TOB to start the POST", static_cast<unsigned long>(now));
+    display_.setOverride(makeScreen("POST MODE", "TOB held at start", "RELEASE TOB", "to begin the POST"), LedText{{'P', 'o', 'S', 't', '\0'}, -1}, now);
+    postArmStart_ = now;
+    tobReleased_ = false;
+    mode_ = Mode::kPostArm;
   } else {
     mode_ = Mode::kRun;   // normal boot: outputs are safe, the sensor rules and invariants protect the machine as always
   }
@@ -103,7 +108,7 @@ void App::printBanner() {
   }
   console_.tryPrint(line);
   snprintf(line, sizeof line, "up %lu s, state %s. Type help.", static_cast<unsigned long>(hal_.millis() / 1000u),
-           mode_ == Mode::kPost ? "POST" : (mode_ == Mode::kBist ? "BIST" : "RUN"));
+           mode_ == Mode::kPostArm ? "POST (release TOB)" : (mode_ == Mode::kPost ? "POST" : (mode_ == Mode::kBist ? "BIST" : "RUN")));
   console_.tryPrint(line);
 }
 
@@ -159,6 +164,20 @@ void App::loop() {
   announceConsole();
 
   switch (mode_) {
+    case Mode::kPostArm:
+      if (tobPressed()) {
+        tobReleased_ = false;
+      } else if (!tobReleased_) {
+        tobReleased_ = true;
+        tobReleasedAt_ = now;
+      }
+      if ((tobReleased_ && static_cast<uint32_t>(now - tobReleasedAt_) >= 50) || static_cast<uint32_t>(now - postArmStart_) >= kPostArmTimeoutMs) {
+        if (!tobReleased_) logf(console_, LogLevel::kWarn, "%lu TOB still held after %lu s: starting the POST anyway", static_cast<unsigned long>(now), static_cast<unsigned long>(kPostArmTimeoutMs / 1000u));
+        post_.begin(now);
+        mode_ = Mode::kPost;
+      }
+      break;
+
     case Mode::kPost:
       if (post_.step(now)) {
         sys_.resume();

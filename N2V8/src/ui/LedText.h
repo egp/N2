@@ -8,7 +8,7 @@
 namespace n2 {
 
 struct LedText {
-  char digit[5];     // four characters, NUL-terminated: '0'-'9', '-', 'F', ' '
+  char digit[5];     // four characters, NUL-terminated: '0'-'9', 'A'-'F', '-', ' ', and P o S t ("PoSt")
   int8_t dotAfter;   // decimal point after this digit (0..3), or -1 for none
   bool operator==(const LedText& o) const;
 };
