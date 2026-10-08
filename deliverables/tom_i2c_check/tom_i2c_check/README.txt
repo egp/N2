@@ -1,4 +1,4 @@
-tom_i2c_check  -  OPERATOR GUIDE                                   version 1.5
+tom_i2c_check  -  OPERATOR GUIDE                                   version 1.6
 =============================================================================
 
 WHAT THIS IS
@@ -99,7 +99,7 @@ WHAT HAPPENS, IN ORDER
            test runs again, over and over.
 
   THE LCD (4 rows of 20 characters), normal screen:
-      row 1   CHECK v1.5 TBS0 TOB0     <- the two switches, live (see below)
+      row 1   CHECK v1.6 TBS0 TOB0     <- the two switches, live (see below)
       row 2   LCD+ RTC+ LED+ O2+       <- one status per device
       row 3   2026-10-08 11:32:16      <- the RTC date and time
       row 4   what the test is doing, or the result
@@ -163,6 +163,11 @@ WITH THE SERIAL MONITOR (optional)
       p    it looked right          f    it looked wrong (add a note, e.g.
                                          f missing segment on digit 2)
   (Typing p or f is optional. No answer is fine; the test goes on by itself.)
+  Too late? If the question has already moved on (the 8 seconds ran out),
+  type p or f anyway: it answers the LAST question that went unanswered, and
+  the result changes from ? to P (or F). Example: the LCD looked right but
+  you were not at the keyboard in time: type p afterwards. The log says
+  "Recorded: LCD PASS (your late answer ...)".
   After you use lcd, led, rtc, o2, tbs, tob or reset the repeating test is paused so
   that it does not interrupt you. Type run to start the repeating test again.
   Every change of the switches is also written in the log: TBS ON / TBS off,

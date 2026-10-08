@@ -1,5 +1,5 @@
 // ===========================================================================================
-// tom_i2c_check  VERSION 1.5   (2026-10-08)     <-- if you do not see this line, the IDE has an older copy
+// tom_i2c_check  VERSION 1.6   (2026-10-08)     <-- if you do not see this line, the IDE has an older copy
 //                                                   (minor versions are written in HEX: 1.A = 1.10)
 //
 // Tests the three I2C parts of the N2 generator on the REAL I2C bus: the 20x4 LCD, the DS3231 real-time clock (RTC) and the 4-digit LED display.
@@ -30,6 +30,7 @@
 //   During a step that asks, type  p (looks right)  or  f (looks wrong, add a note)  to record what you saw; r repeats the step.
 //
 // Change log
+//   1.6  a p / f typed AFTER an LCD or LED question timed out (no step is asking) answers that last unanswered question: the result changes from ? to P / F
 //   1.5  from the first bench log: the banner (with the last reset cause) prints once when the Serial Monitor connects on the Minima, and at most 10 times
 //        on the WiFi board; p / f typed when no step is asking get a helpful reply; a step that was not exercised (O2 not fitted, switch not touched,
 //        RESET not pressed) prints '?' with its reason
@@ -46,7 +47,7 @@
 #include <Arduino.h>
 #include <Wire.h>
 
-#define SKETCH_VERSION "1.5"
+#define SKETCH_VERSION "1.6"
 
 // ---- Types are declared first on purpose: the Arduino IDE inserts automatic function prototypes above the first function, and a prototype that
 // ---- mentions DateTime or Verdict fails to compile if the type is defined further down.
@@ -622,6 +623,7 @@ static uint32_t gRtcFirstMs = 0;
 static char gKey = 0;       // the operator's answer: p f r s q
 static char gKeyNote[28];
 static bool gBistFinished = false;
+static int8_t gLateStep = -1;       // the last LCD/LED question that timed out without an answer (-1 = none): a late p / f answers it
 static uint8_t gBistLast = B_COUNT - 1;   // the last step of this run (a single-device command runs just one step)
 static uint32_t gAskUntil = 0;      // a step that asks waits this long for an answer, then goes on by itself
 static uint32_t gErrAtStart = 0;    // I2C error count of the device under test when the step began
@@ -880,8 +882,13 @@ static void bistService(uint32_t now) {
     }
   }
   if (gAsking && gKey == 0 && reached(now, gAskUntil)) {  // nobody answered: the automatic part decides, the eye part stays open
-    if (stepHadErrors()) bistConclude(now, V_FAIL, "I2C write errors during the step");
-    else bistConclude(now, V_UNSURE, "");
+    const uint8_t asked = gBistStep;
+    if (stepHadErrors()) {
+      bistConclude(now, V_FAIL, "I2C write errors during the step");
+    } else {
+      bistConclude(now, V_UNSURE, "");
+      gLateStep = static_cast<int8_t>(asked);  // a p / f typed later still answers this question
+    }
     return;
   }
   if (gAsking && gKey != 0) {
@@ -905,6 +912,7 @@ static void bistBegin(uint32_t now, uint8_t first = 0, uint8_t last = B_COUNT - 
     return;
   }
   gAutoAt = 0xFFFFFFFFu;
+  if (gLateStep >= first && gLateStep <= last) gLateStep = -1;  // this run clears that step's result: its old question is gone
   for (uint8_t i = first; i <= last; ++i) {  // only the steps that are about to run are cleared: an earlier result for another device stays
     gVerdict[i] = V_NONE;
     gNote[i][0] = '\0';
@@ -1094,8 +1102,25 @@ static void handleLine(const char* line, uint32_t now) {
       return;
     }
   }
-  if (gBist && !gAsking && (line[1] == '\0' || line[1] == ' ') && strchr("pfrs", tolower(*line)) != nullptr) {
-    say("(No step is asking right now. p / f are taken while an LCD or LED step waits for your answer; no answer is fine.)");
+  if (!gAsking && (line[1] == '\0' || line[1] == ' ') && strchr("pfrs", tolower(*line)) != nullptr) {
+    const char k = static_cast<char>(tolower(*line));
+    if ((k == 'p' || k == 'f') && gLateStep >= 0 && gVerdict[gLateStep] == V_UNSURE) {  // a late answer to the last question that timed out
+      if (k == 'p') {
+        gVerdict[gLateStep] = V_PASS;
+        gNote[gLateStep][0] = '\0';
+        say("Recorded: %s PASS (your late answer to the question that timed out).", kBistName[gLateStep]);
+      } else {
+        const char* note = line + 1;
+        while (*note == ' ') ++note;
+        gVerdict[gLateStep] = V_FAIL;
+        snprintf(gNote[gLateStep], sizeof gNote[0], "%s", note);
+        say("Recorded: %s FAIL %s (your late answer to the question that timed out).", kBistName[gLateStep], gNote[gLateStep]);
+      }
+      gLateStep = -1;
+      return;
+    }
+    if (k == 'p' || k == 'f') say("(There is no unanswered question to apply that to: a new test run has replaced it, or it was already answered. Answer while a step asks.)");
+    else say("(No step is asking right now.)");
     return;
   }
   if (gBist && (tolower(*line) == 'q') && line[1] == '\0') {

@@ -1,4 +1,4 @@
-tom_i2c_check  -  WHAT A GOOD RUN LOOKS LIKE                       version 1.5
+tom_i2c_check  -  WHAT A GOOD RUN LOOKS LIKE                       version 1.6
 =============================================================================
 Compare what you see with this. Times are approximate. The date and time
 will be yours. Lines starting with "BIST" and "POST" are in the Serial
@@ -6,7 +6,7 @@ Monitor (optional); the screens are on the LCD and the LED.
 
 
 1. SERIAL MONITOR, FIRST SECONDS
-   ==== tom_i2c_check version 1.5 | built Oct  8 2026 11:31:56 | board UNO R4 Minima ====
+   ==== tom_i2c_check version 1.6 | built Oct  8 2026 11:31:56 | board UNO R4 Minima ====
    Type help for the commands.
    Last reset: power-on (cold start)   (RSTSR0=00 RSTSR1=0000 RSTSR2=00)
    POST 1/4 LCD ok   answers at 0x23
@@ -109,13 +109,16 @@ Monitor (optional); the screens are on the LCD and the LED.
    BIST 7/7 RST
       PRESS THE RESET BUTTON NOW (within 20 s). The program restarts; at the next start it reports the result.
    ... (you press RESET: the program restarts, the log starts again with the banner) ...
-   ==== tom_i2c_check version 1.5 | built ... | board UNO R4 Minima ====
+   ==== tom_i2c_check version 1.6 | built ... | board UNO R4 Minima ====
    Last reset: reset button/other   (RSTSR0=00 RSTSR1=0000 RSTSR2=01)
    RESET TEST: PASS The RESET button restarted the program (reset cause: reset button/other).
    POST ...                                (the normal start-up, then the test starts again)
    TEST complete: 5 pass, 0 fail, 2 not confirmed (?), 0 skipped. It repeats in 45 s ...
 
    Notes:
+   - A p or f typed after the 8 seconds ran out answers the last unanswered
+     question:   Recorded: LCD PASS (your late answer to the question that timed out).
+     and the result for that step changes from ? to P (or F).
    - The O2 reading depends on what the sensor is breathing: about 20.9 %
      in room air; a few percent or less in the nitrogen output when the
      generator has been running; it needs about 5 minutes after power-on to
