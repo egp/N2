@@ -15,6 +15,7 @@
 #include "../BoardPins.h"
 #include "../ControlConfig.h"
 #include "../core/LoopStats.h"
+#include "../core/NvmSettingsService.h"
 #include "../core/O2Reader.h"
 #include "../core/System.h"
 #include "../core/WarmCredit.h"
@@ -38,6 +39,9 @@ struct AppOptions {
   bool controllersEnabled = true;    // false in the DIAG build
   bool warmCreditEnabled = false;    // O2-6b: false until the reset probe has proven the credit logic on both boards
   LogLevel logLevel = LogLevel::kDebug;
+  Nvm* nvm = nullptr;                // non-volatile memory (data flash); nullptr = none: the compiled debounce default is used
+  uint16_t sketchVersion = 0;        // BuildConfig.h N2_VERSION_HEX: stored in every NVM record
+  uint8_t debounceDefaultMs = kBringupDebounceMs;  // compiled default; 0 = no debounce (host tests of the controllers)
   PostOptions post;
   BistConfig bist;
 };
@@ -83,6 +87,7 @@ class App : public CommandLauncher {
   System sys_;
   DisplayManager display_;
   LoopStats loopStats_;
+  NvmSettingsService nvmSvc_;
   ConsoleContext ctx_;
   Commands commands_;
   Post post_;

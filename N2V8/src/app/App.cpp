@@ -4,6 +4,18 @@
 
 namespace n2 {
 
+namespace {
+BoardId boardIdOf(const BoardDef& b) {
+  const char* n = b.name;
+  for (; *n; ++n) {
+    if (n[0] == 'W' && n[1] == 'i' && n[2] == 'F' && n[3] == 'i') return BoardId::kWifi;
+    if (n[0] == 'h' && n[1] == 'o' && n[2] == 's' && n[3] == 't') return BoardId::kMinima;  // host tests use the production (Minima) pin table
+    if (n[0] == 'M' && n[1] == 'i' && n[2] == 'n' && n[3] == 'i' && n[4] == 'm' && n[5] == 'a') return BoardId::kMinima;
+  }
+  return BoardId::kUnknown;
+}
+}  // namespace
+
 App::App(Hal& hal, const BoardDef& board, const ControlConfig& cfg, O2Reader& o2, const BuildInfo& info,
          WarmRecord* warmRecord, AppOptions options)
     : hal_(hal),
@@ -15,7 +27,8 @@ App::App(Hal& hal, const BoardDef& board, const ControlConfig& cfg, O2Reader& o2
       rtc_(hal, board.addrRtc),
       sys_(hal, board_, cfg_, o2, console_, kAdcBits),
       display_(hal, board_, options.layout, options.faultCycleMs),
-      ctx_{&sys_, &console_, &loopStats_, &hal_, info_, options.layout, this, &rtc_},
+      nvmSvc_(options.nvm, boardIdOf(board), options.sketchVersion, options.debounceDefaultMs),
+      ctx_{&sys_, &console_, &loopStats_, &hal_, info_, options.layout, this, &rtc_, &nvmSvc_},
       commands_(ctx_),
       post_(hal, board_, sys_, display_, console_, info_, ResetInfo(), options.post),
       bist_(hal, board_, sys_, display_, console_, o2, info_, options.bist),
@@ -45,6 +58,8 @@ void App::setup() {
   sys_.setControllersEnabled(opt_.controllersEnabled);
   resetInfo_ = hal_.readResetCause();
   const uint32_t credit = credit_.begin(resetInfo_, now);
+  nvmSvc_.load();  // NVM-1: read only. The stored debounce times (if valid for this board) replace the compiled default.
+  sys_.setDebounce(nvmSvc_.choice().tbsMs, nvmSvc_.choice().tobMs);
   sys_.begin(resetInfo_, credit);
   post_.setResetInfo(resetInfo_);
   display_.begin(now, opt_.lcdStartMs);
@@ -53,6 +68,13 @@ void App::setup() {
   logf(console_, LogLevel::kInfo, "%lu BOOT N2V8 %s %s mode %s reset: %s", static_cast<unsigned long>(now), info_.version,
        info_.board, info_.mode,
        !resetInfo_.known ? "unknown" : (resetInfo_.powerOn ? "power-on" : (resetInfo_.watchdog ? "watchdog" : (resetInfo_.brownout ? "brown-out" : "reset button"))));
+  if (nvmSvc_.available()) {
+    const StoreReport& r = nvmSvc_.report();
+    logf(console_, LogLevel::kInfo, "%lu NVM debounce TBS %u ms TOB %u ms: %s%s", static_cast<unsigned long>(now),
+         static_cast<unsigned>(nvmSvc_.choice().tbsMs), static_cast<unsigned>(nvmSvc_.choice().tobMs), nvmSvc_.choice().why,
+         nvmSvc_.choice().source == DebounceSource::kStored ? (r.settings.sketchVersion == nvmSvc_.sketchVersion() ? "" : " (written by another sketch version: see `nvm`)") : "");
+    if (r.wearWarning()) logf(console_, LogLevel::kWarn, "%lu NVM write count %lu is high (rated life about 200000)", static_cast<unsigned long>(now), static_cast<unsigned long>(r.sequence));
+  }
   post_.begin(now);
   mode_ = Mode::kPost;
 }

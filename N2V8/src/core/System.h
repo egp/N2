@@ -20,6 +20,7 @@
 #include "O2Reader.h"
 #include "OutputDriver.h"
 #include "Sensors.h"
+#include "Debounce.h"
 #include "Snapshots.h"
 #include "Tower.h"
 #include "WarmCredit.h"
@@ -46,6 +47,10 @@ class System {
   // One pass of loop().
   void step();
 
+  // Debounce times for TBS and TOB (INP-6). 0 = none. Set by the App from NVM or the compiled default.
+  void setDebounce(uint8_t tbsMs, uint8_t tobMs) { tbsDeb_.setDebounceMs(tbsMs); tobDeb_.setDebounceMs(tobMs); }
+  uint8_t tbsDebounceMs() const { return tbsDeb_.debounceMs(); }
+  uint8_t tobDebounceMs() const { return tobDeb_.debounceMs(); }
   const Inputs& inputs() const { return in_; }
   const Tower& tower() const { return tower_; }
   const Compressor& compressor() const { return compressor_; }
@@ -77,6 +82,7 @@ class System {
   OutputDriver driver_;
 
   Inputs in_;
+  Debouncer tbsDeb_{false, kBringupDebounceMs}, tobDeb_{false, kBringupDebounceMs};
   OutputRequest request_;
   InvariantResult invariants_;
   bool prevTbs_ = false;

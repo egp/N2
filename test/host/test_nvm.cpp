@@ -7,7 +7,7 @@
 using namespace n2;
 
 namespace {
-NvmSettings mk(uint8_t tbs, uint8_t tob, BoardId b = BoardId::kWifi) { NvmSettings s; s.tbsDebounceMs = tbs; s.tobDebounceMs = tob; s.board = b; return s; }
+NvmSettings mk(uint8_t tbs, uint8_t tob, BoardId b = BoardId::kWifi, uint16_t ver = 0x0103) { NvmSettings s; s.tbsDebounceMs = tbs; s.tobDebounceMs = tob; s.board = b; s.sketchVersion = ver; return s; }
 }
 
 TEST_CASE("crc16 matches the CCITT-FALSE check value", "[nvm]") {
@@ -20,7 +20,7 @@ TEST_CASE("record round trip and every single-bit flip is detected", "[nvm]") {
   encodeRecord(7, mk(12, 34), rec);
   uint32_t seq = 0; NvmSettings s;
   REQUIRE(decodeRecord(rec, seq, s) == RecordStatus::kOk);
-  REQUIRE(seq == 7); REQUIRE(s.tbsDebounceMs == 12); REQUIRE(s.tobDebounceMs == 34); REQUIRE(s.board == BoardId::kWifi);
+  REQUIRE(seq == 7); REQUIRE(s.tbsDebounceMs == 12); REQUIRE(s.tobDebounceMs == 34); REQUIRE(s.board == BoardId::kWifi); REQUIRE(s.sketchVersion == 0x0103);
   for (size_t byte = 0; byte < kNvmRecordBytes; byte++)
     for (int bit = 0; bit < 8; bit++) {
       uint8_t bad[kNvmRecordBytes]; for (size_t i = 0; i < sizeof bad; i++) bad[i] = rec[i];
@@ -189,4 +189,18 @@ TEST_CASE("a press and its release 100 ms later are two operations, hold time is
   t += 1000; m.sample(false, t);                           // release, clean
   for (int i = 0; i < 50; i++) { t += 1000; m.sample(false, t); }
   REQUIRE(m.stats().operations == 2); REQUIRE_FALSE(m.stats().lastToOn); REQUIRE(m.stats().lastSettleUs == 0);
+}
+
+TEST_CASE("sketch version is stored; a version change is a write; the write count carries forward and warns", "[nvm]") {
+  FakeNvm nvm; SettingsStore st(nvm);
+  REQUIRE(st.save(mk(10, 20, BoardId::kWifi, 0x0103)));
+  REQUIRE(st.load().settings.sketchVersion == 0x0103);
+  const int e = nvm.erases;
+  REQUIRE(st.save(mk(10, 20, BoardId::kWifi, 0x0104)));      // same numbers, new sketch: recorded
+  REQUIRE(nvm.erases == e + 1); REQUIRE(st.load().settings.sketchVersion == 0x0104); REQUIRE(st.load().sequence == 2);
+  for (int i = 0; i < 20; i++) st.save(mk(static_cast<uint8_t>(11 + i), 20));
+  REQUIRE(st.load().sequence == 22);                          // write count = saves that wrote
+  REQUIRE_FALSE(st.load().wearWarning());
+  uint8_t rec[kNvmRecordBytes]; encodeRecord(kNvmWearWarnWrites, mk(10, 20), rec); FakeNvm worn; worn.write(0, rec, sizeof rec);
+  REQUIRE(SettingsStore(worn).load().wearWarning());
 }

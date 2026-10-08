@@ -7,6 +7,7 @@
 #include <stdarg.h>
 
 #include "../core/LoopStats.h"
+#include "../core/NvmSettingsService.h"
 #include "../core/System.h"
 #include "../drivers/Rtc3231.h"
 #include "../hal/Hal.h"
@@ -34,6 +35,7 @@ struct ConsoleContext {
   LcdLayout layout;
   CommandLauncher* launcher = nullptr;
   Rtc3231* rtc = nullptr;  // the real-time clock, if the build has one
+  NvmSettingsService* nvm = nullptr;  // settings in non-volatile memory, if the build has any
 };
 
 class Commands : public CommandHandler {
@@ -135,6 +137,14 @@ class Commands : public CommandHandler {
   Status status_;
   Faults faults_;
   Cfg cfg_;
+  class NvmInfo : public Responder {
+   public:
+    explicit NvmInfo(const ConsoleContext& c) : c_(c) {}
+    bool line(uint8_t i, char* b, size_t n) override;
+   private:
+    const ConsoleContext& c_;
+  };
+  NvmInfo nvmInfo_;
   Display display_;
   Loop loop_;
   Scan scan_;

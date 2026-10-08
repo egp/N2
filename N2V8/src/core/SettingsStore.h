@@ -20,9 +20,11 @@ struct StoreReport {
   RecordStatus a = RecordStatus::kBlank;
   RecordStatus b = RecordStatus::kBlank;
   uint32_t seqA = 0, seqB = 0;
+  RecordChecks checksA, checksB;   // magic / schema / length / checksum of each copy, individually
   bool valid = false;      // some copy is valid
   char which = '-';        // 'A' or 'B': the copy in use
-  uint32_t sequence = 0;   // saves so far, of the copy in use
+  uint32_t sequence = 0;   // the WRITE COUNT of the copy in use (saves so far, A and B together)
+  bool wearWarning() const { return valid && sequence >= kNvmWearWarnWrites; }
   NvmSettings settings;    // meaningful only when valid
 };
 

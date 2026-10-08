@@ -15,6 +15,7 @@ const Entry kEntries[] = {
     {"faults", CommandId::kFaults}, {"cfg", CommandId::kCfg},      {"display", CommandId::kDisplay},
     {"loop", CommandId::kLoop},     {"scan", CommandId::kScan},    {"post", CommandId::kPost},
     {"bist", CommandId::kBist},     {"sim", CommandId::kSim},      {"time", CommandId::kTime},
+    {"nvm", CommandId::kNvm},       {"debounce", CommandId::kDebounce},
 };
 
 char lower(char c) { return (c >= 'A' && c <= 'Z') ? static_cast<char>(c - 'A' + 'a') : c; }

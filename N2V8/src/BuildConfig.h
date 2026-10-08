@@ -13,6 +13,7 @@
 #pragma once
 
 #define N2_VERSION "8.1.0-m2"
+#define N2_VERSION_HEX 0x0801   // stored in every NVM record (high byte major, low byte minor); change it together with N2_VERSION
 
 #if !defined(N2_BUILD_HOST) && !defined(N2_BUILD_BENCH) && \
     !defined(N2_BUILD_DIAG) && !defined(N2_BUILD_FIELD)

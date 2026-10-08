@@ -1,5 +1,5 @@
 // ===========================================================================================
-// nvm_probe  VERSION 1.3   (2026-10-08)     <-- if you do not see this line, the IDE has an older copy
+// nvm_probe  VERSION 1.4   (2026-10-08)     <-- if you do not see this line, the IDE has an older copy
 //                                               (minor versions are written in HEX: 1.A = 1.10)
 //
 // Learns how the UNO R4's non-volatile memory (data flash, reached through the core's EEPROM library) behaves, and measures the
@@ -27,6 +27,7 @@
 // the switch has been still for 0.2 s), and operate each switch 20+ times, press AND release.
 //
 // Change log
+//   1.4  record schema 2: stores the sketch version and the WRITE COUNT (shown by l); the write adapter takes the record size from NvmRecord.h
 //   1.3  a transition ends after 20 ms without an edge (v1.2: 200 ms, which merged a press and its release when the button was held
 //        less than 0.2 s: the 'settle' times of 100-200 ms were hold times). Each line says ON or OFF.
 //   1.2  save uses ONE EEPROM.put (v1.1 and earlier wrote byte by byte: 16 block erases and 0.25-0.7 s per save)
@@ -34,7 +35,8 @@
 //        20 on/off cycles per switch (c N changes it); the k command is gone (use  w TBS TOB  once you have decided the values)
 //   1.0  first version
 // ===========================================================================================
-#define PROBE_VERSION "1.3"
+#define PROBE_VERSION "1.4"
+#define PROBE_VERSION_HEX 0x0104   // stored in every record: the sketch that wrote it
 
 #include <Arduino.h>
 #include <EEPROM.h>
@@ -42,31 +44,13 @@
 #include "src/BoardPins.h"
 #include "src/core/Debounce.h"
 #include "src/core/SettingsStore.h"
+#include "src/drivers/NvmEeprom.h"
 #include "src/drivers/Lcd20x4.h"
 #include "src/hal/HalArduino.h"
 #include "src/ui/LcdScreens.h"
 #include "src/hal/Nvm.h"
 
 using namespace n2;
-
-// The R4 data flash through the core's EEPROM library. Every EEPROM write call rewrites its whole 1 KB block, so write() collects the
-// changed bytes and uses ONE put() per call; unchanged bytes are skipped by the library (update()).
-class EepromNvm : public Nvm {
- public:
-  size_t size() const override { return static_cast<size_t>(EEPROM.length()); }
-  size_t blockSize() const override { return 1024; }
-  void read(size_t addr, uint8_t* d, size_t n) override { for (size_t i = 0; i < n; i++) d[i] = EEPROM.read(static_cast<int>(addr + i)); }
-  bool write(size_t addr, const uint8_t* d, size_t n) override {
-    if (addr / 1024 != (addr + n - 1) / 1024) return false;
-    // ONE put() = one block erase + program for the whole record. (v1.0 wrote byte by byte: every changed byte rewrote the 1 KB block,
-    // 16 block erases and 0.25-0.7 s per save, found on the bench 2026-10-08.)
-    uint8_t rec[kNvmRecordBytes];
-    if (n != sizeof rec) return false;
-    for (size_t i = 0; i < n; i++) rec[i] = d[i];
-    EEPROM.put(static_cast<int>(addr), rec);
-    return true;
-  }
-};
 
 static EepromNvm nvm;
 static SettingsStore store(nvm);
@@ -91,9 +75,9 @@ static void printReport(const StoreReport& r) {
   Serial.print("\ncopy B: "); Serial.print(recordStatusName(r.b)); if (r.b == RecordStatus::kOk) { Serial.print("  seq "); Serial.print(r.seqB); }
   Serial.println();
   if (!r.valid) { Serial.println("no valid settings stored -> the compiled default (30 ms) applies"); return; }
-  Serial.print("in use: copy "); Serial.print(r.which); Serial.print("  saves "); Serial.print(r.sequence);
+  Serial.print("in use: copy "); Serial.print(r.which); Serial.print("  WRITE COUNT "); Serial.print(r.sequence); Serial.print(r.wearWarning() ? " (WEAR WARNING)" : " (of ~200000 rated)");
   Serial.print("  TBS "); Serial.print(r.settings.tbsDebounceMs); Serial.print(" ms  TOB "); Serial.print(r.settings.tobDebounceMs);
-  Serial.print(" ms  board "); Serial.println(static_cast<int>(r.settings.board));
+  Serial.print(" ms  board "); Serial.print(static_cast<int>(r.settings.board)); Serial.print("  written by sketch 0x"); Serial.println(r.settings.sketchVersion, HEX);
 }
 
 static void printMeter(const char* name, const BounceMeter& m) {
@@ -117,7 +101,7 @@ static void dump() {
   }
 }
 
-static NvmSettings current(uint8_t tbs, uint8_t tob) { NvmSettings s; s.tbsDebounceMs = tbs; s.tobDebounceMs = tob; s.board = boardId; return s; }
+static NvmSettings current(uint8_t tbs, uint8_t tob) { NvmSettings s; s.tbsDebounceMs = tbs; s.tobDebounceMs = tob; s.board = boardId; s.sketchVersion = PROBE_VERSION_HEX; return s; }
 
 static void command(String c) {
   c.trim();
@@ -147,8 +131,7 @@ static void command(String c) {
   } else if (c == "e") {
     Serial.println("type  e y  to erase both copies");
   } else if (c == "e y") {
-    uint8_t ff[16]; for (auto& x : ff) x = 0xFF;
-    for (size_t b = 0; b < 2; b++) { for (size_t i = 0; i < 16; i++) EEPROM.update(static_cast<int>(b * 1024 + i), 0xFF); }
+    for (size_t b = 0; b < 2; b++) { for (size_t i = 0; i < kNvmRecordBytes; i++) EEPROM.update(static_cast<int>(b * 1024 + i), 0xFF); }
     Serial.println("both copies erased"); printReport(store.load());
   } else if (c == "b") {
     if (stage == 1 || stage == 2) { stage = 0; Serial.println("bounce test cancelled"); }

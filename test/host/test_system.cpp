@@ -205,6 +205,7 @@ TEST_CASE("INV-1: TBS off during operation closes everything at once") {
   REQUIRE(p.runUntil([&] { return p.ssr() && p.left(); }, 20000));
   p.tbs(false);
   p.step(10);
+  p.step(kBringupDebounceMs + 10);   // TBS is debounced (INP-6): the shutdown follows the switch by the debounce time
   expectAllOff(p);
   CHECK(p.sys().tower().state() == Tw::kDisabled);
   CHECK(p.sys().compressor().state() == Cp::kDisabled);

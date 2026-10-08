@@ -9,8 +9,10 @@ StoreReport SettingsStore::load() {
   uint8_t buf[kNvmRecordBytes];
   NvmSettings sa, sb;
   nvm_.read(0, buf, sizeof buf);
+  r.checksA = inspectRecord(buf);
   r.a = decodeRecord(buf, r.seqA, sa);
   nvm_.read(nvm_.blockSize(), buf, sizeof buf);
+  r.checksB = inspectRecord(buf);
   r.b = decodeRecord(buf, r.seqB, sb);
   const bool okA = r.a == RecordStatus::kOk, okB = r.b == RecordStatus::kOk;
   if (okA && okB) {  // the newer wins; the difference is taken as a signed number so the count may wrap
@@ -31,7 +33,7 @@ bool SettingsStore::save(const NvmSettings& s) {
   if (!fits()) return false;
   const StoreReport cur = load();
   if (cur.valid && cur.settings.tbsDebounceMs == s.tbsDebounceMs && cur.settings.tobDebounceMs == s.tobDebounceMs &&
-      cur.settings.board == s.board) {
+      cur.settings.board == s.board && cur.settings.sketchVersion == s.sketchVersion) {
     return true;  // already stored: no erase
   }
   // Write the copy that is NOT in use (A if neither is valid).

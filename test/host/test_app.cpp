@@ -4,6 +4,7 @@
 #include <memory>
 #include <string>
 
+#include "FakeNvm.h"
 #include "TestSupport.h"
 #include "app/App.h"
 
@@ -446,4 +447,69 @@ TEST_CASE("RTC-3: `time set` works through the whole application console") {
   CHECK(r.has("RTC set to 2026-10-06 10:31:00"));
   r.type("time");
   CHECK(r.has("RTC 2026-10-06 10:31:00 (trusted)"));
+}
+
+// ---------------------------------------------------------------------------- NVM-1 / INP-6: stored debounce times
+namespace {
+void storeRecord(FakeNvm& nvm, size_t addr, uint32_t seq, uint8_t tbs, uint8_t tob, BoardId b, uint16_t ver = 0x0801) {
+  NvmSettings s; s.tbsDebounceMs = tbs; s.tobDebounceMs = tob; s.board = b; s.sketchVersion = ver;
+  uint8_t rec[kNvmRecordBytes]; encodeRecord(seq, s, rec); nvm.write(addr, rec, sizeof rec);
+}
+}  // namespace
+
+TEST_CASE("NVM-1: never-set memory (blank or garbage) -> compiled default, nothing is written, nvm shows each failed check") {
+  for (int garbage = 0; garbage < 2; garbage++) {
+    FakeNvm nvm(garbage ? FakeNvm::Init::kGarbage : FakeNvm::Init::kBlank, 7);
+    AppOptions o; o.nvm = &nvm; o.sketchVersion = 0x0801;
+    AppRig r(quickWarmConfig(), o);
+    r.boot();
+    CHECK(r.app->system().tbsDebounceMs() == kBringupDebounceMs);
+    CHECK(r.app->system().tobDebounceMs() == kBringupDebounceMs);
+    CHECK(nvm.erases == 0);
+    r.type("nvm");
+    CHECK(r.has("copy A: magic FAIL"));
+    CHECK(r.has("checksum FAIL"));
+    CHECK(r.has("nothing valid stored"));
+  }
+}
+
+TEST_CASE("NVM-1: valid stored times for this board replace the default; other board or out of range do not") {
+  { FakeNvm nvm; storeRecord(nvm, 0, 1, 12, 7, BoardId::kMinima);
+    AppOptions o; o.nvm = &nvm; AppRig r(quickWarmConfig(), o); r.boot();
+    CHECK(r.app->system().tbsDebounceMs() == 12); CHECK(r.app->system().tobDebounceMs() == 7);
+    r.type("nvm"); CHECK(r.has("magic ok")); CHECK(r.has("WRITE COUNT 1")); }
+  { FakeNvm nvm; storeRecord(nvm, 0, 1, 12, 7, BoardId::kWifi);     // measured on the other board
+    AppOptions o; o.nvm = &nvm; AppRig r(quickWarmConfig(), o); r.boot();
+    CHECK(r.app->system().tbsDebounceMs() == kBringupDebounceMs); }
+  { FakeNvm nvm; storeRecord(nvm, 0, 1, 1, 200, BoardId::kMinima);  // out of range
+    AppOptions o; o.nvm = &nvm; AppRig r(quickWarmConfig(), o); r.boot();
+    CHECK(r.app->system().tbsDebounceMs() == kBringupDebounceMs); }
+  { FakeNvm nvm; storeRecord(nvm, 0, 1, 12, 7, BoardId::kMinima, 0x0700);   // written by an older sketch: still used, and it says so
+    AppOptions o; o.nvm = &nvm; o.sketchVersion = 0x0801; AppRig r(quickWarmConfig(), o); r.boot();
+    CHECK(r.app->system().tbsDebounceMs() == 12); r.run(100); CHECK(r.has("another sketch version")); }
+}
+
+TEST_CASE("INP-6: TBS is accepted only after the debounce time; a glitch shorter than that is ignored") {
+  FakeNvm nvm; storeRecord(nvm, 0, 1, 20, 20, BoardId::kMinima);
+  AppOptions o; o.nvm = &nvm; AppRig r(quickWarmConfig(), o); r.boot();
+  REQUIRE(r.runUntilMode(App::Mode::kRun, 20000));
+  r.tbs(true); r.tick(10); r.tbs(false); r.tick(10);        // 10 ms glitch
+  r.run(100); CHECK_FALSE(r.app->system().inputs().tbs);
+  r.tbs(true); r.tick(10); CHECK_FALSE(r.app->system().inputs().tbs);
+  r.run(30); CHECK(r.app->system().inputs().tbs);
+}
+
+TEST_CASE("NVM-1: `debounce set` saves (one erase), takes effect, and is refused while TBS is ON") {
+  FakeNvm nvm; AppOptions o; o.nvm = &nvm; o.sketchVersion = 0x0801; AppRig r(quickWarmConfig(), o); r.boot();
+  r.type("debounce set 9 8");
+  CHECK(r.has("saved: debounce TBS 9 ms, TOB 8 ms, write count 1"));
+  CHECK(nvm.erases == 1);
+  CHECK(r.app->system().tbsDebounceMs() == 9);
+  REQUIRE(r.runUntilMode(App::Mode::kRun, 20000));
+  r.tbs(true); r.run(100);
+  r.type("debounce set 15 15");
+  CHECK(r.has("switch TBS OFF first"));
+  CHECK(nvm.erases == 1);
+  r.type("debounce set 1 5");
+  CHECK(r.has("times must be 2..100 ms"));
 }

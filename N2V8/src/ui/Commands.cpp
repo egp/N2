@@ -1,6 +1,7 @@
 #include "Commands.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "../core/Scaling.h"
@@ -9,7 +10,7 @@
 namespace n2 {
 
 Commands::Commands(const ConsoleContext& ctx)
-    : c_(ctx), ver_(c_), time_(c_), status_(c_), faults_(c_), cfg_(c_), display_(c_), loop_(c_), scan_(c_), report_(*this) {}
+    : c_(ctx), ver_(c_), time_(c_), status_(c_), faults_(c_), cfg_(c_), nvmInfo_(c_), display_(c_), loop_(c_), scan_(c_), report_(*this) {}
 
 Responder* Commands::handle(const Command& cmd) {
   switch (cmd.id) {
@@ -37,6 +38,29 @@ Responder* Commands::handle(const Command& cmd) {
         }
       } else {
         message_.set("usage: time set YYYY-MM-DD HH:MM:SS   (24-hour clock)");
+      }
+      return &message_;
+    }
+    case CommandId::kNvm:     return &nvmInfo_;
+    case CommandId::kDebounce: {
+      NvmSettingsService* nv = c_.nvm;
+      if (cmd.argc == 0) {
+        message_.set("debounce TBS %u ms, TOB %u ms (%s)", static_cast<unsigned>(c_.sys->tbsDebounceMs()),
+                     static_cast<unsigned>(c_.sys->tobDebounceMs()),
+                     nv != nullptr ? nv->choice().why : "compiled default");
+      } else if (cmd.argc == 3 && strcmp(cmd.arg[0], "set") == 0) {
+        const long a = strtol(cmd.arg[1], nullptr, 10), b = strtol(cmd.arg[2], nullptr, 10);
+        if (nv == nullptr || !nv->available()) message_.set("no non-volatile memory in this build");
+        else if (a < kMinDebounceMs || a > kMaxDebounceMs || b < kMinDebounceMs || b > kMaxDebounceMs) message_.set("times must be %u..%u ms", kMinDebounceMs, kMaxDebounceMs);
+        else if (c_.sys->inputs().tbs) message_.set("switch TBS OFF first: saving stalls the program for about 50 ms");
+        else if (!nv->saveDebounce(static_cast<uint8_t>(a), static_cast<uint8_t>(b))) message_.set("SAVE FAILED (see nvm)");
+        else {
+          c_.sys->setDebounce(nv->choice().tbsMs, nv->choice().tobMs);
+          message_.set("saved: debounce TBS %u ms, TOB %u ms, write count %lu", static_cast<unsigned>(nv->choice().tbsMs),
+                       static_cast<unsigned>(nv->choice().tobMs), static_cast<unsigned long>(nv->report().sequence));
+        }
+      } else {
+        message_.set("usage: debounce | debounce set TBS_MS TOB_MS   (2..100 ms, TBS must be OFF)");
       }
       return &message_;
     }
@@ -102,6 +126,8 @@ bool Commands::Help::line(uint8_t i, char* b, size_t n) {
       "  faults             active faults",
       "  cfg                thresholds and timings",
       "  display            what the LCD and LED should show",
+      "  nvm                non-volatile memory: what is stored, each check, write count",
+      "  debounce [set T B] TBS/TOB debounce ms: show, or save (TBS off)",
       "  time [set ...]     real-time clock: show it, or: time set YYYY-MM-DD HH:MM:SS",
       "  loop [reset]       loop() timing: min, mean, median, max",
       "  log <level>        error | warn | info | debug",
@@ -230,6 +256,41 @@ bool Commands::Faults::line(uint8_t i, char* b, size_t n) {
            info.severity == Severity::kInhibit ? "INHIBIT" : (info.severity == Severity::kWarn ? "WARNING" : "INFO"),
            info.effect);
   return true;
+}
+
+namespace {
+const char* okFail(bool ok) { return ok ? "ok" : "FAIL"; }
+void copyLine(char* b, size_t n, char which, const RecordChecks& k, RecordStatus st, uint32_t seq) {
+  if (st == RecordStatus::kOk) snprintf(b, n, "copy %c: magic ok  schema ok  length ok  checksum ok  write count %lu", which, static_cast<unsigned long>(seq));
+  else snprintf(b, n, "copy %c: magic %s  schema %s  length %s  checksum %s  -> %s", which, okFail(k.magic), okFail(k.schema), okFail(k.length), okFail(k.crc), recordStatusName(st));
+}
+}  // namespace
+
+bool Commands::NvmInfo::line(uint8_t i, char* b, size_t n) {
+  const NvmSettingsService* nv = c_.nvm;
+  if (nv == nullptr || !nv->available()) {
+    if (i != 0) return false;
+    snprintf(b, n, "NVM: none in this build (the compiled debounce default is used)");
+    return true;
+  }
+  const StoreReport& r = nv->report();
+  switch (i) {
+    case 0: snprintf(b, n, "NVM %u bytes, block %u; settings copies A at 0x0000, B at 0x%04X; board id %u; this sketch 0x%04X",
+                     static_cast<unsigned>(nv->nvmSize()), static_cast<unsigned>(nv->nvmBlock()), static_cast<unsigned>(nv->nvmBlock()),
+                     static_cast<unsigned>(nv->board()), static_cast<unsigned>(nv->sketchVersion())); return true;
+    case 1: copyLine(b, n, 'A', r.checksA, r.a, r.seqA); return true;
+    case 2: copyLine(b, n, 'B', r.checksB, r.b, r.seqB); return true;
+    case 3:
+      if (!r.valid) snprintf(b, n, "in use: nothing valid stored (a never-set memory fails the magic and the checksum)");
+      else snprintf(b, n, "in use: copy %c  WRITE COUNT %lu%s  stored by sketch 0x%04X  TBS %u ms  TOB %u ms  board %u", r.which,
+                    static_cast<unsigned long>(r.sequence), r.wearWarning() ? " (WEAR WARNING)" : " (of about 200000 rated)",
+                    static_cast<unsigned>(r.settings.sketchVersion), static_cast<unsigned>(r.settings.tbsDebounceMs),
+                    static_cast<unsigned>(r.settings.tobDebounceMs), static_cast<unsigned>(r.settings.board));
+      return true;
+    case 4: snprintf(b, n, "debounce now: TBS %u ms, TOB %u ms (%s)", static_cast<unsigned>(nv->choice().tbsMs),
+                     static_cast<unsigned>(nv->choice().tobMs), nv->choice().why); return true;
+  }
+  return false;
 }
 
 bool Commands::Cfg::line(uint8_t i, char* b, size_t n) {

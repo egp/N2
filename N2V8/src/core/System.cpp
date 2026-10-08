@@ -47,8 +47,8 @@ void System::resume() {
 void System::step() {
   const uint32_t now = hal_.millis();
   in_.ms = now;
-  in_.tbs = readOn(Signal::kTbs);
-  in_.tob = readOn(Signal::kTob);
+  in_.tbs = tbsDeb_.update(readOn(Signal::kTbs), now);   // debounced (INP-6); a TBS already ON at boot is accepted after the debounce time
+  in_.tob = tobDeb_.update(readOn(Signal::kTob), now);
   sensors_.sample(hal_, now, faults_, in_);
 
   if (!controllersEnabled_) {  // DIAG: look, but do not touch

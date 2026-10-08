@@ -5,6 +5,11 @@ namespace n2 {
 
 bool Debouncer::update(bool raw, uint32_t nowMs) {
   changed_ = false;
+  if (debounceMs_ == 0) {  // no debounce: follow the input at once
+    changed_ = raw != stable_;
+    stable_ = raw_ = raw;
+    return stable_;
+  }
   if (raw != raw_) {  // any change restarts the wait
     raw_ = raw;
     sinceMs_ = nowMs;
