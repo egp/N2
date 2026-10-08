@@ -13,7 +13,7 @@
 #pragma once
 
 #define N2_VERSION "8.1.0-m2"
-#define N2_SUBVERSION "8.1.0"   // shown on the LCD (row 4) in every build except FIELD, and in the top comment of N2V8.ino. Bump it with every change you load onto a board.
+#define N2_SUBVERSION "8.1.1"   // shown on the LCD (row 4) in every build except FIELD, and in the top comment of N2V8.ino. Bump it with every change you load onto a board.
 #define N2_VERSION_HEX 0x0801   // stored in every NVM record (high byte major, low byte minor); change it together with N2_VERSION
 
 #if !defined(N2_BUILD_HOST) && !defined(N2_BUILD_BENCH) && \

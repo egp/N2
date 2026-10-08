@@ -606,3 +606,21 @@ TEST_CASE("DSP-11: after a FAILED POST the LED shows FFFF while it holds, and th
   CHECK(r.app->post().holding());
   CHECK(ledShows(r, 0x71));           // and still FFFF while the POST holds for TOB
 }
+
+TEST_CASE("PIN-8: `pins` lists every pin with its signal and live level, reads only, drives nothing") {
+  AppRig r;
+  r.boot();
+  r.tbs(true);
+  const size_t eventsBefore = r.hal.events.size();
+  r.type("PINS");
+  CHECK(r.has("D0  TBS"));
+  CHECK(r.has("in (pull-up)"));
+  CHECK(r.has("LOW  -> ON"));                 // TBS is on: active LOW
+  CHECK(r.has("A0  AIR"));
+  CHECK(r.has("analog in   raw"));
+  CHECK(r.has("I2C SDA"));
+  CHECK(r.has("I2C SCL"));
+  CHECK(r.has("D2  (unassigned)"));
+  CHECK_FALSE(r.anyOutputOn());
+  (void)eventsBefore;
+}

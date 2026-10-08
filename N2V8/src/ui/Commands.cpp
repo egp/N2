@@ -12,7 +12,7 @@ namespace n2 {
 namespace { uint32_t rtcSecondsOf(Rtc3231* rtc); }
 
 Commands::Commands(const ConsoleContext& ctx)
-    : c_(ctx), ver_(c_), time_(c_), status_(c_), faults_(c_), cfg_(c_), nvmInfo_(c_), display_(c_), loop_(c_), scan_(c_), report_(*this) {}
+    : c_(ctx), ver_(c_), time_(c_), status_(c_), faults_(c_), cfg_(c_), nvmInfo_(c_), pins_(c_), display_(c_), loop_(c_), scan_(c_), report_(*this) {}
 
 Responder* Commands::handle(const Command& cmd) {
   switch (cmd.id) {
@@ -44,6 +44,7 @@ Responder* Commands::handle(const Command& cmd) {
       return &message_;
     }
     case CommandId::kNvm:     return &nvmInfo_;
+    case CommandId::kPins:    return c_.board != nullptr && c_.hal != nullptr ? static_cast<Responder*>(&pins_) : nullptr;
     case CommandId::kDebounce: {
       NvmSettingsService* nv = c_.nvm;
       if (cmd.argc == 0) {
@@ -125,6 +126,7 @@ bool Commands::Help::line(uint8_t i, char* b, size_t n) {
       "  faults             active faults",
       "  cfg                thresholds and timings",
       "  display            what the LCD and LED should show",
+      "  pins               every pin: which signal, its level now / raw volts (verify the wiring)",
       "  nvm                non-volatile memory: what is stored, each check, write count",
       "  debounce [set T B] TBS/TOB debounce ms: show, or save (TBS off)",
       "  time [set ...]     real-time clock: show it, or: time set YYYY-MM-DD HH:MM:SS",
@@ -315,6 +317,50 @@ bool Commands::NvmInfo::line(uint8_t i, char* b, size_t n) {
                      static_cast<unsigned>(nv->choice().tobMs), nv->choice().why); return true;
   }
   return false;
+}
+
+// One line per pin D0..D13 and A0..A5, in order, from the board table. Reads only; it changes no pin mode and drives no output.
+bool Commands::Pins::line(uint8_t i, char* b, size_t n) {
+  if (i == 0) {
+    snprintf(b, n, "pins of %s (level now; analog = raw / volts). Move a switch or a sensor and ask again to find its pin.", c_.board->name);
+    return true;
+  }
+  const uint8_t p = static_cast<uint8_t>(i - 1);
+  if (p > pin::kA5) return false;
+  char pn[6];
+  if (pin::isAnalog(p)) snprintf(pn, sizeof pn, "A%u", static_cast<unsigned>(p - pin::kA0));
+  else snprintf(pn, sizeof pn, "D%u", static_cast<unsigned>(p));
+  if (p == c_.board->sdaPin || p == c_.board->sclPin) {
+    snprintf(b, n, "%-3s I2C %s", pn, p == c_.board->sdaPin ? "SDA" : "SCL");
+    return true;
+  }
+  if (c_.board->ledSdaPin != pin::kNoPin && (p == c_.board->ledSdaPin || p == c_.board->ledSclPin)) {
+    snprintf(b, n, "%-3s LED bus (software I2C)", pn);
+    return true;
+  }
+  const SignalDef* d = nullptr;
+  for (uint8_t s = 0; s < c_.board->signalCount; ++s)
+    if (c_.board->signals[s].pin == p) d = &c_.board->signals[s];
+  if (d == nullptr) {
+    if (pin::isAnalog(p)) {
+      const uint16_t raw = c_.hal->analogRead(p);
+      const unsigned mv = millivoltsFromRaw(raw, kAdcBits);
+      snprintf(b, n, "%-3s (unassigned) raw %u  %u.%02uV  (floating pins wander)", pn, static_cast<unsigned>(raw), mv / 1000u, (mv % 1000u) / 10u);
+    } else {
+      snprintf(b, n, "%-3s (unassigned)", pn);
+    }
+    return true;
+  }
+  if (d->dir == Dir::kAnalogInput) {
+    const uint16_t raw = c_.hal->analogRead(p);
+    const unsigned mv = millivoltsFromRaw(raw, kAdcBits);
+    snprintf(b, n, "%-3s %-7s analog in   raw %u  %u.%02uV", pn, d->name, static_cast<unsigned>(raw), mv / 1000u, (mv % 1000u) / 10u);
+  } else {
+    const bool high = c_.hal->digitalRead(p);
+    snprintf(b, n, "%-3s %-7s %-11s %s -> %s", pn, d->name, d->dir == Dir::kOutput ? "output" : (d->dir == Dir::kInputPullup ? "in (pull-up)" : "input"),
+             high ? "HIGH" : "LOW ", isOn(high, d->active) ? "ON" : "off");
+  }
+  return true;
 }
 
 bool Commands::Cfg::line(uint8_t i, char* b, size_t n) {

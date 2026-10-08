@@ -29,7 +29,7 @@ App::App(Hal& hal, const BoardDef& board, const ControlConfig& cfg, O2Reader& o2
       sys_(hal, board_, cfg_, o2, console_, kAdcBits),
       display_(hal, board_, options.layout, options.faultCycleMs),
       nvmSvc_(options.nvm, boardIdOf(board), options.sketchVersion, options.debounceDefaultMs),
-      ctx_{&sys_, &console_, &loopStats_, &hal_, info_, options.layout, this, &rtc_, &nvmSvc_},
+      ctx_{&sys_, &console_, &loopStats_, &hal_, info_, options.layout, this, &rtc_, &nvmSvc_, &board_},
       commands_(ctx_),
       post_(hal, board_, sys_, display_, console_, info_, ResetInfo(), options.post),
       bist_(hal, board_, sys_, display_, console_, o2, info_, options.bist),

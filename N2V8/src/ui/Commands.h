@@ -36,6 +36,7 @@ struct ConsoleContext {
   CommandLauncher* launcher = nullptr;
   Rtc3231* rtc = nullptr;  // the real-time clock, if the build has one
   NvmSettingsService* nvm = nullptr;  // settings in non-volatile memory, if the build has any
+  const BoardDef* board = nullptr;    // the pin table, for the `pins` command
 };
 
 class Commands : public CommandHandler {
@@ -106,6 +107,13 @@ class Commands : public CommandHandler {
    private:
     const ConsoleContext& c_;
   };
+  class Pins : public Responder {   // live state of every pin in the board table, to verify wiring (changes nothing)
+   public:
+    explicit Pins(const ConsoleContext& c) : c_(c) {}
+    bool line(uint8_t i, char* b, size_t n) override;
+   private:
+    const ConsoleContext& c_;
+  };
   class Scan : public Responder {
    public:
     explicit Scan(const ConsoleContext& c) : c_(c) {}
@@ -145,6 +153,7 @@ class Commands : public CommandHandler {
     const ConsoleContext& c_;
   };
   NvmInfo nvmInfo_;
+  Pins pins_;
   Display display_;
   Loop loop_;
   Scan scan_;

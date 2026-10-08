@@ -1,4 +1,4 @@
-// N2V8.ino — PSA nitrogen generator controller (UNO R4 Minima / UNO R4 WiFi).      SUB-VERSION 8.1.0  (N2_SUBVERSION in src/BuildConfig.h)
+// N2V8.ino — PSA nitrogen generator controller (UNO R4 Minima / UNO R4 WiFi).      SUB-VERSION 8.1.1  (N2_SUBVERSION in src/BuildConfig.h)
 //
 // All behaviour lives in src/ and is tested on the host; this file is only glue.
 //   build mode (src/BuildConfig.h): DIAG (default) = diagnostics only, no controllers;
