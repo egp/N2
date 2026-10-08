@@ -208,3 +208,13 @@ TEST_CASE("PIN-4: a board may give the LED its own two-wire bus; the pins are va
   b.ledSclPin = pin::kD3;
   CHECK(checkBoard(b) == BoardCheck::kBadLedBusPins);
 }
+
+TEST_CASE("PIN-1: the permanent LCD address is 0x23 (A2 bridged), outside the TM1650's range, on every board") {
+  CHECK(kLcdAddress == 0x23);
+  CHECK(kMinimaBoard.addrLcd == 0x23);
+  CHECK(kWifiBoard.addrLcd == 0x23);
+  CHECK(kHostBoard.addrLcd == 0x23);
+  CHECK_FALSE(lcdOverlapsLed(kMinimaBoard));
+  CHECK_FALSE(lcdOverlapsLed(kWifiBoard));
+  CHECK_FALSE(lcdOverlapsLed(kHostBoard));
+}

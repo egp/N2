@@ -111,7 +111,7 @@ Initial contents, from V7 (**V6 and V7 agree on every pin, active level and I2C 
 | High-pressure N2 | **A1 (provisional)** | analog in | — | 0–150 PSI. V6/V7 say **A5**, which is the I2C SCL line, so the compile-time check (PIN-4) rejects it; A1 is a placeholder until the owner confirms the real wiring (PIN-10) |
 | I2C SDA / SCL | A4 / A5 (core pins 18 / 19) | bus | — | `Wire`; see PIN-11 |
 | LED TM1650 | 0x24 | I2C | — | |
-| LCD PCF8574 | 0x27 | I2C | — | |
+| LCD PCF8574 | **0x23** (A2 solder pad bridged; was 0x27) | I2C | — | the TM1650 LED module also answers 0x24-0x27, so the LCD had to move: docs/results/lcd-led-address-clash-20261007.md |
 | O2 SEN0465 | 0x74 | I2C | — | SEL dip = 0 |
 
 | ID | Requirement |

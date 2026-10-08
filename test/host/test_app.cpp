@@ -25,7 +25,7 @@ struct AppRig {
   explicit AppRig(ControlConfig c = quickWarmConfig(), AppOptions o = AppOptions(), bool consoleAttached = true) : cfg(c), opt(o) {
     opt.lcdStartMs = 0;  // LCD at once; the real default (2.5 s after boot) has its own test
     hal.consoleIsAttached = consoleAttached;
-    hal.i2cPresent = {0x24, 0x34, 0x35, 0x36, 0x37, 0x27, 0x74, 0x68};
+    hal.i2cPresent = {0x24, 0x34, 0x35, 0x36, 0x37, 0x23, 0x74, 0x68};
     healthy();
     tbs(false);
     tob(false);
@@ -276,7 +276,7 @@ TEST_CASE("NFR-1: every loop pass is timed; `loop` reports the statistics") {
 
 TEST_CASE("DSP-6/F10: a missing LCD is reported as a fault in RUN and never stops the system") {
   AppRig r;
-  r.hal.i2cPresent.erase(0x27);
+  r.hal.i2cPresent.erase(0x23);
   r.tbs(true);
   r.boot();
   r.run(12000);

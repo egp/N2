@@ -33,7 +33,7 @@ struct Rig {
     hal.canDetectHost = false;  // behave like the WiFi board
     hal.resetCause.known = true;
     hal.resetCause.powerOn = true;
-    if (lcd) hal.i2cPresent.insert(0x27);
+    if (lcd) hal.i2cPresent.insert(0x23);
     if (rtc) hal.i2cPresent.insert(0x68);
     if (led) hal.i2cPresent.insert({0x24, 0x34, 0x35, 0x36, 0x37});
     const SignalDef& tob = def(kHostBoard, Signal::kTob);
@@ -390,7 +390,7 @@ TEST_CASE("Stage 1: scan names the devices it finds") {
   r.boot();
   r.run(1500);
   r.type("scan");
-  CHECK(r.has("0x27  LCD backpack"));
+  CHECK(r.has("0x23  LCD backpack"));
   CHECK(r.has("0x57  RTC module EEPROM"));
   CHECK(r.has("0x68  DS3231 RTC"));
   CHECK(r.has("0x24  TM1650 LED"));
@@ -530,7 +530,7 @@ TEST_CASE("DSP-7: `lcd` and `lcd reinit` work from the console") {
 
 TEST_CASE("DSP-7: with lcdStartMs set, nothing is sent to the LCD until that time") {
   FakeHal hal;
-  hal.i2cPresent.insert(0x27);
+  hal.i2cPresent.insert(0x23);
   RecordingMatrix matrix;
   BuildInfo info{"8.0.0-test", "Jan  1 2026", "12:00:00", "host (fake)", "HOST", 10};
   BringupOptions opt;
@@ -540,7 +540,7 @@ TEST_CASE("DSP-7: with lcdStartMs set, nothing is sent to the LCD until that tim
   app.setup();
   for (uint32_t t = 0; t < 2400; t += 10) { hal.nowMs += 10; app.loop(); }
   size_t toLcd = 0;
-  for (const auto& w : hal.i2cWrites) if (w.address == 0x27) ++toLcd;
+  for (const auto& w : hal.i2cWrites) if (w.address == 0x23) ++toLcd;
   CHECK(toLcd == 0);
   for (uint32_t t = 0; t < 1500; t += 10) { hal.nowMs += 10; app.loop(); }
   CHECK(app.lcd().ready());
@@ -559,7 +559,7 @@ TEST_CASE("DSP-7: `lcd bus` reports a clean link as all zeros and a corrupted on
   r.type("lcd bus 100");
   CHECK(r.has("mismatch 100"));
   r.hal.i2cReadXor = 0;
-  r.hal.i2cPresent.erase(0x27);
+  r.hal.i2cPresent.erase(0x23);
   r.clearOut();
   r.type("lcd bus 10");
   CHECK(r.has("write fail 10"));
@@ -581,7 +581,7 @@ TEST_CASE("DSP-7: the bus test never pulses EN, so the LCD itself is not disturb
 
 TEST_CASE("DSP-7: by default the LCD is not touched for 2.5 s after boot (bench finding), then comes up normally") {
   FakeHal hal;
-  hal.i2cPresent.insert(0x27);
+  hal.i2cPresent.insert(0x23);
   RecordingMatrix matrix;
   BuildInfo info{"8.0.0-test", "Jan  1 2026", "12:00:00", "host (fake)", "HOST", 10};
   Bringup app(hal, kHostBoard, info, &matrix);  // default options
@@ -589,7 +589,7 @@ TEST_CASE("DSP-7: by default the LCD is not touched for 2.5 s after boot (bench 
   app.setup();
   for (uint32_t t = 0; t < 2400; t += 10) { hal.nowMs += 10; app.loop(); }
   size_t toLcd = 0;
-  for (const auto& w : hal.i2cWrites) if (w.address == 0x27) ++toLcd;
+  for (const auto& w : hal.i2cWrites) if (w.address == 0x23) ++toLcd;
   CHECK(toLcd == 0);
   for (uint32_t t = 0; t < 3000; t += 10) { hal.nowMs += 10; app.loop(); }
   CHECK(app.lcd().ready());
@@ -775,7 +775,7 @@ TEST_CASE("DSP-7: setAlwaysRewrite rewrites all 80 cells over and over (no cachi
 
 TEST_CASE("DSP-7: the stage firmware turns always-rewrite on by default and the option can turn it off") {
   FakeHal hal;
-  hal.i2cPresent.insert(0x27);
+  hal.i2cPresent.insert(0x23);
   RecordingMatrix matrix;
   BuildInfo info{"8.0.0-test", "Jan  1 2026", "12:00:00", "host (fake)", "HOST", 10};
   BringupOptions defaults;
@@ -833,14 +833,14 @@ TEST_CASE("DSP-7: LCD state changes are logged with the time stamp (so the LCD c
   r.run(600);
   CHECK(r.has("LCD ready (init done)"));
   r.clearOut();
-  r.hal.i2cPresent.erase(0x27);
+  r.hal.i2cPresent.erase(0x23);
   r.run(2500);
   CHECK(r.has("LCD I2C error #1"));
   CHECK(r.has("I2C bus recovery #"));
   CHECK(r.has("LCD not ready"));
   CHECK(r.has("2026-10-06 10:31:"));  // stamped
   r.clearOut();
-  r.hal.i2cPresent.insert(0x27);
+  r.hal.i2cPresent.insert(0x23);
   r.run(3000);
   CHECK(r.has("LCD ready (init done)"));
 }
@@ -946,7 +946,7 @@ TEST_CASE("Stage 2: LED state changes are logged like the LCD's, and the LED's e
 
 TEST_CASE("Stage 2: the stage name is a build option, shown in the banner and on the LCD") {
   FakeHal hal;
-  hal.i2cPresent = {0x27, 0x68, 0x24, 0x34, 0x35, 0x36, 0x37};
+  hal.i2cPresent = {0x23, 0x68, 0x24, 0x34, 0x35, 0x36, 0x37};
   hal.consoleIsAttached = true;
   hal.canDetectHost = false;
   const SignalDef& tob = def(kHostBoard, Signal::kTob);
@@ -987,17 +987,46 @@ TEST_CASE("DRV-1: with setRefresh the LED rewrites all digits and the control by
   CHECK(led.i2cErrors() >= 1);
 }
 
-TEST_CASE("Stage 2: scan labels the LED's aliases and warns when the LCD sits inside the LED's address range") {
+TEST_CASE("Stage 2: scan labels the LED's aliases and warns when the LCD sits inside the LED's address range (an LCD that kept its default 0x27)") {
+  FakeHal hal;
+  hal.i2cPresent = {0x27, 0x68, 0x24, 0x25, 0x26, 0x34, 0x35, 0x36, 0x37};
+  hal.consoleIsAttached = true;
+  hal.canDetectHost = false;
+  const SignalDef& tob = def(kHostBoard, Signal::kTob);
+  hal.inputLevel[tob.pin] = levelHigh(false, tob.active);
+  BoardDef board = kHostBoard;
+  board.addrLcd = 0x27;  // the PCF8574 default: inside 0x24-0x27, which the TM1650 answers
+  RecordingMatrix matrix;
+  BuildInfo info{"8.0.0-test", "Jan  1 2026", "12:00:00", "host (fake)", "HOST", 10};
+  BringupOptions opt;
+  opt.lcdStartMs = 0;
+  opt.lcdAlwaysRewrite = false;
+  Bringup app(hal, board, info, &matrix, opt);
+  app.setup();
+  auto run = [&](uint32_t ms) { for (uint32_t t = 0; t < ms; t += 10) { hal.nowMs += 10; app.loop(); } };
+  run(500);
+  hal.consoleOut.clear();
+  hal.type("scan\n");
+  run(300);
+  CHECK(hal.consoleOut.find("0x25  TM1650 LED") != std::string::npos);
+  CHECK(hal.consoleOut.find("0x27  LCD backpack (the TM1650 LED answers here too!)") != std::string::npos);
+  hal.consoleOut.clear();
+  hal.type("status\n");
+  run(300);
+  CHECK(hal.consoleOut.find("WARNING: LCD address 0x27 is inside the LED module's range") != std::string::npos);
+}
+
+TEST_CASE("Stage 2: with the default LCD address (0x23) there is no warning and the scan labels the LCD plainly") {
   Rig r;
-  r.hal.i2cPresent.insert({0x25, 0x26});
+  r.hal.i2cPresent.insert({0x25, 0x26, 0x27});  // the LED module's aliases (the rig has the LED)
   r.boot();
   r.run(1500);
   r.type("scan");
-  CHECK(r.has("0x25  TM1650 LED"));
-  CHECK(r.has("0x27  LCD backpack (the TM1650 LED answers here too!)"));
+  CHECK(r.has("0x23  LCD backpack\n"));
+  CHECK(r.has("0x27  TM1650 LED"));
   r.clearOut();
   r.type("status");
-  CHECK(r.has("WARNING: LCD address 0x27 is inside the LED module's range"));
+  CHECK_FALSE(r.has("WARNING: LCD address"));
 }
 
 TEST_CASE("Stage 2: with useLcd = false nothing is ever sent to the LCD address, POST notes it and does not hold, the LED still works") {

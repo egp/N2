@@ -126,15 +126,15 @@ inline constexpr SignalDef kWifiSignals[kSignalCount] = {
 // Host tests: the production table.
 inline constexpr const SignalDef (&kHostSignals)[kSignalCount] = kMinimaSignals;
 
-// ---- The LCD backpack's I2C address (one setting for both real boards) ----------------------------
-// 0x27 is the PCF8574 default (all three address jumpers open) and what V6/V7 used. But the TM1650 LED module also answers at 0x24-0x27, so on
-// a bus with both, the LCD must move: bridge the backpack's A2 solder pad and it becomes 0x23 (A1 gives 0x25, A0 gives 0x26: still inside the
-// LED's range). Bench result 2026-10-07: LED and LCD at 0x27 on one bus = every LCD character write fails. Change this ONE line (or build with
-// -DN2_LCD_ADDRESS=0x23) after bridging A2.
+// ---- The LCD backpack's I2C address (one setting for every board) ---------------------------------
+// **0x23**: the backpack's A2 solder pad is BRIDGED (owner's decision 2026-10-08; Tom's unit gets the same bridge). The PCF8574 default is 0x27 (all three
+// jumpers open, what V6/V7 used), but the TM1650 LED module also answers at 0x24-0x27, so with both on one bus every LCD character write failed
+// (docs/results/lcd-led-address-clash-20261007.md). With A2 bridged the LCD is at 0x23, outside the LED's range; A1 would give 0x25 and A0 0x26, still inside it.
+// An LCD that still has its default address would be at 0x27: build with -DN2_LCD_ADDRESS=0x27 to use it (then the LED must not share its bus).
 #if defined(N2_LCD_ADDRESS)
 inline constexpr uint8_t kLcdAddress = N2_LCD_ADDRESS;
 #else
-inline constexpr uint8_t kLcdAddress = 0x27;
+inline constexpr uint8_t kLcdAddress = 0x23;
 #endif
 
 // ---- Boards -------------------------------------------------------------------
@@ -145,7 +145,7 @@ inline constexpr BoardDef kMinimaBoard = {"UNO R4 Minima", kMinimaSignals, kSign
 inline constexpr BoardDef kWifiBoard = {"UNO R4 WiFi", kWifiSignals, kSignalCount,
                                         pin::kA4, pin::kA5, 0x24, 0x34, kLcdAddress, 0x74, 0x68};
 inline constexpr BoardDef kHostBoard = {"host (fake)", kHostSignals, kSignalCount,
-                                        pin::kA4, pin::kA5, 0x24, 0x34, 0x27, 0x74, 0x68};  // the host tests keep 0x27
+                                        pin::kA4, pin::kA5, 0x24, 0x34, kLcdAddress, 0x74, 0x68};
 
 #if defined(N2_BOARD_MINIMA)
 inline constexpr const BoardDef& kBoard = kMinimaBoard;

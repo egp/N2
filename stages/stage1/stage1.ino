@@ -3,7 +3,7 @@
 //                                              (minor versions are written in HEX: 1.A = 1.10)
 //
 // N2V8 bring-up, STAGE 1: only the parts already proven on the bench, with POST and BIST for each.
-//   reset cause  ·  20x4 LCD (I2C 0x27)  ·  DS3231 RTC (I2C 0x68)  ·  USB console  ·  12x8 LED matrix (UNO R4 WiFi only)
+//   reset cause  ·  20x4 LCD (I2C 0x23, A2 bridged)  ·  DS3231 RTC (I2C 0x68)  ·  USB console  ·  12x8 LED matrix (UNO R4 WiFi only)
 // Not in this stage: the TM1650 LED (waiting for hardware), the O2 sensor, the pressure sensors, the valves, all controllers.
 //
 // This file is only glue (Requirements ARC-1). All behaviour is in ../../N2V8/src (reached through the `src` symbolic link in

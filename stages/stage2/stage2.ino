@@ -3,7 +3,7 @@
 //                                              (minor versions are written in HEX: 1.A = 1.10)
 //
 // N2V8 bring-up, STAGE 2: stage 1 plus the 4-digit TM1650 LED display.
-//   reset cause  ·  20x4 LCD (I2C 0x27)  ·  DS3231 RTC (I2C 0x68)  ·  4-digit LED (I2C 0x24, 0x34-0x37)  ·  console  ·  12x8 matrix (WiFi only)
+//   reset cause  ·  20x4 LCD (I2C 0x23, A2 bridged)  ·  DS3231 RTC (I2C 0x68)  ·  4-digit LED (I2C 0x24, 0x34-0x37)  ·  console  ·  12x8 matrix (WiFi only)
 // Not in this stage: the O2 sensor, the pressure sensors, the valves, all controllers.
 //
 // All behaviour is in ../../N2V8/src (reached through the `src` symbolic link in this folder; recreate it with  ln -s ../../N2V8/src src
@@ -73,7 +73,7 @@ n2::Bringup& app() {
   static n2::BringupOptions options = [] {
     n2::BringupOptions o;
     o.stage = "2";
-#if defined(STAGE2_NO_LCD)  // build with -DSTAGE2_NO_LCD to test the LED and RTC without the LCD (nothing is sent to 0x27)
+#if defined(STAGE2_NO_LCD)  // build with -DSTAGE2_NO_LCD to test the LED and RTC without the LCD (nothing is sent to the LCD address)
     o.useLcd = false;
 #endif
 #if defined(N2_NO_WATCHDOG)

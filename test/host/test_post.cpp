@@ -23,7 +23,7 @@ struct Rig {
         display(gen.hal, kHostBoard, LcdLayout::kClearLabels),
         post(gen.hal, kHostBoard, gen.sys(), display, gen.log, info, reset, opt) {
     (void)booted;
-    gen.hal.i2cPresent = {0x24, 0x34, 0x35, 0x36, 0x37, 0x27, 0x74, 0x68};  // everything fitted
+    gen.hal.i2cPresent = {0x24, 0x34, 0x35, 0x36, 0x37, 0x23, 0x74, 0x68};  // everything fitted
     gen.hal.nowMs = 0;
   }
 
@@ -110,7 +110,7 @@ TEST_CASE("POST-5: a clean POST ends with 'POST OK' on the LCD for about a secon
 
 TEST_CASE("POST-4: a missing LCD is only an INFO fault - logged, no hold") {
   Rig r;
-  r.gen.hal.i2cPresent.erase(0x27);
+  r.gen.hal.i2cPresent.erase(0x23);
   const int64_t t = r.runToEnd();
   REQUIRE(t >= 0);
   CHECK(r.gen.sys().faults().active(FaultId::kLcd));

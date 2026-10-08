@@ -15,7 +15,7 @@ Severity: **INHIBIT** = the firmware switches outputs off (see the invariants); 
 | F02 | N2L SENSOR RANGE | INHIBIT | no | SSR HELD OFF | The N2-low input is outside its valid window (same rule) | N2-low sensor wiring, the A3 input |
 | F03 | N2H SENSOR RANGE | INHIBIT | no | TOWERS+SSR OFF | The N2-high input is outside its valid window (same rule) | N2-high sensor wiring; the pin is provisional (A1): confirm in `BoardPins.h` |
 | F04 | N2L ABOVE N2H | INHIBIT | no | TOWERS+SSR OFF | The N2-low reading exceeds N2-high by more than the margin for the hold time, with both sensors valid | The two N2 sensors swapped, or one miscalibrated or stuck; gauge check |
-| F10 | LCD NO ACK | INFO | no | LOG ONLY | The LCD backpack (I2C 0x27) does not acknowledge | LCD power and I2C wires; `scan`; the LCD is re-initialised automatically when it answers again |
+| F10 | LCD NO ACK | INFO | no | LOG ONLY | The LCD backpack (I2C 0x23, A2 bridged) does not acknowledge | LCD power and I2C wires; `scan`; the LCD is re-initialised automatically when it answers again |
 | F11 | LED NO ACK | INFO | no | LOG ONLY | The 4-digit LED module (I2C 0x24) does not acknowledge | LED module power (5 V!) and I2C wires; `scan` |
 | F12 | O2 SENSOR FAILED | INHIBIT | no | ALL OUTPUTS OFF | The O2 sensor is missing, stops answering, or reads exactly 0.00 % (O2-3a). In a FIELD build this switches **all outputs off** (INV-9) | O2 sensor power and I2C wires (address 0x74), DIP switch; it re-warms 5 min when it returns |
 | F13 | RTC UNAVAILABLE | INFO | no | LOG ONLY | The real-time clock is missing, unreadable, or lost power (time not trusted) | RTC module and battery; `time`, `time set ...`. Never affects control; log lines simply have no date/time |

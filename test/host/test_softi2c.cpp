@@ -171,7 +171,7 @@ TEST_CASE("DRV-4: the LED driver on a soft bus reports a missing module and reco
 
 TEST_CASE("DRV-4: Bringup with the LED on its own pins: the LED works on the soft bus, nothing LED-related touches the hardware bus, the LCD is unaffected") {
   FakeHal hal;
-  hal.i2cPresent = {0x27, 0x68};  // the hardware bus: the LCD (0x27) and the RTC; no LED addresses there at all
+  hal.i2cPresent = {0x23, 0x68};  // the hardware bus: the LCD (0x23) and the RTC; no LED addresses there at all
   hal.consoleIsAttached = true;
   hal.canDetectHost = false;
   const SignalDef& tob = def(kHostBoard, Signal::kTob);
@@ -211,12 +211,12 @@ TEST_CASE("DRV-4: Bringup with the LED on its own pins: the LED works on the sof
   CHECK(digitWrites >= 4);
   // and not one LED address was used on the hardware bus
   for (const auto& w : hal.i2cWrites) {
-    const bool ledAddress = (w.address >= 0x24 && w.address <= 0x26) || (w.address >= 0x34 && w.address <= 0x37);  // 0x27 is the LCD here
+    const bool ledAddress = (w.address >= 0x24 && w.address <= 0x27) || (w.address >= 0x34 && w.address <= 0x37);
     CHECK_FALSE(ledAddress);
   }
   hal.consoleOut.clear();
   hal.type("scan\n");
   for (uint32_t t = 0; t < 200; t += 10) { hal.nowMs += 10; app.loop(); }
   CHECK(hal.consoleOut.find("LED on its own bus (soft I2C D2/D3): 5 of 5 addresses answer") != std::string::npos);
-  CHECK(hal.consoleOut.find("0x27  LCD backpack\n") != std::string::npos);  // no "TM1650 answers here too" warning: it does not share the bus
+  CHECK(hal.consoleOut.find("0x23  LCD backpack\n") != std::string::npos);
 }

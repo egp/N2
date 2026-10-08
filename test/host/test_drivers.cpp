@@ -12,7 +12,7 @@ using Bytes = std::vector<uint8_t>;
 
 namespace {
 
-const uint8_t kLedCtl = 0x24, kLedDig = 0x34, kLcd = 0x27;
+const uint8_t kLedCtl = 0x24, kLedDig = 0x34, kLcd = 0x23;
 
 LedText text(const char* digits, int8_t dot) {
   LedText t;
@@ -209,7 +209,7 @@ TEST_CASE("DRV-2: LCD initialisation - exact bytes and the HD44780 wait times") 
   REQUIRE(hal.i2cWrites.size() == expected.size());
   for (size_t i = 0; i < expected.size(); ++i) {
     INFO("init write " << i);
-    CHECK(hal.i2cWrites[i].address == 0x27);
+    CHECK(hal.i2cWrites[i].address == kLcd);
     CHECK(hal.i2cWrites[i].bytes == expected[i].bytes);
     CHECK(times[i] == expected[i].at);
   }
