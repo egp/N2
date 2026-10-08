@@ -56,3 +56,12 @@ Review of `Requirements.md` (v2.6 draft, 541 lines) against (1) the owner's stat
 * **Q-D** Is a console required for BIST in production, or optional with an automatic verdict as in Tom's package?
 * **Q-E** Log line format (A5) and whether sub-second wall time is wanted.
 * **Q-F** Controller interface method names and whether `Controller` is a base class with virtual methods (one level) — consistent with "flat, no templates"?
+
+## E. Decisions so far (owner, 2026-10-08)
+
+| Q | Decision | Consequence for `Requirements.md` |
+|---|---|---|
+| Q-A | **Everything fast is read on every pass; slow I2C devices (O2 sensor, RTC) are read by a non-blocking background step** (start on a deadline, finish over several passes, publish when complete). | INP-1 amended: GPIO and ADC every pass into the `InputSnapshot`; each I2C device has a read state machine whose latest value and **age (ms)** appear in the snapshot. New INP-9. |
+| Q-B | **Controllers learn about each other through the previous pass's `OutputSnapshot`**, copied into the `InputSnapshot` at the start of the pass. | CTL-2: a controller reads only the `InputSnapshot`; the `InputSnapshot` is `const` during a pass; one pass of latency is accepted; invariants run every pass on the final outputs. |
+| Q-C | **Both O2 read paths, selectable at compile time** (library, or our own non-blocking read-only query). | GOAL-7 amended; new `N2_O2_DRIVER` build macro; a comparison on the same hardware (Tom's run provides the first real-sensor data). |
+| Q-D | Owner's variation: **BIST runs on the console command `bist`; POST runs if TOB is pressed during power-up, with LCD and LED showing "POST mode".** | RST-6, BIST-1, POST-1 and POST-4 change; details to settle in the next round (below). |
