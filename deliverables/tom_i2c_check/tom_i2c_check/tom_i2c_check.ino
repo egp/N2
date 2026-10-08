@@ -1,6 +1,64 @@
 // ===========================================================================================
-// tom_i2c_check  VERSION 1.6   (2026-10-08)     <-- if you do not see this line, the IDE has an older copy
+// tom_i2c_check  VERSION 1.7   (2026-10-08)     <-- if you do not see this line, the IDE has an older copy
 //                                                   (minor versions are written in HEX: 1.A = 1.10)
+//
+// TABLE OF CONTENTS  (Arduino IDE 2: Ctrl+L = go to line; Cmd+L on a Mac)
+//   line  what
+//    106  Includes and version
+//    113  Types (DateTime, Level, Verdict, test steps)
+//    121  Addresses and timing constants
+//    137  Small helpers (say, reached)
+//    155  I2C access and bus recovery
+//    205  Calendar helpers, compile time
+//    249  DS3231 RTC driver
+//    296  TM1650 LED driver
+//    318      ledService (refresh 4x per second)
+//    333  20x4 LCD driver (PCF8574 backpack)
+//    359      lcdInit
+//    385      lcdService (start delay, one row per pass)
+//    424  POST: one quick check per device
+//    451      postLcd
+//    456      postRtc (sets the RTC from the compile time)
+//    486      postLed
+//    494      postO2
+//    526  O2 sensor: one read-only query
+//    542      o2Query
+//    584  Reset cause and the RESET-button test
+//    600      readResetCause
+//    616      resetTestEvaluate (at boot)
+//    638  TBS and TOB (switch inputs)
+//    646      switchService
+//    667  BIST: the guided test (all steps)
+//    713      bistStartStep (what each step starts)
+//    793      bistService (what each step does)
+//    803          LCD step
+//    829          RTC step
+//    858          RESET step
+//    869          O2 step
+//    898          TBS / TOB steps
+//    910          LED step (the last branch)
+//    968      bistBegin (starts a run: all steps or one)
+//    988  What the LCD and the LED show
+//    995      updateDisplays
+//   1069  Serial Monitor console
+//   1090      printHelp
+//   1109      printStatus
+//   1130      printScan
+//   1147      handleLine (the commands)
+//   1232      consoleService (banner, input)
+//   1263  setup()
+//   1282  loop()
+//
+//   COMMON EDITS
+//    125  LCD I2C address (0x23, A2 bridged)
+//    131  LCD start delay after power-up (2500 ms)
+//    132  TBS and TOB pins (D0, D1)
+//    819  Time to wait for a p / f answer (8000 ms; LCD and LED)   (also at line 925)
+//    743  Time to wait at the TBS / TOB / RESET steps (20000 ms)   (also at line 756)
+//    783  Pause between automatic test runs (45000 ms)
+//    320  LED refresh period (250 ms)
+//    543  O2 sensor commands (read-only; never change these)
+// END OF TABLE OF CONTENTS
 //
 // Tests the three I2C parts of the N2 generator on the REAL I2C bus: the 20x4 LCD, the DS3231 real-time clock (RTC) and the 4-digit LED display.
 // One self-contained file: no libraries except the Arduino core's Wire. READ README.txt FIRST (wiring checklist, A2 bridge, what to expect).
@@ -30,6 +88,7 @@
 //   During a step that asks, type  p (looks right)  or  f (looks wrong, add a note)  to record what you saw; r repeats the step.
 //
 // Change log
+//   1.7  table of contents with line numbers at the top of the file (no change in behaviour)
 //   1.6  a p / f typed AFTER an LCD or LED question timed out (no step is asking) answers that last unanswered question: the result changes from ? to P / F
 //   1.5  from the first bench log: the banner (with the last reset cause) prints once when the Serial Monitor connects on the Minima, and at most 10 times
 //        on the WiFi board; p / f typed when no step is asking get a helpful reply; a step that was not exercised (O2 not fitted, switch not touched,
@@ -47,7 +106,7 @@
 #include <Arduino.h>
 #include <Wire.h>
 
-#define SKETCH_VERSION "1.6"
+#define SKETCH_VERSION "1.7"
 
 // ---- Types are declared first on purpose: the Arduino IDE inserts automatic function prototypes above the first function, and a prototype that
 // ---- mentions DateTime or Verdict fails to compile if the type is defined further down.

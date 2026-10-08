@@ -1,4 +1,4 @@
-tom_i2c_check  -  OPERATOR GUIDE                                   version 1.6
+tom_i2c_check  -  OPERATOR GUIDE                                   version 1.7
 =============================================================================
 
 WHAT THIS IS
@@ -24,7 +24,7 @@ WHAT YOU NEED
   - The Arduino UNO R4 Minima in the generator, and a USB cable to your
     Windows laptop.
   - The Arduino IDE (version 2.x) with the board package "Arduino UNO R4
-    Boards" installed (version 1.6.0 was used for testing; newer should work).
+    Boards" installed (version 1.7.0 was used for testing; newer should work).
       Tools > Board > Boards Manager > search "UNO R4" > Install.
   - This folder, "tom_i2c_check", with the file tom_i2c_check.ino in it.
     Keep the folder name exactly as it is: the IDE needs the folder and the
@@ -99,7 +99,7 @@ WHAT HAPPENS, IN ORDER
            test runs again, over and over.
 
   THE LCD (4 rows of 20 characters), normal screen:
-      row 1   CHECK v1.6 TBS0 TOB0     <- the two switches, live (see below)
+      row 1   CHECK v1.7 TBS0 TOB0     <- the two switches, live (see below)
       row 2   LCD+ RTC+ LED+ O2+       <- one status per device
       row 3   2026-10-08 11:32:16      <- the RTC date and time
       row 4   what the test is doing, or the result
