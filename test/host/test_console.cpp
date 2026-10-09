@@ -5,6 +5,7 @@
 #include "TestSupport.h"
 #include "core/LoopStats.h"
 #include "ui/Commands.h"
+#include "ui/ScanReport.h"
 #include "ui/Console.h"
 
 using namespace n2;
@@ -484,4 +485,18 @@ TEST_CASE("CON-1: EVERY command word and its arguments are case-insensitive, in 
   c = parseCommand("DEBOUNCE SET 9 8");
   CHECK(c.id == CommandId::kDebounce);
   CHECK(std::string(c.arg[0]) == "set");
+}
+
+TEST_CASE("§10: an LCD at an LED alias address (0x27, spare backpack) is the LCD, not an LED response") {
+  BoardDef b = kHostBoard;
+  b.addrLcd = 0x27;
+  uint8_t found[16] = {};
+  for (uint8_t a : {0x27, 0x68}) found[a / 8] = static_cast<uint8_t>(found[a / 8] | (1u << (a % 8)));
+  ScanReport rep;
+  buildScanReport(b, found, rep);
+  std::string all;
+  for (uint8_t i = 0; i < rep.count; ++i) all += std::string(rep.line[i]) + "\n";
+  CHECK(all.find("LED NOT found") != std::string::npos);
+  CHECK(all.find("LCD found at 0x27") != std::string::npos);
+  CHECK(all.find("2 address(es) answered: 2 accounted for, 0 unexpected") != std::string::npos);
 }

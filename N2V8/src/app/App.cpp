@@ -292,7 +292,9 @@ void App::runPass(uint32_t now) {
   autoCaptureTick(now);
   if (recOn_) recordTick(now);
   DisplayData data = makeDisplayData(sys_, kAdcBits);
-  if (runMode_ != RunMode::kField) data.version = info_.version;   // the version on the LCD while testing (not in FIELD)
+  char tag[8];
+  lcdVersionTag(info_.version, tag, sizeof tag);
+  if (runMode_ != RunMode::kField) data.version = tag;   // a short version tag on the LCD while testing (not in FIELD)
   display_.showNormal(data, now);
 
   // Report what the display side noticed (DSP-6: informational, never stops the system).

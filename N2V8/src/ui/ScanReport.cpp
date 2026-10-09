@@ -10,11 +10,11 @@ namespace {
 bool has(const uint8_t found[16], uint8_t a) { return a < 128 && (found[a / 8] & (1u << (a % 8))) != 0; }
 
 // Append "0xNN," for each address in [first, first+n) that answered; returns how many.
-uint8_t listFound(const uint8_t found[16], uint8_t first, uint8_t n, char* out, size_t cap) {
+uint8_t listFound(const uint8_t found[16], uint8_t first, uint8_t n, char* out, size_t cap, uint8_t skip = 0xFF) {
   uint8_t k = 0;
   size_t len = strlen(out);
   for (uint8_t a = first; a < first + n; ++a) {
-    if (!has(found, a)) continue;
+    if (!has(found, a) || a == skip) continue;   // `skip`: an address the LCD owns is not an LED response
     len += static_cast<size_t>(snprintf(out + len, cap - len, "%s0x%02X", len == 0 ? "" : ",", static_cast<unsigned>(a)));
     ++k;
   }
@@ -36,7 +36,7 @@ void buildScanReport(const BoardDef& b, const uint8_t found[16], ScanReport& r) 
     addText("LED: on its own bus (not on this one)");
   } else {
     char list[96] = "";
-    const uint8_t nc = listFound(found, b.addrLed, 4, list, sizeof list);
+    const uint8_t nc = listFound(found, b.addrLed, 4, list, sizeof list, b.addrLcd);
     const uint8_t nd = listFound(found, b.addrLedDigits, 4, list, sizeof list);
     accounted += static_cast<uint8_t>(nc + nd);
     if (nc > 0 && nd == 4) add("LED found at %s  (control + %u alias, 4 digits)", list, static_cast<unsigned>(nc - 1));
@@ -46,9 +46,9 @@ void buildScanReport(const BoardDef& b, const uint8_t found[16], ScanReport& r) 
 
   // LCD
   if (has(found, b.addrLcd)) {
-    if (inTm1650Range(b, b.addrLcd)) add("LCD found at 0x%02X, but that address is also answered by the LED chip (conflict)", static_cast<unsigned>(b.addrLcd));
+    if (inTm1650Range(b, b.addrLcd)) add("LCD found at 0x%02X (an address the LED chip also answers: only fit with the LED module unplugged)", static_cast<unsigned>(b.addrLcd));
     else add("LCD found at 0x%02X", static_cast<unsigned>(b.addrLcd));
-    if (!inTm1650Range(b, b.addrLcd)) ++accounted;
+    ++accounted;
   } else { add("LCD NOT found (expected 0x%02X)", static_cast<unsigned>(b.addrLcd)); ++r.missing; }
 
   // RTC and the EEPROM that is on the same module

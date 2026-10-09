@@ -4,6 +4,7 @@
 
 #include "TestSupport.h"
 #include "core/Scaling.h"
+#include "ui/BuildInfo.h"
 #include "ui/DisplayManager.h"
 #include "ui/LcdScreens.h"
 #include "ui/LedText.h"
@@ -353,4 +354,13 @@ TEST_CASE("DSP-12: the normal LCD screen changes at most once a second (output d
   dm.setOverride(o, LedText(), 3500);
   for (uint32_t t = 3500; t < 3600; t += 10) dm.service(t);
   CHECK(std::string(dm.lcd().shown(0)).substr(0, 8) == "OVERRIDE");
+}
+
+TEST_CASE("DSP-4: the LCD version tag is 'v' and the last part of the version: 8.1.13 -> v13, 8.1.A -> vA, no dot -> v and the whole thing, at most 5 characters") {
+  char t[8];
+  lcdVersionTag("8.1.13", t, sizeof t); CHECK(std::string(t) == "v13");
+  lcdVersionTag("8.1.A", t, sizeof t);  CHECK(std::string(t) == "vA");
+  lcdVersionTag("9", t, sizeof t);      CHECK(std::string(t) == "v9");
+  lcdVersionTag("0.0.0-test", t, sizeof t); CHECK(std::string(t) == "v0-te");
+  lcdVersionTag("", t, sizeof t);       CHECK(std::string(t) == "v");
 }
