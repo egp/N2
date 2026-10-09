@@ -51,6 +51,8 @@ class Bist : public LineHook {
   // requireTbsOff: true for the `bist` command; false when BIST was requested with TOB at power-up
   // (output steps still need TBS OFF, BIST-4).
   Start begin(uint32_t now, bool requireTbsOff = true);
+  // Diagnostic: start the BIST directly at one step (bench use, e.g. the LCD test running from power-up with no console command).
+  Start beginAt(uint32_t now, BistStep step);
   bool step(uint32_t now);  // true when BIST has finished (completed or quit)
   bool running() const { return running_; }
 

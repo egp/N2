@@ -93,7 +93,13 @@ void App::setup() {
     tobReleased_ = false;
     mode_ = Mode::kPostArm;
   } else {
+#if defined(N2_BOOT_LCD_TEST)
+    // Diagnostic build (bench 2026-10-08): go straight into BIST step 4 (the LCD test, with its phase timer on the LED) so the LCD can be
+    // adjusted by hand without a console. N2_BOOT_LCD_TEST is a compiler flag; it is not part of any normal build.
+    mode_ = bist_.beginAt(now, BistStep::kLcd) == Bist::Start::kOk ? Mode::kBist : Mode::kRun;
+#else
     mode_ = Mode::kRun;   // normal boot: outputs are safe, the sensor rules and invariants protect the machine as always
+#endif
   }
 }
 

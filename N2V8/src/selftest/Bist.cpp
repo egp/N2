@@ -167,6 +167,15 @@ Bist::Start Bist::begin(uint32_t now, bool requireTbsOff) {
   return Start::kOk;
 }
 
+Bist::Start Bist::beginAt(uint32_t now, BistStep step) {
+  const Start s = begin(now, false);
+  if (s == Start::kOk) {
+    step_ = step;
+    enter(now);
+  }
+  return s;
+}
+
 void Bist::finish(uint32_t now, const char* why) {
   outputsOff(now);
   say("BIST finished: %s", why);
