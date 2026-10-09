@@ -81,7 +81,7 @@ void App::applyMode(RunMode m) {
 const char* App::requestMode(const char* name, bool confirmed) {
   static char msg[130];
   if (name == nullptr) {
-    snprintf(msg, sizeof msg, "mode %s (controllers %s, O2 %s). Change: mode diag | mode bench confirm | mode field confirm", runModeName(runMode_),
+    snprintf(msg, sizeof msg, "mode %s: controllers %s, O2 %s. (mode diag|bench|field)", runModeName(runMode_),
              sys_.controllersEnabled() ? "ON" : "OFF", sys_.config().o2Mandatory ? "mandatory" : "optional");
     return msg;
   }
@@ -95,7 +95,7 @@ const char* App::requestMode(const char* name, bool confirmed) {
   if (m != RunMode::kDiag) {
     if (sys_.inputs().tbs) return "mode change refused: the system is enabled (TBS is ON). Switch TBS OFF first.";
     if (!confirmed) {
-      snprintf(msg, sizeof msg, "mode %s ENABLES the controllers. Type  mode %s confirm  to do it (TBS must be OFF; nothing starts until TBS is switched ON).", runModeName(m) , name);
+      snprintf(msg, sizeof msg, "mode %s ENABLES the controllers. Type  mode %s confirm  (TBS must be OFF).", runModeName(m) , name);
       return msg;
     }
   }

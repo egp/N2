@@ -771,7 +771,7 @@ TEST_CASE("MODE-1: `mode` reports it; diag is immediate; bench/field need the wo
   REQUIRE(r.runUntilMode(App::Mode::kRun, 3000));
   CHECK(r.app->runMode() == RunMode::kDiag);
   r.type("mode");
-  CHECK(r.has("mode DIAG (controllers OFF, O2 optional)"));
+  CHECK(r.has("mode DIAG: controllers OFF, O2 optional."));
   r.type("MODE bench");
   CHECK(r.has("ENABLES the controllers. Type  mode bench confirm"));
   CHECK(r.app->runMode() == RunMode::kDiag);
