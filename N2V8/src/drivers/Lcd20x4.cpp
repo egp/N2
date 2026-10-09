@@ -145,6 +145,7 @@ void Lcd20x4::reinit(uint32_t now) {
 }
 
 void Lcd20x4::serviceHealing(uint32_t now) {
+  if (healPaused_) return;
   if (!healStarted_) {
     healStarted_ = true;
     healReadyAt_ = now;

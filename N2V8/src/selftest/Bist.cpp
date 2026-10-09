@@ -206,6 +206,7 @@ Bist::Start Bist::resume(uint32_t now) {
 }
 
 void Bist::finish(uint32_t now, const char* why) {
+  display_.lcd().pauseHealing(false);
   outputsOff(now);
   say("BIST finished: %s", why);
   running_ = false;
@@ -243,6 +244,7 @@ void Bist::printSummary() {
 
 // ---------------------------------------------------------------------------------------------- enter a step
 void Bist::enter(uint32_t now) {
+  display_.lcd().pauseHealing(step_ == BistStep::kLcd);   // the LCD test sends nothing but text
   saveRecord(true);   // the step and the verdicts so far, for a resume after a reset-button reset
   stepStart_ = now;
   mark_ = now;
@@ -280,7 +282,7 @@ void Bist::enter(uint32_t now) {
       say("  walks across 8888 (left to right), then the display blinks off and on. ~4 s, repeats.");
       break;  // the LED step drives the LED itself; the LCD shows the step number
     case BistStep::kLcd:
-      say("  EXPECT LCD: text; display off, on; all 80 cells '#'; text. ~4 s, repeats. Backlight never touched.");
+      say("  EXPECT LCD: the text; all 80 cells '#'; letters and digits. ~4 s, repeats. Only the text changes.");
       break;  // the LCD step drives the LCD itself
     case BistStep::kPressures:
       say("  Raw counts, volts and PSI per sensor (printed on change). Compare with the production gauges and enter");
@@ -420,19 +422,15 @@ void Bist::tickLed(uint32_t now) {
 void Bist::tickLcd(uint32_t now) {
   const uint32_t t = static_cast<uint32_t>(now - stepStart_) % 4000u;
   Lcd20x4& lcd = display_.lcd();
-  // The backlight is NOT touched (owner decision 2026-10-08: it is on from LCD setup and never switched; switching it is suspected of
-  // disturbing the LCD). Phases of the 4 s cycle: 0 text, 1 display OFF, 2 text, 3 all '#', 4 text.
-  const int8_t phase = t < 1000 ? 0 : (t < 1500 ? 1 : (t < 2000 ? 2 : (t < 3500 ? 3 : 4)));
-  if (phase != lcdPhase_) {   // resync the controller at the start of every phase: ordinary commands, not a re-init
-    lcdPhase_ = phase;
-    lcd.resync();
-  }
-  lcd.setDisplayOn(phase != 1);
-  if (phase == 3) {
+  // Only the TEXT changes (owner 2026-10-08): no backlight, no display on/off, no resync, no commands of any kind during this step. That is
+  // all production does. The three screens: the explanation, all 80 cells '#', and letters and digits (a bad cell stands out).
+  if (t < 1500) {
+    lcd.setScreen(makeScreen("BIST 4 LCD test", "Watch the LCD", "then type p or f"));
+  } else if (t < 2500) {
     const char* full = "####################";
     lcd.setScreen(makeScreen(full, full, full, full));
   } else {
-    lcd.setScreen(makeScreen("BIST 4 LCD test", "Watch the LCD", "then type p or f"));
+    lcd.setScreen(makeScreen("ABCDEFGHIJKLMNOPQRST", "01234567890123456789", "abcdefghijklmnopqrst", "!\"#$%&'()*+,-./:;<=>"));
   }
   LedText led;
   snprintf(led.digit, sizeof led.digit, "   4");   // the LED shows the step number during the LCD test
@@ -583,6 +581,7 @@ bool Bist::step(uint32_t now) {
     return qCount_ == 0;
   }
   if (!console_.attached()) {  // the operator's console went away: stop safely
+    display_.lcd().pauseHealing(false);
     outputsOff(now);
     running_ = false;
     saveRecord(false);

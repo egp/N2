@@ -280,25 +280,34 @@ TEST_CASE("BIST step 3/DRV-3: the LED test states what to expect and runs the pa
   CHECK(std::string(r.display.lcd().shown(0)).substr(0, 15) == "BIST 3 LED test");  // LCD shows the step number
 }
 
-TEST_CASE("BIST step 4/DRV-3: the LCD test cycles the display off/on and a full block of '#', and never touches the backlight") {
+TEST_CASE("BIST step 4/DRV-3: the LCD test only changes the text (text, a full block of '#', letters and digits): no backlight, no display commands") {
   Rig r;
   REQUIRE(r.start() == Bist::Start::kOk);
   r.goTo(BistStep::kLcd);
   REQUIRE(r.bist.current() == BistStep::kLcd);
   CHECK(r.has("all 80 cells '#'"));
-  CHECK(r.has("Backlight never touched"));
+  CHECK(r.has("Only the text changes"));
   const uint32_t t0 = r.now;
-  bool displayWasOff = false, sawFull = false, sawText = false;
+  const size_t writes0 = r.gen.hal.i2cWrites.size();
+  bool sawFull = false, sawText = false, sawAlpha = false;
   while (r.now - t0 < 4200) {
     r.pass();
     CHECK(r.display.lcd().backlightOn());
-    if (!r.display.lcd().displayOn()) displayWasOff = true;
+    CHECK(r.display.lcd().displayOn());
     if (std::string(r.display.lcd().shown(3)) == "####################") sawFull = true;
     if (std::string(r.display.lcd().shown(0)).substr(0, 15) == "BIST 4 LCD test") sawText = true;
+    if (std::string(r.display.lcd().shown(0)) == "ABCDEFGHIJKLMNOPQRST") sawAlpha = true;
   }
-  CHECK(displayWasOff);
   CHECK(sawFull);
   CHECK(sawText);
+  CHECK(sawAlpha);
+  // No LCD controller command other than cursor positioning (0x80..) is written during the step: RS=0 writes are cursor moves only.
+  for (size_t i = writes0; i < r.gen.hal.i2cWrites.size(); ++i) {
+    const auto& w = r.gen.hal.i2cWrites[i];
+    if (w.address != kLcdAddress || w.bytes.size() != 4) continue;
+    const bool data = (w.bytes[0] & 0x01) != 0;
+    if (!data) CHECK((w.bytes[0] & 0x80) != 0);   // a command: its high nibble must have bit 7 set (cursor address 0x80|addr)
+  }
   CHECK(r.display.led().shownSegments(3) == Led1650::segmentsFor('4'));   // the LED shows the step number
 }
 
