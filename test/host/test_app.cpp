@@ -20,6 +20,7 @@ struct AppRig {
   ControlConfig cfg;
   AppOptions opt;
   WarmRecord rec{};
+  ModeRecord modeRec{};   // the run-mode breadcrumb, survives the simulated resets
   BistRecord bistRec{};   // survives the simulated resets, like the RAM record on the board
   std::unique_ptr<App> app;
   std::string out;  // everything the console printed
@@ -47,6 +48,7 @@ struct AppRig {
   void boot(ResetInfo reset = ResetInfo()) {
     hal.resetCause = reset;
     opt.bistRecord = &bistRec;
+    opt.modeRecord = &modeRec;
     app.reset(new App(hal, kHostBoard, cfg, o2, info, &rec, opt));
     hal.nowMs = 0;
     app->setup();
@@ -173,7 +175,7 @@ TEST_CASE("CON-4: when a console attaches it is told who we are (it missed the b
   r.hal.consoleIsAttached = true;
   r.run(100);
   CHECK(r.has("[console attached]"));
-  CHECK(r.has("N2V8 0.0.0-test  built Jan  1 2026 12:00:00  board host (fake)  mode HOST  adc 10 bits"));
+  CHECK(r.has("N2V8 0.0.0-test  built Jan  1 2026 12:00:00  board host (fake)  mode FIELD  adc 10 bits"));
   CHECK(r.has("Type help."));
 }
 
@@ -759,4 +761,82 @@ TEST_CASE("BIST-7: after a resume, q ends the BIST and the next reset-button res
   CHECK(r.app->mode() == App::Mode::kRun);
   r.boot(buttonReset());
   CHECK(r.app->mode() == App::Mode::kRun);
+}
+
+// ---------------------------------------------------------------------------- run-time mode (DIAG / BENCH / FIELD)
+TEST_CASE("MODE-1: `mode` reports it; diag is immediate; bench/field need the word confirm and TBS OFF; nothing starts by itself") {
+  AppOptions o; o.controllersEnabled = false;       // compiled as DIAG
+  AppRig r(quickWarmConfig(), o);
+  r.boot();
+  REQUIRE(r.runUntilMode(App::Mode::kRun, 3000));
+  CHECK(r.app->runMode() == RunMode::kDiag);
+  r.type("mode");
+  CHECK(r.has("mode DIAG (controllers OFF, O2 optional)"));
+  r.type("MODE bench");
+  CHECK(r.has("ENABLES the controllers. Type  mode bench confirm"));
+  CHECK(r.app->runMode() == RunMode::kDiag);
+  r.tbs(true); r.run(100);
+  r.type("mode bench confirm");
+  CHECK(r.has("mode change refused: the system is enabled (TBS is ON)"));
+  r.tbs(false); r.run(200);
+  r.type("mode bench confirm");
+  CHECK(r.has("mode BENCH. Controllers ON; outputs are off until TBS is switched ON."));
+  CHECK(r.app->runMode() == RunMode::kBench);
+  r.run(2000);
+  CHECK_FALSE(r.anyOutputOn());            // TBS is OFF: nothing starts by itself
+  r.tbs(true);
+  r.run(9000);
+  CHECK(r.outputOn(Signal::kSsr));          // the normal TBS rule now runs the controllers
+  r.type("mode diag");
+  CHECK(r.has("mode DIAG. Controllers OFF"));
+  r.run(100);
+  CHECK_FALSE(r.anyOutputOn());            // diag: every output off at once, even with TBS ON
+  r.type("mode frob");
+  CHECK(r.has("usage: mode"));
+}
+
+TEST_CASE("MODE-2: the mode survives a reset-button or watchdog reset, but not a power-on, a brown-out or a bad record") {
+  for (int how = 0; how < 5; ++how) {
+    AppOptions o; o.controllersEnabled = false;
+    AppRig r(quickWarmConfig(), o);
+    r.boot();
+    REQUIRE(r.runUntilMode(App::Mode::kRun, 3000));
+    r.type("mode field confirm");
+    REQUIRE(r.app->runMode() == RunMode::kField);
+    ResetInfo ri;
+    ri.known = true;
+    if (how == 0) { /* reset button */ }
+    if (how == 1) ri.watchdog = true;
+    if (how == 2) ri.powerOn = true;
+    if (how == 3) ri.brownout = true;
+    if (how == 4) r.modeRec.check ^= 1;           // corrupted breadcrumb
+    r.boot(ri);
+    INFO("case " << how);
+    const bool kept = how <= 1;
+    CHECK(r.app->runMode() == (kept ? RunMode::kField : RunMode::kDiag));
+    CHECK(r.app->system().controllersEnabled() == kept);
+    CHECK(r.app->system().config().o2Mandatory == kept);
+  }
+}
+
+TEST_CASE("MODE-3: FIELD means the O2 sensor is mandatory (no sensor: everything off); the version leaves the LCD; `mode` is refused during BIST") {
+  AppOptions o; o.controllersEnabled = false;
+  AppRig r(quickWarmConfig(), o);
+  r.o2.presentOk = false;                  // no O2 sensor answers
+  r.hal.i2cPresent.erase(0x74);
+  r.boot();
+  REQUIRE(r.runUntilMode(App::Mode::kRun, 3000));
+  r.type("mode field confirm");
+  REQUIRE(r.app->runMode() == RunMode::kField);
+  r.tbs(true);
+  r.run(9000);
+  CHECK_FALSE(r.anyOutputOn());            // INV-9: the O2 sensor is missing
+  r.tbs(false); r.run(200);
+  r.type("mode diag");
+  r.type("bist");
+  r.run(100);
+  REQUIRE(r.app->mode() == App::Mode::kBist);
+  r.type("mode field confirm");           // during a BIST every typed line goes to the BIST, never to the mode command
+  r.run(100);
+  CHECK(r.app->runMode() == RunMode::kDiag);
 }

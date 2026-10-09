@@ -26,6 +26,7 @@ class CommandLauncher {
   virtual ~CommandLauncher() = default;
   virtual const char* requestPost() = 0;
   virtual const char* requestBist() = 0;
+  virtual const char* requestMode(const char* name, bool confirmed) = 0;   // name: nullptr = report the mode
 };
 
 struct ConsoleContext {

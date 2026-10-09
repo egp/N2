@@ -7,7 +7,7 @@ namespace n2 {
 
 enum class CommandId : uint8_t {
   kNone,  // empty line
-  kHelp, kVer, kStatus, kReport, kLog, kFaults, kCfg, kDisplay, kLoop, kScan, kPost, kBist, kTime, kNvm, kDebounce, kPins, kLcd,
+  kHelp, kVer, kStatus, kReport, kLog, kFaults, kCfg, kDisplay, kLoop, kScan, kPost, kBist, kTime, kNvm, kDebounce, kPins, kLcd, kMode,
   kUnknown
 };
 

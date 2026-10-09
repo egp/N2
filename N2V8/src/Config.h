@@ -48,6 +48,7 @@ static_assert(kI2cClockHz == 100000 || kI2cClockHz == 400000,
               "Config.h: kI2cClockHz must be 100000 or 400000 (the R4 Wire.setClock has no other real speed)");
 
 constexpr uint32_t kWarmRecordAddress = 0x20007A00u;
-constexpr uint32_t kBistRecordAddress = 0x20007A40u;   // the BIST resume record (selftest/Bist.h); same RAM that survives a reset-button reset
+constexpr uint32_t kBistRecordAddress = 0x20007A40u;
+constexpr uint32_t kModeRecordAddress = 0x20007A80u;   // the run-mode breadcrumb (app/RunMode.h)   // the BIST resume record (selftest/Bist.h); same RAM that survives a reset-button reset
 
 }  // namespace n2

@@ -44,6 +44,10 @@ Responder* Commands::handle(const Command& cmd) {
       return &message_;
     }
     case CommandId::kNvm:     return &nvmInfo_;
+    case CommandId::kMode:
+      if (c_.launcher == nullptr) { message_.set("'mode' is not available in this build"); return &message_; }
+      message_.set("%s", c_.launcher->requestMode(cmd.argc > 0 ? cmd.arg[0] : nullptr, cmd.argc > 1 && strcmp(cmd.arg[1], "confirm") == 0));
+      return &message_;
     case CommandId::kLcd: {
       if (c_.lcd == nullptr) { message_.set("no LCD driver in this build"); return &message_; }
       Lcd20x4& l = *c_.lcd;
@@ -148,6 +152,7 @@ bool Commands::Help::line(uint8_t i, char* b, size_t n) {
       "  cfg                thresholds and timings",
       "  display            what the LCD and LED should show",
       "  lcd [reinit|bus]   LCD driver state; reinit = restart its controller; bus = I2C link test",
+      "  mode [diag|bench|field [confirm]]  run mode: diag = controllers off; bench/field need TBS OFF and the word confirm",
       "  pins               every pin: which signal, its level now / raw volts (verify the wiring)",
       "  nvm                non-volatile memory: what is stored, each check, write count",
       "  debounce [set T B] TBS/TOB debounce ms: show, or save (TBS off)",

@@ -1,5 +1,8 @@
 #include "App.h"
 
+#include <stdio.h>
+#include <string.h>
+
 #include "../board/BoardSetup.h"
 
 namespace n2 {
@@ -59,14 +62,66 @@ const char* App::requestBist() {
   return "starting BIST: answer each step with p, f, r, s or q";
 }
 
+void App::applyMode(RunMode m) {
+  runMode_ = m;
+  info_.mode = runModeName(m);       // `ver`, the banner and the BOOT line name the mode in force, not the compiled one
+  ctx_.info.mode = runModeName(m);
+  sys_.setControllersEnabled(m != RunMode::kDiag);
+  sys_.setO2Mandatory(m == RunMode::kField);
+  console_.setLevel(m == RunMode::kField ? LogLevel::kInfo : opt_.logLevel);
+  if (opt_.modeRecord != nullptr) {
+    opt_.modeRecord->magic = kModeRecordMagic;
+    opt_.modeRecord->mode = static_cast<uint32_t>(m);
+    opt_.modeRecord->check = modeRecordChecksum(*opt_.modeRecord);
+  }
+}
+
+// `mode`: show it, or change it. DIAG is immediate and always safe. BENCH and FIELD enable the controllers: only from the console, only with
+// TBS OFF, and only with the word `confirm`. Nothing starts by itself afterwards: the normal TBS rule applies.
+const char* App::requestMode(const char* name, bool confirmed) {
+  static char msg[130];
+  if (name == nullptr) {
+    snprintf(msg, sizeof msg, "mode %s (controllers %s, O2 %s). Change: mode diag | mode bench confirm | mode field confirm", runModeName(runMode_),
+             sys_.controllersEnabled() ? "ON" : "OFF", sys_.config().o2Mandatory ? "mandatory" : "optional");
+    return msg;
+  }
+  RunMode m;
+  if (strcmp(name, "diag") == 0) m = RunMode::kDiag;
+  else if (strcmp(name, "bench") == 0) m = RunMode::kBench;
+  else if (strcmp(name, "field") == 0) m = RunMode::kField;
+  else return "usage: mode [diag | bench confirm | field confirm]";
+  if (m == runMode_) return "already in that mode";
+  if (mode_ != Mode::kRun) return "mode change refused: the POST or BIST is running. Wait for it to finish.";
+  if (m != RunMode::kDiag) {
+    if (sys_.inputs().tbs) return "mode change refused: the system is enabled (TBS is ON). Switch TBS OFF first.";
+    if (!confirmed) {
+      snprintf(msg, sizeof msg, "mode %s ENABLES the controllers. Type  mode %s confirm  to do it (TBS must be OFF; nothing starts until TBS is switched ON).", runModeName(m) , name);
+      return msg;
+    }
+  }
+  applyMode(m);
+  sys_.resume();   // controllers start disabled; every output is off now
+  logf(console_, LogLevel::kInfo, "%lu MODE %s (from the console)", static_cast<unsigned long>(hal_.millis()), runModeName(m));
+  snprintf(msg, sizeof msg, "mode %s. Controllers %s; outputs are off%s.", runModeName(m), m == RunMode::kDiag ? "OFF" : "ON",
+           m == RunMode::kDiag ? "" : " until TBS is switched ON");
+  return msg;
+}
+
 void App::setup() {
   const uint32_t now = hal_.millis();
   beginHardware(hal_, board_);  // RST-2: outputs safe first, then ADC and I2C
   hal_.consoleBegin();          // the R4 WiFi core does not start Serial for us (CON-4)
   if (opt_.watchdogEnabled) hal_.watchdogBegin(opt_.watchdogMs);
 
-  sys_.setControllersEnabled(opt_.controllersEnabled);
   resetInfo_ = hal_.readResetCause();
+  {   // the run mode: the compiled one after a power-up, the remembered one after a reset-button or watchdog reset (the RAM breadcrumb)
+    const RunMode compiled = !opt_.controllersEnabled ? RunMode::kDiag : (sys_.config().o2Mandatory ? RunMode::kField : RunMode::kBench);
+    RunMode m = compiled;
+    const bool keeps = resetInfo_.known && !resetInfo_.powerOn && !resetInfo_.brownout;   // button or watchdog
+    if (keeps && opt_.modeRecord != nullptr && modeRecordValid(*opt_.modeRecord)) m = static_cast<RunMode>(opt_.modeRecord->mode);
+    applyMode(m);
+    if (m != compiled) logf(console_, LogLevel::kInfo, "%lu MODE %s restored after a reset (compiled: %s)", static_cast<unsigned long>(now), runModeName(m), runModeName(compiled));
+  }
   const uint32_t credit = credit_.begin(resetInfo_, now);
   display_.setLcdMinChangeMs(opt_.lcdMinChangeMs);
   nvmSvc_.load();  // NVM-1: read only. The stored debounce times (if valid for this board) replace the compiled default.
@@ -148,9 +203,7 @@ void App::announceConsole() {
 void App::runPass(uint32_t now) {
   sys_.step();
   DisplayData data = makeDisplayData(sys_, kAdcBits);
-#if !defined(N2_BUILD_FIELD)
-  data.version = info_.version;   // the version on the LCD while testing
-#endif
+  if (runMode_ != RunMode::kField) data.version = info_.version;   // the version on the LCD while testing (not in FIELD)
   display_.showNormal(data, now);
 
   // Report what the display side noticed (DSP-6: informational, never stops the system).

@@ -43,6 +43,8 @@ class System {
   // DIAG build (Requirements §2): sensors, faults and safety checks run, but no controller does and every output
   // stays OFF (except under BIST, which drives them through the OutputDriver itself).
   void setControllersEnabled(bool enabled) { controllersEnabled_ = enabled; }
+  bool controllersEnabled() const { return controllersEnabled_; }
+  void setO2Mandatory(bool mandatory) { cfg_.o2Mandatory = mandatory; }   // FIELD: the O2 sensor must answer or everything is off (INV-9)
 
   // One pass of loop().
   void step();

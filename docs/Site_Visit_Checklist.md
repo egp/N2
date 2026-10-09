@@ -30,6 +30,7 @@ Plan agreed 2026-10-08: the visit is about **POST and BIST and verifying every p
 5. **BIST** (`bist`, TBS OFF; on the Minima it is answered from the console: the TOB/TBS answer keys are for the WiFi bench only; `q` aborts; a RESET-button reset in the middle resumes it at the same step): banner, TBS and TOB, I2C scan, LED, LCD, pressures (compare with the gauges: `g air 120.5`, `g n2l 10.0`, `g n2h 95.0`), O2 sensor, LEFT, RIGHT, FLUSH valves, SSR. Answer `p`/`f` (any case). Save the whole console log.
 6. **`loop`** after a few minutes in RUN (min, mean, median, max) for NFR-1.
 7. **Bounce on the production switches:** upload `nvm_probe`, `m 1`, `c 30`, `b`; TBS (rotary) 30 cycles, then TOB 30 cycles. Then `r`. Do not store a value until you have decided (`w TBS TOB`).
+7b. **Run mode without recompiling:** the build you upload starts in DIAG (controllers off). `mode` shows it; `mode field confirm` (TBS OFF, console only) switches to production without a re-upload; `mode diag` goes back at once with every output off. The mode survives a RESET-button or watchdog reset, not a power cycle (a power cycle returns to DIAG). Nothing starts until TBS is switched ON.
 8. Decide GO / NO-GO for the production V8 (gates below).
 
 ## `pins` — verifying every pin (do this with the unit powered, outputs off)
