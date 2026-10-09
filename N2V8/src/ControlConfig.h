@@ -39,7 +39,7 @@ struct ControlConfig {
 };
 
 inline constexpr ControlConfig kDefaultControl = {
-    900, 1200, 59250, 750,                         // tower
+    700, 900, 59250, 750,                          // tower (air off 70 / on 90 PSI: owner 2026-10-09, this machine's supply peaks at 100 PSI and sags when a valve opens)
     1000, 2000, 1000, 1200,                        // compressor
     60000, 2000, 250, 10, 1000, 3000, 60000, 300000, true,  // O2
     1000, 3, 5000, 100, 5000};                     // outputs and faults

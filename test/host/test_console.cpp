@@ -336,7 +336,7 @@ TEST_CASE("§10: faults lists each active fault with severity and effect, or say
 TEST_CASE("§10: cfg prints the thresholds with their units") {
   Rig r;
   const std::string c = r.ask("cfg");
-  CHECK(contains(c, "airLowOff   900  ( 90.0 PSI)"));
+  CHECK(contains(c, "airLowOff   700  ( 70.0 PSI)"));
   CHECK(contains(c, "n2LowOn     2000  (20.00 PSI)"));
   CHECK(contains(c, "n2HighOff   1200  (120.0 PSI)"));
   CHECK(contains(c, "o2Warmup    300000 ms  mandatory yes"));

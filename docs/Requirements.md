@@ -228,8 +228,8 @@ so that a **later version** can change pressure thresholds from the console. In 
 | Parameter | Value | Units | Meaning |
 |---|---|---|---|
 | `ADC_BITS` | 10 | bits | ADC resolution (INP-2) |
-| `airLowOff` | 900 | PSI×10 (90.0) | tower disables below |
-| `airLowOn` | 1200 | PSI×10 (120.0) | tower may start above |
+| `airLowOff` | 700 | PSI×10 (70.0) | tower disables below. [CHG 2026-10-09, owner: the machine's supply peaks at 100 PSI and sags when a valve opens; was 900] |
+| `airLowOn` | 900 | PSI×10 (90.0) | tower may start above. [CHG 2026-10-09, owner; was 1200] |
 | `towerFillTime` | 59 250 | ms | fill phase |
 | `towerOverlapTime` | 750 | ms | both valves open |
 | `n2LowOff` | 1000 | PSI×100 (10.00) | SSR off below |
