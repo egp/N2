@@ -21,7 +21,7 @@ Plan agreed 2026-10-08: the visit is about **POST and BIST and verifying every p
 2. **Upload DIAG** (as it is). Console 115200. Type `ver`, `nvm` (expect: nothing stored on a new board), `pins`.
 3. **`pins`: verify every pin** (below).
 4. **POST:** hold TOB, press RESET, keep TOB held until the LED shows `PoSt`, release. Expect POST to end with `0000` for 10 s (or `FFFF` and a held LCD naming the fault).
-5. **BIST** (`bist`, TBS OFF): banner, TBS and TOB, I2C scan, LED, LCD, pressures (compare with the gauges: `g air 120.5`, `g n2l 10.0`, `g n2h 95.0`), O2 sensor, LEFT, RIGHT, FLUSH valves, SSR. Answer `p`/`f` (any case). Save the whole console log.
+5. **BIST** (`bist`, TBS OFF; on the Minima it is answered from the console: the TOB/TBS answer keys are for the WiFi bench only; `q` aborts; a RESET-button reset in the middle resumes it at the same step): banner, TBS and TOB, I2C scan, LED, LCD, pressures (compare with the gauges: `g air 120.5`, `g n2l 10.0`, `g n2h 95.0`), O2 sensor, LEFT, RIGHT, FLUSH valves, SSR. Answer `p`/`f` (any case). Save the whole console log.
 6. **`loop`** after a few minutes in RUN (min, mean, median, max) for NFR-1.
 7. **Bounce on the production switches:** upload `nvm_probe`, `m 1`, `c 30`, `b`; TBS (rotary) 30 cycles, then TOB 30 cycles. Then `r`. Do not store a value until you have decided (`w TBS TOB`).
 8. Decide GO / NO-GO for the production V8 (gates below).
@@ -32,6 +32,7 @@ Plan agreed 2026-10-08: the visit is about **POST and BIST and verifying every p
 * **AIR (A0), N2 LOW (A3), N2 HIGH:** with air or N2 pressure applied, the volts must move; compare to the gauge (0.5 V = 0, 4.5 V = full scale). A sensor on an unassigned pin shows on a line marked `(unassigned)`: that is its pin.
 * **N2 HIGH is the open question (HQ7):** V6/V7 say A5, but A5 is SCL. `BoardPins.h` has **A1** as a placeholder. Find where the wire is: if A1 moves with pressure, keep it; otherwise edit that one table row (kMinimaSignals, "N2HIGH").
 * **Valves and SSR (D4 LEFT, D7 RIGHT, D11 FLUSH, D8 SSR):** the BIST steps switch each one; listen/feel for the click and watch the `pins` line go HIGH/ON. Wrong valve moves = swap the pin in the table.
+* **LCD rule learned on the bench (2026-10-08):** never send the LCD anything but text and cursor positions after its initialisation (no backlight, display on/off, entry mode, return-home commands): those, not the hardware, put it into a blank/bars state. If the LCD shows two bars or nothing, power-cycle the board and tell me; do not expect software to recover it.
 * **Edit on site:** open `BoardPins.h` (Ctrl+L "go to line" at the line shown in the sketch's WHERE TO EDIT table), change the pin, recompile with the **Minima** selected, upload, run `pins` and the same BIST step again. Record every change.
 
 ## GO / NO-GO for the production V8 (the FIELD build, controllers on)
