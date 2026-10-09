@@ -14,7 +14,7 @@
 
 // THE version (one number: major.minor.patch). Shown on the LCD row 4 in every build except FIELD, by `ver`, in the boot banner, and in the top
 // comment of N2V8.ino. Bump it with every change you load onto a board, and keep N2_VERSION_HEX in step.
-#define N2_VERSION "8.1.1C"
+#define N2_VERSION "8.1.1D"
 #define N2_VERSION_HEX 0x0801   // stored in every NVM record (high byte major, low byte minor)
 
 #if !defined(N2_BUILD_HOST) && !defined(N2_BUILD_BENCH) && \

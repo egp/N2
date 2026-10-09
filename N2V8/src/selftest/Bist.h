@@ -142,6 +142,13 @@ class Bist : public LineHook {
   uint32_t aborts_ = 0;
   bool tobWasUp_ = true;
   int8_t lcdPhase_ = -1;
+  // Timed sag test (key t on a valve step): the valve opens once and stays open sagMs, the air is recorded every 50 ms, then one summary.
+  static constexpr uint8_t kSagSamples = 120;   // 6 s at 50 ms
+  bool sagTest_ = false;
+  uint8_t sagN_ = 0;
+  uint32_t sagOpenAt_ = 0;
+  uint16_t sagHist_[kSagSamples] = {};
+  void sagSummary(Signal sig, uint32_t now);
   bool holdOpen_ = false;       // key `h`: a valve step keeps the valve OPEN (no toggling) to see where the air pressure settles; ends at the step limit or on an answer
   bool airAbortOff_ = false;    // key `a`: do not abort an output step on LOW AIR (observe the pressure drop); everything else still aborts
   uint32_t airLogMark_ = 0;
