@@ -14,7 +14,7 @@ Plan agreed 2026-10-08: the visit is about **POST and BIST and verifying every p
 ## Source on Tom's laptop (Windows): git, no SSH needed (public repo)
 * `main` now equals the tested `v8` (2026-10-09, 57eba9f; the old main stays in git history). Everything changed ON SITE goes on the branch **site-20261009**, never on main.
 * One time, in a command prompt (Git for Windows installed): `git clone -b site-20261009 https://github.com/egp/N2.git C:\N2`  ->  the sketch is `C:\N2\N2V8\N2V8.ino`.
-* To get the owner's latest changes: `cd C:\N2` then `git pull`. Install the `DFRobot_MultiGasSensor` library from the Library Manager, or from `deliverables/site_kit/` on the owner's Mac.
+* To get the owner's latest changes: `cd C:\N2` then `git pull`. Install the `DFRobot_MultiGasSensor` library (v3.0.0) by ZIP: Sketch > Include Library > Add .ZIP Library... > `DFRobot_MultiGasSensor.zip` (from `deliverables/site_kit/` on the owner's Mac, or the GitHub Download ZIP of github.com/DFRobot/DFRobot_MultiGasSensor). It is NOT in the Library Manager index and the IDE cannot update it. To check the installed version, open `Documents\Arduino\libraries\DFRobot_MultiGasSensor\library.properties` in Notepad and read the `version=` line (3.0.0 on GitHub master, 2026-10-09; the repo has no releases or tags).
 * After the visit: review the branch, then merge it into main.
 
 ## Rules

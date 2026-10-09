@@ -1,6 +1,6 @@
 N2V8 site kit - for a WINDOWS laptop (Tom's) or any Arduino IDE 2 machine. Build products: regenerate from the repo, they are not in git.
   N2V8_sketch.zip            the production sketch (folder N2V8 holding N2V8.ino and src/). Unzip so you get  ...\N2V8\N2V8.ino
-  DFRobot_MultiGasSensor.zip the O2 sensor library (version 3.0.0), for Sketch > Include Library > Add .ZIP Library... (no internet needed)
+  DFRobot_MultiGasSensor.zip the O2 sensor library (version 3.0.0 = GitHub master), for Sketch > Include Library > Add .ZIP Library... (no internet needed; the library is NOT in the Library Manager and the IDE cannot update it). Check the version in Documents\Arduino\libraries\DFRobot_MultiGasSensor\library.properties (version=)
 
 ONE-TIME SETUP (Arduino IDE 2.x)
  1. Tools > Board > Boards Manager: install "Arduino UNO R4 Boards" version 1.6.0 (the version the code was tested with).
