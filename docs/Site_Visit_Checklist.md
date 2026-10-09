@@ -22,6 +22,15 @@ Plan agreed 2026-10-08: the visit is about **POST and BIST and verifying every p
 * DIAG never drives an output by itself. Only a BIST step you confirm switches a valve or the SSR, and the BIST turns them off again.
 * Anything you change on site: write it down (pin, old value, new value) and put it in `BoardPins.h` ("BoardPins.h:92" in the sketch's WHERE TO EDIT table).
 
+## The LCD at Tom's is critical: decide before anything else (owner 2026-10-09)
+Bench findings today (WiFi bench): an LCD shares the bus with the TM1650 LED module only if their addresses differ (the LED also answers 0x25-0x27), and **with the LED module connected the LCD went blank/garbled even though every I2C check passed** (bus scan, 100-round bus test, POST); with the LED unplugged the same LCD showed steady text. Removing the pull-ups on the LCD and LED modules did not help. Cause not yet known (the LED module's traffic or its electrical presence).
+1. Power OFF and look at the A2 pad on Tom's LCD backpack.
+   * **A2 NOT bridged** (default address 0x27): run WITHOUT the LED module, with the image built for an LCD at **0x27** (`N2_LCD_ADDRESS=0x27`; the LED is optional, F11 is INFO only).
+   * **A2 bridged** (0x23): run with the LED and the standard image.
+2. Never connect or disconnect an I2C wire while the Minima is powered (it wedged the bench bus and needed a power cycle).
+3. The console (bridge log) is the ground truth: after every upload run `scan`, `lcd`, `lcd bus 100`, `faults`. If the console says the LCD is healthy but the display is blank, swap in the spare LCD (A2 bridged, pull-ups removed on that module) and compare.
+4. Bring: both LCD modules, the spare LED and RTC, soldering iron, flux, wick, a multimeter, a 100 nF and a 10 uF capacitor.
+
 ## Order
 1. **I2C parts first** (known good v1.6, or DIAG `scan`): LCD 0x23, RTC 0x68, LED 0x24..., O2 0x74. Photograph the screen.
 2. **Upload DIAG** (as it is). Console 115200. Type `ver`, `nvm` (expect: nothing stored on a new board), `pins`.
