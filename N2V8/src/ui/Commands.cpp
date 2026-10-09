@@ -52,9 +52,6 @@ Responder* Commands::handle(const Command& cmd) {
                      l.ready() ? "ready" : "not ready", l.healthy() ? "yes" : "NO", static_cast<unsigned long>(l.i2cErrors()),
                      static_cast<unsigned long>(l.reinitCount()), static_cast<unsigned long>(l.busRecoveries()), l.inSync() ? "in sync" : "being written",
                      l.backlightOn() ? "on" : "off", l.displayOn() ? "on" : "off");
-      } else if (strcmp(cmd.arg[0], "resync") == 0) {
-        l.resync();
-        message_.set("LCD: function set, display control, entry mode and return home re-sent; every cell will be rewritten");
       } else if (strcmp(cmd.arg[0], "reinit") == 0) {
         l.reinit(c_.hal->millis());
         message_.set("LCD: controller restarted (full initialisation; the display clears and redraws)");
@@ -64,7 +61,7 @@ Responder* Commands::handle(const Command& cmd) {
         message_.set("LCD bus test: %u rounds, write failures %u, read failures %u, mismatches %u (%lu us per round)", static_cast<unsigned>(t.rounds),
                      static_cast<unsigned>(t.writeFailed), static_cast<unsigned>(t.readFailed), static_cast<unsigned>(t.mismatched), static_cast<unsigned long>(t.microsPerRound));
       } else {
-        message_.set("usage: lcd | lcd resync | lcd reinit | lcd bus [rounds]");
+        message_.set("usage: lcd | lcd reinit | lcd bus [rounds]");
       }
       return &message_;
     }
@@ -150,7 +147,7 @@ bool Commands::Help::line(uint8_t i, char* b, size_t n) {
       "  faults             active faults",
       "  cfg                thresholds and timings",
       "  display            what the LCD and LED should show",
-      "  lcd [resync|reinit|bus]  LCD driver state; resync = resend its settings; bus = I2C link test",
+      "  lcd [reinit|bus]   LCD driver state; reinit = restart its controller; bus = I2C link test",
       "  pins               every pin: which signal, its level now / raw volts (verify the wiring)",
       "  nvm                non-volatile memory: what is stored, each check, write count",
       "  debounce [set T B] TBS/TOB debounce ms: show, or save (TBS off)",

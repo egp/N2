@@ -691,18 +691,16 @@ TEST_CASE("§11/§12: post and bist are refused while a POST or BIST is already 
   CHECK(r.app->mode() == App::Mode::kRun);   // the refused bist did not start itself afterwards
 }
 
-TEST_CASE("DSP-6: the `lcd` command reports the driver state; `lcd resync` and `lcd bus` run; bad arguments get a usage line") {
+TEST_CASE("DSP-6: the `lcd` command reports the driver state; `lcd bus` runs; bad arguments get a usage line") {
   AppRig r;
   r.boot();
   r.run(3000);
   r.type("LCD");
   CHECK(r.has("LCD: ready, healthy yes, I2C errors 0"));
-  r.type("lcd resync");
-  CHECK(r.has("LCD: function set, display control, entry mode and return home re-sent"));
   r.type("lcd bus 5");
   CHECK(r.has("LCD bus test: 5 rounds"));
   r.type("lcd frob");
-  CHECK(r.has("usage: lcd | lcd resync | lcd reinit | lcd bus [rounds]"));
+  CHECK(r.has("usage: lcd | lcd reinit | lcd bus [rounds]"));
 }
 
 // ---------------------------------------------------------------------------- BIST resume after a reset-button reset

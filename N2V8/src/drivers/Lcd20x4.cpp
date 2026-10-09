@@ -145,7 +145,6 @@ void Lcd20x4::reinit(uint32_t now) {
 }
 
 void Lcd20x4::serviceHealing(uint32_t now) {
-  if (healPaused_) return;
   if (!healStarted_) {
     healStarted_ = true;
     healReadyAt_ = now;
@@ -163,8 +162,7 @@ void Lcd20x4::serviceHealing(uint32_t now) {
     return;
   }
   if (nextRewrite_.reached(now)) {
-    refresh();
-    homePending_ = true;
+    refresh();   // a full rewrite of the TEXT only: cursor positions and characters, no other commands (owner 2026-10-08)
     rewriteGapMs_ = rewriteGapMs_ * 2 < heal_.rewriteEveryMs ? rewriteGapMs_ * 2 : heal_.rewriteEveryMs;
     nextRewrite_.arm(now, rewriteGapMs_);
   }
@@ -195,22 +193,6 @@ bool Lcd20x4::serviceInit(uint32_t now) {
 }
 
 void Lcd20x4::serviceContent(uint32_t now) {
-  if (!deadlineReached(now, homeUntil_)) return;   // 'return home' takes 1.5 ms: write nothing until it is done
-  if (resyncPending_) {
-    if (!writeByte(0x28, false) || !writeByte(displayOn_ ? 0x0C : 0x08, false) || !writeByte(0x06, false) || !writeByte(0x02, false)) return fail(now);
-    resyncPending_ = false;
-    homePending_ = false;
-    homeUntil_ = now + 2;
-    curRow_ = curCol_ = -1;
-    return;
-  }
-  if (homePending_) {
-    if (!writeByte(0x06, false) || !writeByte(0x02, false)) return fail(now);
-    homePending_ = false;
-    homeUntil_ = now + 2;
-    curRow_ = curCol_ = -1;
-    return;
-  }
   if (backlightDirty_) {
     if (!writeRaw(backlight_ ? kBl : 0)) return fail(now);
     backlightDirty_ = false;

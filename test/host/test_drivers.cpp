@@ -411,7 +411,7 @@ TEST_CASE("DSP-7: an LCD that dies mid-run is detected, then recovers") {
   CHECK(std::string(lcd.shown(0)).substr(0, 3) == "two");
 }
 
-TEST_CASE("DRV-3: each scheduled full rewrite starts with entry mode and return home, which cancels a stuck display shift") {
+TEST_CASE("DRV-3: the periodic repair rewrites TEXT only: cursor positions and characters, never entry mode, return home or backlight") {
   FakeHal hal;
   hal.i2cPresent = {kLcd};
   Lcd20x4 lcd(hal, kLcd);
@@ -419,28 +419,12 @@ TEST_CASE("DRV-3: each scheduled full rewrite starts with entry mode and return 
   lcd.enableHealing();
   uint32_t t = bringUp(hal, lcd);
   hal.i2cWrites.clear();
-  for (uint32_t i = 0; i < 400; ++i) lcd.service(t + i);   // the first rewrite is due 250 ms after the display is up
-  int homes = 0;
-  for (const auto& w : hal.i2cWrites)
-    if (w.bytes == Bytes{0x0C, 0x08, 0x2C, 0x28}) ++homes;
-  CHECK(homes >= 1);
+  for (uint32_t i = 0; i < 6000; ++i) lcd.service(t + i);   // several repair rewrites (250 ms, then doubling up to 5 s)
+  REQUIRE(hal.i2cWrites.size() > 10);
+  for (const auto& w : hal.i2cWrites) {
+    REQUIRE(w.bytes.size() == 4);                  // every write is one command or one character
+    const bool data = (w.bytes[0] & 0x01) != 0;
+    if (!data) CHECK((w.bytes[0] & 0x80) != 0);     // a command must be a cursor position (0x80 | address)
+  }
   CHECK(std::string(lcd.shown(0)).substr(0, 1) == "A");
-}
-
-TEST_CASE("DRV-3: resync() sends function set, display control, entry mode and return home, then rewrites every cell") {
-  FakeHal hal;
-  hal.i2cPresent = {kLcd};
-  Lcd20x4 lcd(hal, kLcd);
-  lcd.setScreen(screen("A"));
-  uint32_t t = bringUp(hal, lcd);
-  for (uint32_t i = 1; i < 200; ++i) lcd.service(t + i);   // let the first screen settle
-  hal.i2cWrites.clear();
-  lcd.resync();
-  for (uint32_t i = 200; i < 260; ++i) lcd.service(t + i);
-  REQUIRE(hal.i2cWrites.size() >= 5);
-  CHECK(hal.i2cWrites[0].bytes == Bytes{0x2C, 0x28, 0x8C, 0x88});   // 0x28 function set
-  CHECK(hal.i2cWrites[1].bytes == Bytes{0x0C, 0x08, 0xCC, 0xC8});   // 0x0C display on
-  CHECK(hal.i2cWrites[2].bytes == Bytes{0x0C, 0x08, 0x6C, 0x68});   // 0x06 entry mode
-  CHECK(hal.i2cWrites[3].bytes == Bytes{0x0C, 0x08, 0x2C, 0x28});   // 0x02 return home
-  CHECK(hal.i2cWrites[4].bytes.size() == 4);                         // then the cells are rewritten (cursor command first)
 }

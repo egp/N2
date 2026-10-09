@@ -206,7 +206,6 @@ Bist::Start Bist::resume(uint32_t now) {
 }
 
 void Bist::finish(uint32_t now, const char* why) {
-  display_.lcd().pauseHealing(false);
   outputsOff(now);
   say("BIST finished: %s", why);
   running_ = false;
@@ -244,7 +243,6 @@ void Bist::printSummary() {
 
 // ---------------------------------------------------------------------------------------------- enter a step
 void Bist::enter(uint32_t now) {
-  display_.lcd().pauseHealing(step_ == BistStep::kLcd);   // the LCD test sends nothing but text
   saveRecord(true);   // the step and the verdicts so far, for a resume after a reset-button reset
   stepStart_ = now;
   mark_ = now;
@@ -257,8 +255,6 @@ void Bist::enter(uint32_t now) {
   memset(found_, 0, sizeof found_);
   for (auto& l : last_) l = 0xFFFF;
   lastBool_[0] = lastBool_[1] = false;
-  display_.lcd().setBacklight(true);
-  display_.lcd().setDisplayOn(true);
   display_.led().setDisplayOn(true);
 
   say("BIST %c: %s", hexDigit(static_cast<uint8_t>(step_)), kStepNames[static_cast<uint8_t>(step_)]);
@@ -581,8 +577,7 @@ bool Bist::step(uint32_t now) {
     return qCount_ == 0;
   }
   if (!console_.attached()) {  // the operator's console went away: stop safely
-    display_.lcd().pauseHealing(false);
-    outputsOff(now);
+      outputsOff(now);
     running_ = false;
     saveRecord(false);
     console_.setLineHook(nullptr);

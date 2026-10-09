@@ -55,15 +55,8 @@ class Lcd20x4 {
   // Testing aid: no caching at all. As soon as one full pass of 80 cells has gone out, the next one starts, so the display is rewritten
   // continuously (a corrupted cell is repaired within about 50 ms). Costs steady I2C traffic: use on the bench, not in production.
   void setAlwaysRewrite(bool on) { alwaysRewrite_ = on; }
-  // While paused, the periodic repair (return home, entry mode, full rewrite) is not done: only content changes reach the display. Used by
-  // the BIST LCD test so that the test sends nothing but text.
-  void pauseHealing(bool paused) { healPaused_ = paused; }
   void enableHealing(const Healing& healing = Healing()) { heal_ = healing; healOn_ = true; }
   void refresh();
-  // Re-send the LCD controller's own settings (function set 0x28, display control, entry mode 0x06, return home 0x02) and rewrite every cell.
-  // NOT the power-up initialisation (that made things worse on the bench): these are ordinary commands that restore a display left in an odd
-  // state. Used by the BIST LCD test at the start of each phase, and available to any caller.
-  void resync() { resyncPending_ = true; refresh(); }
   void reinit(uint32_t now);
   void setBacklight(bool on);            // BIST
   void setDisplayOn(bool on);            // BIST: display on/off, content kept
@@ -111,14 +104,7 @@ class Lcd20x4 {
 
   void serviceHealing(uint32_t now);
   bool healOn_ = false;
-  bool healPaused_ = false;
   bool alwaysRewrite_ = false;
-  // Each scheduled full rewrite is preceded by 'entry mode' (0x06) and 'return home' (0x02). Return home also cancels a display SHIFT that a
-  // stray command or a reset in mid-transaction left behind (bench 2026-10-08: the whole screen sat one column to the right, the last column
-  // lost and the first column showing the end of another row). It does not clear DDRAM and does not blink: not a re-initialisation.
-  bool homePending_ = false;
-  bool resyncPending_ = false;
-  uint32_t homeUntil_ = 0;
   Healing heal_;
   bool healStarted_ = false;
   uint32_t healReadyAt_ = 0;
