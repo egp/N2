@@ -244,6 +244,7 @@ void Bist::printSummary() {
 
 // ---------------------------------------------------------------------------------------------- enter a step
 void Bist::enter(uint32_t now) {
+  firstOnAt_ = 0;
   saveRecord(true);   // the step and the verdicts so far, for a resume after a reset-button reset
   stepStart_ = now;
   mark_ = now;
@@ -519,7 +520,10 @@ void Bist::tickOutputStep(uint32_t now, Signal sig) {
   if (phase_ != 1) return;
 
   const char* abortWhy = rawTbs() ? "TBS switched ON" : vetoReason(sig, inputs_, sys_.config());
-  if (airAbortOff_ && abortWhy != nullptr && strcmp(abortWhy, "air supply pressure is low") == 0) abortWhy = nullptr;   // observe-only (key `a`)
+  if (abortWhy != nullptr && strcmp(abortWhy, "air supply pressure is low") == 0) {
+    const bool inGrace = firstOnAt_ != 0 && static_cast<uint32_t>(now - firstOnAt_) < cfg_.airGraceMs;   // the drop when the valve opens is expected
+    if (airAbortOff_ || inGrace) abortWhy = nullptr;   // observe-only (key `a`), or inside the grace time
+  }
   if (sig != Signal::kSsr && static_cast<uint32_t>(now - airLogMark_) >= 50) {   // the air pressure while the valve works, every 50 ms
     airLogMark_ = now;
     say("  AIR +%lu ms: raw %u = %u.%u PSI  (N2L raw %u, N2H raw %u)%s", static_cast<unsigned long>(now - stepStart_), static_cast<unsigned>(inputs_.rawAir),
@@ -565,6 +569,7 @@ void Bist::tickOutputStep(uint32_t now, Signal sig) {
     mark_ = now;
     outputOn_ = !outputOn_;
     sys_.outputDriver().forceDrive(sig, outputOn_, now);
+    if (outputOn_ && firstOnAt_ == 0) firstOnAt_ = now != 0 ? now : 1;
     say("  %s %s", signalLabel(sig), outputOn_ ? "ON" : "OFF");
   }
 }

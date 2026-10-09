@@ -698,3 +698,16 @@ TEST_CASE("BIST-11: LEFT valve: low air aborts; with key a (observe only) the st
   CHECK(r.has("ABORTED: air supply pressure is low"));
   CHECK(r.has("at the abort: AIR raw"));
 }
+
+TEST_CASE("BIST-11: low air is tolerated for 1000 ms after the valve first opens (the drop is expected), then it aborts") {
+  Rig r;
+  REQUIRE(r.start() == Bist::Start::kOk);
+  r.goTo(BistStep::kLeft);
+  r.run(520);                              // the first toggle (valve ON) happens at about 500 ms
+  r.gen.air(500);                          // 50 PSI as the valve opens
+  r.run(700);
+  CHECK_FALSE(r.has("ABORTED"));           // inside the grace time
+  CHECK(r.has("BELOW LIMIT"));
+  r.run(800);
+  CHECK(r.has("ABORTED: air supply pressure is low"));   // after 1000 ms the limit applies
+}

@@ -50,6 +50,7 @@ struct BistConfig {
   uint32_t outputStepMaxMs = 10000;  // an output step ends by itself after this long
   bool ssrSinglePulse = true;        // HQ8 pending: one short pulse instead of 2 Hz on the compressor SSR
   uint32_t ssrPulseMs = 1000;
+  uint32_t airGraceMs = 1000;        // a valve opening drops the air supply: LOW AIR is tolerated this long after the valve first opens (owner 2026-10-09)
   bool switchKeys = true;            // TOB = pass and TBS ON = fail answer the steps (bench only; production answers from the console)
 };
 
@@ -143,6 +144,7 @@ class Bist : public LineHook {
   int8_t lcdPhase_ = -1;
   bool airAbortOff_ = false;    // key `a`: do not abort an output step on LOW AIR (observe the pressure drop); everything else still aborts
   uint32_t airLogMark_ = 0;
+  uint32_t firstOnAt_ = 0;      // when the output first switched on in this step (0 = not yet)
   uint16_t airBeforeX10_ = 0;   // the air reading when an output step began, to show next to the reading at an abort
   Debouncer tbsDeb_, tobDeb_;   // TBS and TOB as the operator's answer keys: TOB = pass, TBS switched ON = fail (debounced like the system's)
 
