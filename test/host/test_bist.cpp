@@ -769,7 +769,7 @@ TEST_CASE("BIST-11: the timed sag test (key t) opens the valve once for 5 s and 
   CHECK(r.has("timed sag test armed"));
   // the supply: 100 PSI; from the moment the valve opens it falls to 70 in 300 ms, climbs back to 90 by 2.3 s, and is steady after that
   uint32_t openedAt = 0;
-  for (int i = 0; i < 800; ++i) {
+  for (int i = 0; i < 1400; ++i) {
     r.run(10);
     if (r.gen.left() && openedAt == 0) openedAt = r.now;
     int air = 1000;
@@ -783,6 +783,8 @@ TEST_CASE("BIST-11: the timed sag test (key t) opens the valve once for 5 s and 
   CHECK(r.has("MINIMUM 70."));
   CHECK(r.has("FALL: it fell for 300 ms"));
   CHECK(r.has("STABLE (+-1 PSI) at 89."));
+  CHECK(r.has("CURVE (air x10 per 50 ms"));
+  CHECK(r.has("C0:"));
   CHECK_FALSE(r.has("ABORTED"));
   CHECK_FALSE(r.gen.left());                  // the valve is closed again after the test
 }

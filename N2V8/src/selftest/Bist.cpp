@@ -13,6 +13,8 @@
 
 namespace n2 {
 
+constexpr uint32_t kSagMs = 10000;   // the timed sag test keeps the valve open this long
+
 namespace {
 const char* const kStepNames[kBistSteps] = {"banner",  "TBS and TOB", "I2C scan",  "LED",      "LCD",        "pressures",
                                             "O2 sensor", "LEFT valve", "RIGHT valve", "FLUSH valve", "SSR", "summary"};
@@ -211,19 +213,20 @@ Bist::Start Bist::resume(uint32_t now) {
 // started to rise (the minimum), then how long until it was stable (within +-1 PSI for at least 500 ms), and the level it settles at.
 void Bist::sagSummary(Signal sig, uint32_t now) {
   (void)now;
+  // the CSV-like list of the samples, for the graph: one line per 0.5 s would hide the shape, so print every sample compactly
   if (sagN_ < 12) { say("  SAG TEST: too few samples (%u)", static_cast<unsigned>(sagN_)); return; }
   const uint16_t base = airBeforeX10_;
-  uint8_t iMin = 0;
-  for (uint8_t i = 1; i < sagN_; ++i) if (sagHist_[i] < sagHist_[iMin]) iMin = i;
+  uint16_t iMin = 0;
+  for (uint16_t i = 1; i < sagN_; ++i) if (sagHist_[i] < sagHist_[iMin]) iMin = i;
   const uint16_t vmin = sagHist_[iMin];
   int fall10 = -1;
-  for (uint8_t i = 0; i < sagN_ && fall10 < 0; ++i) if (sagHist_[i] + 100 <= base) fall10 = i * 50;
+  for (uint16_t i = 0; i < sagN_ && fall10 < 0; ++i) if (sagHist_[i] + 100 <= base) fall10 = i * 50;
   int stableAt = -1;        // first sample from which 10 samples (500 ms) stay within 1.0 PSI of each other
   uint16_t stableLevel = 0;
-  for (uint8_t i = iMin; i + 10 <= sagN_ && stableAt < 0; ++i) {
+  for (uint16_t i = iMin; i + 10 <= sagN_ && stableAt < 0; ++i) {
     uint16_t lo = 0xFFFF, hi = 0;
     uint32_t sum = 0;
-    for (uint8_t k = i; k < i + 10; ++k) {
+    for (uint16_t k = i; k < i + 10; ++k) {
       if (sagHist_[k] < lo) lo = sagHist_[k];
       if (sagHist_[k] > hi) hi = sagHist_[k];
       sum += sagHist_[k];
@@ -238,12 +241,19 @@ void Bist::sagSummary(Signal sig, uint32_t now) {
     say("  STABLE (+-1 PSI) at %u.%u PSI from %d ms: %d ms after the minimum", static_cast<unsigned>(stableLevel / 10u), static_cast<unsigned>(stableLevel % 10u),
         stableAt, stableAt - static_cast<int>(iMin) * 50);
   else
-    say("  NOT STABLE within the 5 s the valve was open (still moving by more than 1 PSI)");
+    say("  NOT STABLE within the 10 s the valve was open (still moving by more than 1 PSI)");
+  say("  CURVE (air x10 per 50 ms, from the valve opening): %u samples", static_cast<unsigned>(sagN_));
+  for (uint16_t i = 0; i < sagN_; i += 10) {
+    char row[100];
+    int len = snprintf(row, sizeof row, "  C%u:", static_cast<unsigned>(i));
+    for (uint16_t k = i; k < sagN_ && k < i + 10u && len < 90; ++k) len += snprintf(row + len, sizeof row - len, " %u", static_cast<unsigned>(sagHist_[k]));
+    say("%s", row);
+  }
   char l1[24], l2[24], l3[24];
   snprintf(l1, sizeof l1, "MIN %u.%u PSI", static_cast<unsigned>(vmin / 10u), static_cast<unsigned>(vmin % 10u));
   snprintf(l2, sizeof l2, "fell %u ms", static_cast<unsigned>(iMin) * 50u);
   if (stableAt >= 0) snprintf(l3, sizeof l3, "stable +%d ms", stableAt - static_cast<int>(iMin) * 50);
-  else snprintf(l3, sizeof l3, "not stable in 5 s");
+  else snprintf(l3, sizeof l3, "not stable in 10 s");
   showStep(l1, l2, l3);
   say("  answer p or f (r repeats)");
 }
@@ -401,7 +411,7 @@ void Bist::onLine(const char* line) {
     sagN_ = 0;
     holdOpen_ = true;
     airAbortOff_ = false;
-    say("  timed sag test armed: the valve opens once, stays open 5 s while the air is recorded, then one summary. (Low air is tolerated for the first 1000 ms.)");
+    say("  timed sag test armed: the valve opens once, stays open 10 s while the air is recorded, then one summary. (Low air is tolerated for the first 1000 ms.)");
     return;
   }
   if (c == 'h' && rest[0] == '\0') {   // toggle hold-open for the valve steps
@@ -595,7 +605,7 @@ void Bist::tickOutputStep(uint32_t now, Signal sig) {
   if (sagTest_ && sig != Signal::kSsr && outputOn_ && static_cast<uint32_t>(now - airLogMark_) >= 50) {   // timed sag test: record 5 s of air
     if (sagN_ == 0) sagOpenAt_ = firstOnAt_ != 0 ? firstOnAt_ : now;
     if (sagN_ < kSagSamples) sagHist_[sagN_++] = inputs_.airX10;
-    if (static_cast<uint32_t>(now - sagOpenAt_) >= 5000 || sagN_ >= kSagSamples) {
+    if (static_cast<uint32_t>(now - sagOpenAt_) >= kSagMs || sagN_ >= kSagSamples) {
       outputsOff(now);
       sagSummary(sig, now);
       sagTest_ = false;
@@ -639,7 +649,7 @@ void Bist::tickOutputStep(uint32_t now, Signal sig) {
     }
     return;
   }
-  if (static_cast<uint32_t>(now - stepStart_) >= cfg_.outputStepMaxMs) {
+  if (!sagTest_ && static_cast<uint32_t>(now - stepStart_) >= cfg_.outputStepMaxMs) {   // (the timed sag test ends itself)
     outputsOff(now);
     say("  stopped after %lu s; answer p or f (r repeats)", static_cast<unsigned long>(cfg_.outputStepMaxMs / 1000));
     phase_ = 2;

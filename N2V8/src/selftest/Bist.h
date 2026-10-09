@@ -143,9 +143,9 @@ class Bist : public LineHook {
   bool tobWasUp_ = true;
   int8_t lcdPhase_ = -1;
   // Timed sag test (key t on a valve step): the valve opens once and stays open sagMs, the air is recorded every 50 ms, then one summary.
-  static constexpr uint8_t kSagSamples = 120;   // 6 s at 50 ms
+  static constexpr uint16_t kSagSamples = 230;   // 11 s at 50 ms
   bool sagTest_ = false;
-  uint8_t sagN_ = 0;
+  uint16_t sagN_ = 0;
   uint32_t sagOpenAt_ = 0;
   uint16_t sagHist_[kSagSamples] = {};
   void sagSummary(Signal sig, uint32_t now);
