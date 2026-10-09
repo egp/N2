@@ -49,7 +49,7 @@ def do_n2v8():
     remove_old(START, END)
 
     common = [  # (file, regex, what)
-        ("src/ControlConfig.h", r"^    900, 1200", "TOWER      airLowOff airLowOn towerFillMs towerOverlapMs"),
+        ("src/ControlConfig.h", r"^    700, 900", "TOWER      airLowOff airLowOn towerFillMs towerOverlapMs"),
         ("src/ControlConfig.h", r"^    1000, 2000, 1000, 1200", "COMPRESSOR n2LowOff n2LowOn n2HighOn n2HighOff"),
         ("src/ControlConfig.h", r"^    60000, 2000, 250", "O2         interval flush sample count retry timeout errorRetry warm-up mandatory"),
         ("src/ControlConfig.h", r"^    1000, 3, 5000", "OUTPUTS/FAULTS  minHold sensorFaultSamples faultHold orderMargin orderHold"),
