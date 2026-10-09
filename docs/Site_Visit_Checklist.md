@@ -11,6 +11,12 @@ Plan agreed 2026-10-08: the visit is about **POST and BIST and verifying every p
   * The bounce and NVM probe: `experiments/nvm_probe/nvm_probe.ino` (its `src` link must be present).
 * The shipped v1.6 `tom_i2c_check` as the known-good fallback.
 
+## Source on Tom's laptop (Windows): git, no SSH needed (public repo)
+* `main` now equals the tested `v8` (2026-10-09, 57eba9f; the old main stays in git history). Everything changed ON SITE goes on the branch **site-20261009**, never on main.
+* One time, in a command prompt (Git for Windows installed): `git clone -b site-20261009 https://github.com/egp/N2.git C:\N2`  ->  the sketch is `C:\N2\N2V8\N2V8.ino`.
+* To get the owner's latest changes: `cd C:\N2` then `git pull`. Install the `DFRobot_MultiGasSensor` library from the Library Manager, or from `deliverables/site_kit/` on the owner's Mac.
+* After the visit: review the branch, then merge it into main.
+
 ## Rules
 * **Power off and air off** before touching wiring. Tom's Arduino has its own supply: unplugging USB does not remove power.
 * DIAG never drives an output by itself. Only a BIST step you confirm switches a valve or the SSR, and the BIST turns them off again.
