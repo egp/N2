@@ -674,3 +674,17 @@ TEST_CASE("PIN-8: `pins` lists every pin with its signal and live level, reads o
   CHECK_FALSE(r.anyOutputOn());
   (void)eventsBefore;
 }
+
+TEST_CASE("§11/§12: post and bist are refused while a POST or BIST is already running (nothing is queued)") {
+  AppRig r;
+  r.boot();
+  REQUIRE(r.runUntilMode(App::Mode::kRun, 3000));
+  r.type("post");
+  r.run(100);
+  REQUIRE(r.app->mode() == App::Mode::kPost);
+  r.type("bist");
+  CHECK(r.has("BIST refused: the POST or BIST is already running"));
+  REQUIRE(r.runUntilMode(App::Mode::kRun, 14000));
+  r.run(500);
+  CHECK(r.app->mode() == App::Mode::kRun);   // the refused bist did not start itself afterwards
+}

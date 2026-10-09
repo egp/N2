@@ -44,12 +44,14 @@ bool App::tobPressed() {
 // POST and BIST need the system disabled: TBS must be OFF (owner 2026-10-08). While they run the system stays disabled; the BIST tests
 // the TBS switch itself without enabling the system, and when either ends the normal TBS rule applies again (TBS ON = enable).
 const char* App::requestPost() {
+  if (mode_ != Mode::kRun) return "POST refused: the POST or BIST is already running. Wait for it to finish (BIST: type q).";
   if (sys_.inputs().tbs) return "POST refused: the system is enabled (TBS is ON). Switch TBS OFF, then type post.";
   postRequested_ = true;
   return "running POST: the system is disabled until it finishes";
 }
 
 const char* App::requestBist() {
+  if (mode_ != Mode::kRun) return "BIST refused: the POST or BIST is already running. Wait for it to finish (BIST: type q).";
   if (sys_.inputs().tbs) return "BIST refused: the system is enabled (TBS is ON). Switch TBS OFF, then type bist.";
   bistRequested_ = true;
   return "starting BIST: answer each step with p, f, r, s or q (TOB = p)";
