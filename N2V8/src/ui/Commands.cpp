@@ -44,6 +44,30 @@ Responder* Commands::handle(const Command& cmd) {
       return &message_;
     }
     case CommandId::kNvm:     return &nvmInfo_;
+    case CommandId::kLcd: {
+      if (c_.lcd == nullptr) { message_.set("no LCD driver in this build"); return &message_; }
+      Lcd20x4& l = *c_.lcd;
+      if (cmd.argc == 0) {
+        message_.set("LCD: %s, healthy %s, I2C errors %lu, re-inits %lu, bus recoveries %lu, content %s, backlight %s, display %s",
+                     l.ready() ? "ready" : "not ready", l.healthy() ? "yes" : "NO", static_cast<unsigned long>(l.i2cErrors()),
+                     static_cast<unsigned long>(l.reinitCount()), static_cast<unsigned long>(l.busRecoveries()), l.inSync() ? "in sync" : "being written",
+                     l.backlightOn() ? "on" : "off", l.displayOn() ? "on" : "off");
+      } else if (strcmp(cmd.arg[0], "resync") == 0) {
+        l.resync();
+        message_.set("LCD: function set, display control, entry mode and return home re-sent; every cell will be rewritten");
+      } else if (strcmp(cmd.arg[0], "reinit") == 0) {
+        l.reinit(c_.hal->millis());
+        message_.set("LCD: controller restarted (full initialisation; the display clears and redraws)");
+      } else if (strcmp(cmd.arg[0], "bus") == 0) {
+        const long rounds = cmd.argc > 1 ? strtol(cmd.arg[1], nullptr, 10) : 50;
+        const Lcd20x4::BusTest t = l.busTest(static_cast<uint16_t>(rounds < 1 ? 1 : (rounds > 500 ? 500 : rounds)));
+        message_.set("LCD bus test: %u rounds, write failures %u, read failures %u, mismatches %u (%lu us per round)", static_cast<unsigned>(t.rounds),
+                     static_cast<unsigned>(t.writeFailed), static_cast<unsigned>(t.readFailed), static_cast<unsigned>(t.mismatched), static_cast<unsigned long>(t.microsPerRound));
+      } else {
+        message_.set("usage: lcd | lcd resync | lcd reinit | lcd bus [rounds]");
+      }
+      return &message_;
+    }
     case CommandId::kPins:    return c_.board != nullptr && c_.hal != nullptr ? static_cast<Responder*>(&pins_) : nullptr;
     case CommandId::kDebounce: {
       NvmSettingsService* nv = c_.nvm;
@@ -126,6 +150,7 @@ bool Commands::Help::line(uint8_t i, char* b, size_t n) {
       "  faults             active faults",
       "  cfg                thresholds and timings",
       "  display            what the LCD and LED should show",
+      "  lcd [resync|reinit|bus]  LCD driver state; resync = resend its settings; bus = I2C link test",
       "  pins               every pin: which signal, its level now / raw volts (verify the wiring)",
       "  nvm                non-volatile memory: what is stored, each check, write count",
       "  debounce [set T B] TBS/TOB debounce ms: show, or save (TBS off)",
@@ -423,39 +448,15 @@ bool Commands::Loop::line(uint8_t i, char* b, size_t n) {
 bool Commands::Scan::line(uint8_t i, char* b, size_t n) {
   if (i == 0) {  // run the scan once per answer
     memset(found_, 0, sizeof found_);
-    count_ = 0;
-    for (uint8_t a = 0x08; a < 0x78; ++a) {
-      if (c_.hal->i2cProbe(a)) {
-        found_[a / 8] = static_cast<uint8_t>(found_[a / 8] | (1u << (a % 8)));
-        ++count_;
-      }
-    }
-    snprintf(b, n, "I2C scan 0x08-0x77: %u device(s)", static_cast<unsigned>(count_));
+    for (uint8_t a = 0x08; a < 0x78; ++a)
+      if (c_.hal->i2cProbe(a)) found_[a / 8] = static_cast<uint8_t>(found_[a / 8] | (1u << (a % 8)));
+    buildScanReport(c_.board != nullptr ? *c_.board : kBoard, found_, report_);
+    snprintf(b, n, "I2C scan 0x08-0x77: %u address(es) answered", static_cast<unsigned>(report_.responses));
     return true;
   }
-  // Responding addresses first, then expected-but-missing ones.
-  struct Known { uint8_t addr; const char* name; };
-  const Known known[8] = {{kBoard.addrLed, "LED control"},          {static_cast<uint8_t>(kBoard.addrLedDigits + 0), "LED digit 0"},
-                          {static_cast<uint8_t>(kBoard.addrLedDigits + 1), "LED digit 1"}, {static_cast<uint8_t>(kBoard.addrLedDigits + 2), "LED digit 2"},
-                          {static_cast<uint8_t>(kBoard.addrLedDigits + 3), "LED digit 3"}, {kBoard.addrLcd, "LCD"}, {kBoard.addrO2, "O2 sensor"}, {kBoard.addrRtc, "RTC"}};
-  uint8_t idx = static_cast<uint8_t>(i - 1);
-  for (uint8_t a = 0x08; a < 0x78; ++a) {
-    if (!(found_[a / 8] & (1u << (a % 8)))) continue;
-    if (idx-- == 0) {
-      const char* label = a == 0x57 ? "EEPROM on the RTC module (unused)" : (isLedAlias(kBoard, a) ? "LED control (alias of the same chip)" : "unexpected");
-      for (const Known& k : known) if (k.addr == a) label = k.name;
-      snprintf(b, n, "  0x%02X %s", static_cast<unsigned>(a), label);
-      return true;
-    }
-  }
-  for (const Known& k : known) {
-    if (found_[k.addr / 8] & (1u << (k.addr % 8))) continue;
-    if (idx-- == 0) {
-      snprintf(b, n, "  0x%02X %s  MISSING", static_cast<unsigned>(k.addr), k.name);
-      return true;
-    }
-  }
-  return false;
+  if (i - 1u >= report_.count) return false;
+  snprintf(b, n, "  %s", report_.line[i - 1u]);
+  return true;
 }
 
 // One block with everything, for pasting back to the author (LOG-2).

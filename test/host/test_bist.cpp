@@ -229,19 +229,30 @@ TEST_CASE("BIST step 1: TBS and TOB changes are printed; TOB does NOT answer the
   CHECK(r.bist.verdict(BistStep::kSwitches) == BistVerdict::kPass);
 }
 
-TEST_CASE("BIST step 2: the I2C scan lists responders with labels and reports missing expected devices") {
+TEST_CASE("BIST step 2: the I2C scan names each device with ALL its addresses, lists strangers, and accounts for every response") {
   Rig r;
-  r.gen.hal.i2cPresent = {0x24, 0x34, 0x35, 0x36, 0x37, 0x23, 0x50, 0x68, 0x57};  // O2 missing, a stranger and the RTC (+ its EEPROM) present
+  r.gen.hal.i2cPresent = {0x24, 0x25, 0x26, 0x27, 0x34, 0x35, 0x36, 0x37, 0x23, 0x50, 0x68, 0x57};  // O2 missing, a stranger, the RTC and its EEPROM
   REQUIRE(r.start() == Bist::Start::kOk);
   r.goTo(BistStep::kI2c);
   r.run(500);
-  CHECK(r.has("0x24  LED control"));
-  CHECK(r.has("0x23  LCD"));
-  CHECK(r.has("0x50  UNEXPECTED"));
-  CHECK(r.has("0x74  O2 sensor  MISSING"));
-  CHECK(r.has("0x68  RTC"));
-  CHECK(r.has("0x57  EEPROM on the RTC module (unused)"));
-  CHECK(r.has("9 device(s) found, 1 expected device(s) missing"));
+  CHECK(r.has("LED found at 0x24,0x25,0x26,0x27,0x34,0x35,0x36,0x37"));
+  CHECK(r.has("control + 3 alias, 4 digits"));
+  CHECK(r.has("LCD found at 0x23"));
+  CHECK(r.has("RTC found at 0x68 (its EEPROM at 0x57, unused)"));
+  CHECK(r.has("O2 sensor NOT found (expected 0x74)"));
+  CHECK(r.has("UNEXPECTED responders: 0x50"));
+  CHECK(r.has("12 address(es) answered: 11 accounted for, 1 unexpected"));
+}
+
+TEST_CASE("BIST step 2: with nothing unexpected the report says so") {
+  Rig r;
+  r.gen.hal.i2cPresent = {0x24, 0x25, 0x26, 0x27, 0x34, 0x35, 0x36, 0x37, 0x23, 0x68, 0x57, 0x74};
+  REQUIRE(r.start() == Bist::Start::kOk);
+  r.goTo(BistStep::kI2c);
+  r.run(500);
+  CHECK(r.has("Unexpected responders: none"));
+  CHECK(r.has("O2 sensor found at 0x74"));
+  CHECK(r.has("12 address(es) answered: 12 accounted for, 0 unexpected"));
 }
 
 TEST_CASE("BIST step 3/DRV-3: the LED test states what to expect and runs the patterns by time") {

@@ -1,5 +1,7 @@
 #include "Bist.h"
 
+#include "../ui/ScanReport.h"
+
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -342,30 +344,13 @@ void Bist::tickI2c(uint32_t now) {
       if (hal_.i2cProbe(scanAddr_)) found_[scanAddr_ / 8] = static_cast<uint8_t>(found_[scanAddr_ / 8] | (1u << (scanAddr_ % 8)));
     if (scanAddr_ < 0x78) return;
     phase_ = 1;
-    struct Known { uint8_t addr; const char* name; };
-    const Known known[] = {{board_.addrLed, "LED control"}, {static_cast<uint8_t>(board_.addrLedDigits), "LED digit 0"},
-                           {static_cast<uint8_t>(board_.addrLedDigits + 1), "LED digit 1"}, {static_cast<uint8_t>(board_.addrLedDigits + 2), "LED digit 2"},
-                           {static_cast<uint8_t>(board_.addrLedDigits + 3), "LED digit 3"}, {board_.addrLcd, "LCD"}, {board_.addrO2, "O2 sensor"},
-                           {board_.addrRtc, "RTC"}};
-    uint8_t count = 0;
-    for (uint8_t a = 0x08; a < 0x78; ++a) {
-      if (!(found_[a / 8] & (1u << (a % 8)))) continue;
-      const bool alias = isLedAlias(board_, a);
-      if (!alias) ++count;   // the aliases are the same chip as the LED control: not separate devices
-      const char* label = a == 0x57 ? "EEPROM on the RTC module (unused)" : (alias ? "LED control (alias of the same chip)" : "UNEXPECTED");
-      for (const Known& k : known) if (k.addr == a) label = k.name;
-      say("  0x%02X  %s", static_cast<unsigned>(a), label);
-    }
-    uint8_t missing = 0;
-    for (const Known& k : known) {
-      if (found_[k.addr / 8] & (1u << (k.addr % 8))) continue;
-      ++missing;
-      say("  0x%02X  %s  MISSING", static_cast<unsigned>(k.addr), k.name);
-    }
-    say("  %u device(s) found, %u expected device(s) missing", static_cast<unsigned>(count), static_cast<unsigned>(missing));
-    char l1[24];
-    snprintf(l1, sizeof l1, "%u found, %u missing", static_cast<unsigned>(count), static_cast<unsigned>(missing));
-    showStep(l1, "See console", "then p / f");
+    ScanReport rep;
+    buildScanReport(board_, found_, rep);
+    for (uint8_t i = 0; i < rep.count; ++i) say("  %s", rep.line[i]);
+    char l1[24], l2[24];
+    snprintf(l1, sizeof l1, "%u answered", static_cast<unsigned>(rep.responses));
+    snprintf(l2, sizeof l2, "%u missing %u unexp", static_cast<unsigned>(rep.missing), static_cast<unsigned>(rep.unexpected));
+    showStep(l1, l2, "then p / f");
   }
   (void)now;
 }

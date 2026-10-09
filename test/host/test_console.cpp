@@ -358,17 +358,16 @@ TEST_CASE("NFR-1: loop shows the statistics, and 'loop reset' clears them") {
   CHECK(r.loop.count() == 0);
 }
 
-TEST_CASE("BIST step 2/§10: scan lists responders, labels them, and reports missing expected devices") {
+TEST_CASE("§10: scan names each device with its addresses, lists unexpected responders, and accounts for every response") {
   Rig r;
   r.gen.hal.i2cPresent = {0x24, 0x34, 0x35, 0x36, 0x37, 0x23, 0x50, 0x68};
   const std::string s = r.ask("scan");
-  CHECK(contains(s, "8 device(s)"));
-  CHECK(contains(s, "0x68 RTC"));
-  CHECK(contains(s, "0x24 LED control"));
-  CHECK(contains(s, "0x37 LED digit 3"));
-  CHECK(contains(s, "0x23 LCD"));
-  CHECK(contains(s, "0x50 unexpected"));
-  CHECK(contains(s, "0x74 O2 sensor  MISSING"));
+  CHECK(contains(s, "8 address(es) answered"));
+  CHECK(contains(s, "RTC found at 0x68"));
+  CHECK(contains(s, "LED found at 0x24,0x34,0x35,0x36,0x37  (control + 0 alias, 4 digits)"));   // the aliases are optional
+  CHECK(contains(s, "LCD found at 0x23"));
+  CHECK(contains(s, "UNEXPECTED responders: 0x50"));
+  CHECK(contains(s, "O2 sensor NOT found (expected 0x74)"));
 }
 
 TEST_CASE("LOG-2: report is one delimited block holding every section") {

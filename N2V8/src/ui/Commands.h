@@ -9,9 +9,11 @@
 #include "../core/LoopStats.h"
 #include "../core/NvmSettingsService.h"
 #include "../core/System.h"
+#include "../drivers/Lcd20x4.h"
 #include "../drivers/Rtc3231.h"
 #include "../hal/Hal.h"
 #include "BuildInfo.h"
+#include "ScanReport.h"
 #include "Console.h"
 #include "LcdScreens.h"
 
@@ -37,6 +39,7 @@ struct ConsoleContext {
   Rtc3231* rtc = nullptr;  // the real-time clock, if the build has one
   NvmSettingsService* nvm = nullptr;  // settings in non-volatile memory, if the build has any
   const BoardDef* board = nullptr;    // the pin table, for the `pins` command
+  Lcd20x4* lcd = nullptr;             // the LCD driver, for the `lcd` diagnostic command
 };
 
 class Commands : public CommandHandler {
@@ -121,7 +124,7 @@ class Commands : public CommandHandler {
    private:
     const ConsoleContext& c_;
     uint8_t found_[16] = {};  // bitmap of addresses 0..127
-    uint8_t count_ = 0;
+    ScanReport report_;
   };
   class Message : public Responder {
    public:
