@@ -144,7 +144,7 @@ Bist::Start Bist::begin(uint32_t now, bool requireTbsOff) {
     return Start::kNoConsole;
   }
   if (requireTbsOff && tbsOn()) {
-    console_.tryPrint("BIST refused: switch TBS OFF first");
+    console_.tryPrint("BIST refused: the system is enabled (TBS is ON). Switch TBS OFF, then type bist.");
     return Start::kTbsOn;
   }
   running_ = true;

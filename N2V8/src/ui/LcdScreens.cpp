@@ -79,16 +79,16 @@ Screen renderNormal(const DisplayData& d, LcdLayout layout) {
     formatX10(v, d.n2HighX10);
     put(s, 1, 14, v);
     // Row 2, columns 0-5 (owner decision 2026-10-06): the compressor needs no text while it simply runs or is off. The field says
-    // WHY it is stopped (CMP LO / CMP HI), otherwise it shows the code of the last fault raised (LF 12, or LF -- for none).
+    // WHY it is stopped (CMP LO / CMP HI), otherwise it shows the code of the last fault raised (ER 12, or blank if none).
     if (d.compressor[0] == 'L' || d.compressor[0] == 'H') {
       put(s, 2, 0, "CMP ");
       put2(s, 2, 4, d.compressor);
     } else if (d.lastFaultCode != 0) {
       char lf[8];
-      snprintf(lf, sizeof lf, "LF %02X", static_cast<unsigned>(d.lastFaultCode));
+      snprintf(lf, sizeof lf, "ER %02X", static_cast<unsigned>(d.lastFaultCode));
       put(s, 2, 0, lf);
     } else {
-      put(s, 2, 0, "LF --");
+      // never a fault since reset: leave the field blank
     }
     put(s, 2, 8, "TWR ");
     put2(s, 2, 12, d.tower);

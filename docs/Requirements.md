@@ -293,12 +293,12 @@ N2% ×100 = 10000 − O2% ×100, clamped to 9999 (and 0 if O2 ≥ 100%).
 | DSP-1 | Displays render from the **OutputSnapshot** only (SNP-3), after the controllers, invariants and OutputDriver have run. |
 | DSP-2 | Writes to LCD/LED occur when a rendered field has changed (fixed per-field positions, V6 Layout C), **plus** the periodic full rewrites of DRV-4 and DRV-5, because the displays cannot be read back. |
 | DSP-3 | **LED:** TBS on and N2% valid → `nn.nn`; TBS on and invalid → `--.--`; TBS off → blank. **Bring-up builds** show instead the time `HHMM` with the middle dot blinking once a second (or the uptime in seconds without an RTC), `FFFF` alternating when a device failed, and the step number during a test. |
-| DSP-4 | **LCD layout** (owner decision 2026-10-06/08; renders in `LCD_Layouts.md`): Option 1, clear labels. Row 0: `N2%` and its value (or `WRM mm:ss` during warm-up) and the O2 state; row 1: `N2L` and `N2H` values; row 2: `CMP LO` or `CMP HI` **only while the compressor is stopped for that reason**, otherwise **`LF xx`** (the hex code of the last fault raised, `LF --` if none since power-up), then the tower state and the `LRFS` letters; row 3: `AIR` and the four actual output bits under `LRFS`. **TBS is not shown** (DSP-9). Only N2 % is shown, never O2 %. |
+| DSP-4 | **LCD layout** (owner decision 2026-10-06/08; renders in `LCD_Layouts.md`): Option 1, clear labels. Row 0: `N2%` and its value (or `WRM mm:ss` during warm-up) and the O2 state; row 1: `N2L` and `N2H` values; row 2: `CMP LO` or `CMP HI` **only while the compressor is stopped for that reason**, otherwise **`ER xx`** (the hex code of the last ERror raised, blank if none since reset), then the tower state and the `LRFS` letters; row 3: `AIR` and the four actual output bits under `LRFS`. **TBS is not shown** (DSP-9). Only N2 % is shown, never O2 %. |
 
 ```
 N2% 99.99  O2 S
 N2L 12.34 N2H  98.7
-LF --   TWR LB  LRFS
+        TWR LB  LRFS
 AIR 123.4       1001
 ```
 
@@ -310,7 +310,7 @@ AIR 123.4       1001
 | DSP-9 | **Withdrawn (owner):** the TBS state is not shown on the LCD; `LRFS 0000` and the tower state `OF` already show a disabled system, and the physical switch is at least as visible. The LED still blanks when TBS is off (DSP-3). |
 | DSP-10 | **R4 WiFi LED matrix (optional, BENCH/DIAG on the WiFi board only).** The WiFi board has a built-in 12×8 LED matrix (`ArduinoLEDMatrix`; the Minima has none, so production cannot depend on it). It may be used as an extra status display on the bench, e.g. a glyph for the mode (P = POST, B = BIST, R = run), the fault count, and a heartbeat pixel proving `loop()` is alive. Code for it shall be compiled only for `ARDUINO_UNOR4_WIFI`, shall sit behind the display interface (not in the controllers), and shall never be needed for any other requirement. Frame format (verified against the library's own example): 96 bits, 12 columns × 8 rows, row by row, most significant bit first, in three 32-bit words. Used first by `experiments/reset_probe`. |
 | DSP-8 | **Startup banner.** At startup the LCD shall show the firmware version and build date for about 1 s (user request); the console prints the full build identity (§10). |
-| DSP-11 | **POST mode indication [owner 2026-10-08].** While POST mode runs (POST-1) the **LCD shows each step, its progress and its result**; the **LED shows the LED test display** (8888, then counting) as the interim display; when POST ends the LED shows **0000 after a successful POST** and **FFFF after a failed one**, and the LCD keeps the result and names any fault. The console prints each check. **How long the verdict is held [owner question 2026-10-08, default chosen]:** `FFFF` stays while the POST holds for a fault, i.e. until the operator presses TOB; `0000` is held for **10 s after a good POST** (`PostOptions::ledResultHoldMs`) or until TBS is switched ON, whichever is first, while the system already runs; then the LED returns to its normal display. |
+| DSP-11 | **POST mode indication [owner 2026-10-08].** While POST mode runs (POST-1) the **LCD shows each step, its progress and its result**; the **LED shows the LED test display** (8888, then counting) as the interim display; when POST ends the LED shows **0000 after a successful POST** and **FFFF after a failed one**, and the LCD keeps the result and names any fault. The console prints each check. **How long the verdict is held [owner 2026-10-08]:** `FFFF` stays while the POST holds for a fault, i.e. until the operator presses TOB; after a good POST, `0000` on the LED and `POST OK` on the LCD are held for **10 s** (`PostOptions::okMs`) or until TBS is switched ON, whichever is first; then the normal displays return. |
 
 ## 9. Faults [NEW]
 
@@ -335,7 +335,7 @@ AIR 123.4       1001
 | FLT-2 | Raise and clear each log one console line with timestamp and code. |
 | FLT-3 | TOB pressed during normal run acknowledges and hides WARN/INFO fault display for 60 s. It never clears an INHIBIT condition. Anything beyond a single acknowledgment is done by console command. [Q11] |
 | FLT-4 | The fault table is one static table; adding a fault is one row plus one test. **Fault codes are hexadecimal** (two digits, `Fxx`; the high digit is the group). `docs/Fault_List.md` is the canonical list and a host test fails if it differs from the code table. |
-| FLT-5 | The LCD normal screen shows the hex code of the **last fault raised** (`LF 12`; `LF --` if none since power-up), even after it has cleared (DSP-4). |
+| FLT-5 | The LCD normal screen shows the hex code of the **last fault raised** (`ER 12`; blank if none since reset), even after it has cleared (DSP-4). |
 
 ## 10. Console (USB serial) and closed-loop log capture
 
@@ -380,8 +380,8 @@ text; commands are one line.
 | `time`, `time set <date> <time>` | all | RTC date/time; set it only when untrusted or more than 2 s off (RTC-3, RTC-8) |
 | `lcd`, `lcd reinit`, `lcd bus [n]` | all | LCD state; restart its controller; I2C link read-back test |
 | `i2c sweep [n]` | all | bus test at 100 and 400 kHz (I2C-4) |
-| `post` | all (system disabled while it runs) | run POST |
-| `bist` | all, only if TBS OFF and console attached | run BIST |
+| `post` | all, only if TBS OFF | run POST (refused with an explanation while TBS is ON) |
+| `bist` | all, only if TBS OFF and console attached | run BIST (refused with an explanation while TBS is ON) |
 | `nvm` | all | non-volatile memory: both settings copies, each check (magic, schema, length, checksum), write count, saved-at time, sketch version |
 | `debounce`, `debounce set <TBS ms> <TOB ms>` | all (set: only with TBS OFF) | TBS/TOB debounce times in use; save new ones to NVM (2..100 ms) |
 
@@ -396,7 +396,7 @@ POST is **hands-off and does not require a console**. [CHG 2026-10-08, owner] It
 | POST-3 | Result: one summary line (`POST PASS`, `POST WARN n`, `POST FAIL n`) plus one line per check, to the console if attached, and on the LCD. |
 | POST-4 | **In POST mode, POST shall hang if and only if a fault occurs.** On a fault of severity ≥ `POST_HANG_SEVERITY` (WARN) the system stays disabled with the fault shown on the LCD (and console if attached) until the operator presses **TOB** (a fresh press: a TOB held since power-up must be released first). The matching faults stay active, so the invariants still protect production. **F30/F31 (a watchdog or brown-out reset happened) do not hold POST**: they only record history, and holding on them would keep an unattended unit down after the very reset the watchdog exists to recover from [Q25]. A missing O2 sensor in production is an INHIBIT fault and holds POST. |
 | POST-5 | A clean POST ends with `POST OK` on the LCD and **0000** on the LED; a failed one ends with the fault on the LCD and **FFFF** on the LED (DSP-11). POST then continues to normal operation (after TOB, when it held on a fault, POST-4). |
-| POST-6 | `post` on the console re-runs POST; it shall disable the controllers while it runs and re-enable them after, per RST-3. |
+| POST-6 | `post` on the console re-runs POST, **only with TBS OFF [owner 2026-10-08]**: with TBS ON the system is enabled and the command is refused with an explanation (`POST refused: the system is enabled (TBS is ON). Switch TBS OFF, then type post.`). While POST runs the system stays disabled; when it ends the normal TBS rule applies (TBS ON enables the system, per RST-3). Both POST and BIST exist in every build including FIELD. |
 
 ## 12. Built-in self-test (BIST)
 
@@ -405,7 +405,7 @@ most important feature during Debug. It **requires an attached console**.
 
 | ID | Requirement |
 |---|---|
-| BIST-1 | BIST runs **only on the console command `bist`**, with TBS OFF, so a console is always attached. It is never selected by a button or by TOB at power-up (that selects POST mode, POST-1). A refused request (TBS on) leaves the system undisturbed. [CHG 2026-10-08, owner] V6/V7 ran BIST on every boot and blocked, which hangs an unattended unit. |
+| BIST-1 | BIST runs **only on the console command `bist`**, with TBS OFF, so a console is always attached. It is never selected by a button or by TOB at power-up (that selects POST mode, POST-1). A refused request (TBS on) leaves the system undisturbed and prints why. During the BIST the TBS switch is **tested without enabling the system**; when the BIST ends the normal TBS rule applies again (TBS ON enables the system). [CHG 2026-10-08, owner] V6/V7 ran BIST on every boot and blocked, which hangs an unattended unit. |
 | BIST-2 | BIST disables normal operation (RST-7). Steps are numbered in HEX; the LED shows the step (except in the LED test), the LCD shows the step (except in the LCD test), the console logs every step and observation. |
 | BIST-3 | **Operator confirmation.** Each step ends with a prompt on the console; the operator types one letter and Enter (or presses **TOB = `p`**). The result is printed as one line per step and a final table, all in the captured log; nothing is stored on the board. |
 

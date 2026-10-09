@@ -5,6 +5,7 @@
 namespace n2 {
 
 namespace {
+constexpr uint32_t kConsoleDropGraceMs = 3000;   // see runPass
 constexpr uint32_t kPostArmTimeoutMs = 10000;   // TOB held longer than this: start the POST anyway (a stuck button must not stop the unit)
 BoardId boardIdOf(const BoardDef& b) {
   const char* n = b.name;
@@ -40,12 +41,16 @@ bool App::tobPressed() {
   return isOn(hal_.digitalRead(d.pin), d.active);
 }
 
+// POST and BIST need the system disabled: TBS must be OFF (owner 2026-10-08). While they run the system stays disabled; the BIST tests
+// the TBS switch itself without enabling the system, and when either ends the normal TBS rule applies again (TBS ON = enable).
 const char* App::requestPost() {
+  if (sys_.inputs().tbs) return "POST refused: the system is enabled (TBS is ON). Switch TBS OFF, then type post.";
   postRequested_ = true;
   return "running POST: the system is disabled until it finishes";
 }
 
 const char* App::requestBist() {
+  if (sys_.inputs().tbs) return "BIST refused: the system is enabled (TBS is ON). Switch TBS OFF, then type bist.";
   bistRequested_ = true;
   return "starting BIST: answer each step with p, f, r, s or q (TOB = p)";
 }
@@ -137,7 +142,9 @@ void App::runPass(uint32_t now) {
   FaultSet& f = sys_.faultSet();
   f.report(FaultId::kLcd, !display_.lcdHealthy(), now, cfg_.faultHoldMs);
   f.report(FaultId::kLed, !display_.ledHealthy(), now, cfg_.faultHoldMs);
-  const bool dropping = console_.dropped() != lastDropped_;
+  // The R4 WiFi's serial buffer cannot take the boot messages in one burst, so a line or two are dropped at start-up. That has a known
+  // cause and is not a fault: drops in the first kConsoleDropGraceMs after boot are counted (`status`) but do not raise F40.
+  const bool dropping = console_.dropped() != lastDropped_ && now >= kConsoleDropGraceMs;
   lastDropped_ = console_.dropped();
   f.report(FaultId::kConsoleDrop, dropping, now, cfg_.faultHoldMs);
 
@@ -193,7 +200,10 @@ void App::loop() {
       break;
 
     case Mode::kRun:
-      if (postRequested_) {
+      if (postRequested_ && sys_.inputs().tbs) {   // TBS went ON between the command and this pass
+        postRequested_ = false;
+        console_.tryPrint("POST cancelled: TBS is ON");
+      } else if (postRequested_) {
         postRequested_ = false;
         sys_.resume();
         post_.begin(now);

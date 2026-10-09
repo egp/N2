@@ -15,6 +15,11 @@ bool Post::tobPressed() {
   return isOn(hal_.digitalRead(d.pin), d.active);
 }
 
+bool Post::tbsOn() {
+  const SignalDef& d = def(board_, Signal::kTbs);
+  return isOn(hal_.digitalRead(d.pin), d.active);
+}
+
 void Post::begin(uint32_t now) {
   phase_ = Phase::kChecks;
   startedAt_ = now;
@@ -167,7 +172,14 @@ bool Post::step(uint32_t now) {
       return false;
 
     case Phase::kSummary:
-      if (!summaryUntil_.reached(now)) return false;
+      if (!summaryUntil_.reached(now)) {
+        if (level_ == PostLevel::kPass && tbsOn()) {   // a good POST waits out its OK screen unless the operator switches TBS ON
+          display_.clearOverride();
+          phase_ = Phase::kDone;
+          return true;
+        }
+        return false;
+      }
       if (shouldHold()) {
         phase_ = Phase::kHold;
         rotate_.arm(now, opt_.holdRotateMs);
@@ -175,7 +187,7 @@ bool Post::step(uint32_t now) {
         return false;
       }
       display_.clearOverride();
-      if (level_ == PostLevel::kPass) display_.holdLed(LedText{{'0', '0', '0', '0', '\0'}, -1}, now, opt_.ledResultHoldMs);   // DSP-11
+      if (level_ == PostLevel::kPass && opt_.ledResultHoldMs > 0) display_.holdLed(LedText{{'0', '0', '0', '0', '\0'}, -1}, now, opt_.ledResultHoldMs);   // DSP-11
       phase_ = Phase::kDone;
       return true;
 

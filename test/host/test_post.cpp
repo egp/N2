@@ -55,12 +55,12 @@ std::string row(Rig& r, int i) { return std::string(r.display.lcd().shown(i)); }
 
 }  // namespace
 
-TEST_CASE("POST-1: a clean POST finishes by itself, quickly (<= 3 s), without a console or TOB") {
+TEST_CASE("POST-1: a clean POST finishes by itself (checks in about 1.5 s, then the 10 s POST OK screen), without a console or TOB") {
   Rig r;
   CHECK_FALSE(r.gen.hal.consoleIsAttached);  // no console required (POST-3 headless)
   const int64_t t = r.runToEnd();
   REQUIRE(t >= 0);
-  CHECK(t <= 3000);
+  CHECK(t <= 12500);
   CHECK(r.post.finished());
   CHECK(r.post.level() == PostLevel::kPass);
   CHECK(r.post.problemCount() == 0);

@@ -134,8 +134,8 @@ bool Commands::Help::line(uint8_t i, char* b, size_t n) {
       "  log <level>        error | warn | info | debug",
       "  scan               I2C scan",
       "  report             everything above in one block",
-      "  post               run the power-on self-test again (disables the system while it runs)",
-      "  bist               interactive self-test (needs TBS OFF)",
+      "  post               run the power-on self-test (needs TBS OFF; the system is disabled while it runs)",
+      "  bist               interactive self-test (needs TBS OFF; TBS is tested without enabling the system)",
   };
   if (i >= sizeof kLines / sizeof kLines[0]) return false;
   snprintf(b, n, "%s", kLines[i]);

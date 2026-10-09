@@ -115,13 +115,13 @@ TEST_CASE("POST-1: a normal boot runs no self-test: outputs safe, then straight 
   }
 }
 
-TEST_CASE("POST-1/RST-6: TOB held at power-up or reset selects POST mode, which ends by itself within 3 s and then runs") {
+TEST_CASE("POST-1/RST-6: TOB held at power-up or reset selects POST mode, which ends by itself (about 12 s with the POST OK screen) and then runs") {
   AppRig r(quickWarmConfig(), AppOptions(), /*consoleAttached=*/false);
   r.tob(true);
   r.boot();
   CHECK(r.app->mode() == App::Mode::kPostArm);
   r.tob(false);
-  REQUIRE(r.runUntilMode(App::Mode::kRun, 3000));
+  REQUIRE(r.runUntilMode(App::Mode::kRun, 14000));
   CHECK(r.app->post().level() == PostLevel::kPass);
   CHECK_FALSE(r.anyOutputOn());
 }
@@ -175,7 +175,7 @@ TEST_CASE("CON-4: when a console attaches it is told who we are (it missed the b
   CHECK(r.has("Type help."));
 }
 
-TEST_CASE("§11: the `post` command runs POST again, disabling the system while it runs") {
+TEST_CASE("§11: the `post` command is refused while TBS is ON (the system is enabled), with an explanation") {
   AppRig r;
   r.tbs(true);
   r.boot();
@@ -183,13 +183,45 @@ TEST_CASE("§11: the `post` command runs POST again, disabling the system while 
   r.run(5000);
   REQUIRE(r.outputOn(Signal::kSsr));
   r.type("post");
+  CHECK(r.has("POST refused: the system is enabled (TBS is ON). Switch TBS OFF, then type post."));
+  r.run(200);
+  CHECK(r.app->mode() == App::Mode::kRun);
+  CHECK(r.outputOn(Signal::kSsr));   // the running system was not disturbed
+}
+
+TEST_CASE("§11: with TBS OFF the `post` command runs the POST, then TBS ON enables the system as usual; TBS ON ends a good POST's OK screen early") {
+  AppRig r;
+  r.boot();
+  REQUIRE(r.runUntilMode(App::Mode::kRun, 3000));
+  r.type("post");
   CHECK(r.has("running POST"));
   r.run(50);
   CHECK(r.app->mode() == App::Mode::kPost);
   CHECK_FALSE(r.anyOutputOn());
-  REQUIRE(r.runUntilMode(App::Mode::kRun, 4000));
-  r.run(5000);
-  CHECK(r.outputOn(Signal::kSsr));  // the system resumed
+  r.run(3000);                          // checks done, the OK screen is up
+  CHECK(r.app->mode() == App::Mode::kPost);
+  r.tbs(true);
+  r.run(200);
+  CHECK(r.app->mode() == App::Mode::kRun);   // TBS ON ended the OK screen
+  r.run(8000);
+  CHECK(r.outputOn(Signal::kSsr));           // and the system started by the normal TBS rule
+}
+
+TEST_CASE("§12: the BIST tests TBS without enabling the system; when it ends with TBS ON the system enables") {
+  AppRig r;
+  r.boot();
+  REQUIRE(r.runUntilMode(App::Mode::kRun, 3000));
+  r.type("bist");
+  r.run(100);
+  REQUIRE(r.app->mode() == App::Mode::kBist);
+  r.tbs(true);                           // the operator flips TBS during the switch test
+  r.run(8000);
+  CHECK_FALSE(r.anyOutputOn());          // BIST does not enable the system
+  r.type("q");
+  r.run(300);
+  REQUIRE(r.app->mode() == App::Mode::kRun);
+  r.run(8000);
+  CHECK(r.outputOn(Signal::kSsr));       // back to normal: TBS ON enables the system
 }
 
 TEST_CASE("§12/BIST-1: the `bist` command starts the BIST, which the operator can quit; the system then resumes") {
@@ -219,7 +251,7 @@ TEST_CASE("BIST-1: `bist` is refused while TBS is ON, and the system keeps runni
   r.run(5000);
   r.type("bist");
   r.run(100);
-  CHECK(r.has("BIST refused: switch TBS OFF first"));
+  CHECK(r.has("BIST refused: the system is enabled (TBS is ON)"));
   CHECK(r.app->mode() == App::Mode::kRun);
   CHECK(r.outputOn(Signal::kSsr));
 }
@@ -230,7 +262,7 @@ TEST_CASE("BIST-1: TOB held at power-up selects POST, never BIST; BIST starts on
   r.boot();
   CHECK(r.app->mode() == App::Mode::kPostArm);
   r.tob(false);
-  REQUIRE(r.runUntilMode(App::Mode::kRun, 4000));
+  REQUIRE(r.runUntilMode(App::Mode::kRun, 14000));
   r.run(500);
   CHECK(r.app->mode() == App::Mode::kRun);
   CHECK_FALSE(r.has("BIST 0: banner"));
@@ -332,6 +364,20 @@ TEST_CASE("CON-2/F40: when the host stops reading, log lines are dropped and F40
   CHECK(r.app->console().dropped() > 0);
   CHECK(r.app->system().faults().active(FaultId::kConsoleDrop));
   CHECK(r.outputOn(Signal::kSsr));  // the system never waited for the console
+}
+
+TEST_CASE("CON-2/F40: lines dropped in the first 3 s after boot (start-up burst, known cause) are counted but do not raise F40") {
+  AppRig r;
+  r.hal.consoleSpace = 0;    // the boot messages find no room
+  r.boot();
+  for (uint32_t t = 0; t < 2500; t += 10) {
+    r.hal.nowMs += 10;
+    r.hal.consoleSpace = 0;
+    r.app->loop();
+  }
+  CHECK(r.app->console().dropped() > 0);                                 // counted (status shows it)
+  CHECK_FALSE(r.app->system().faults().active(FaultId::kConsoleDrop));   // but no fault: the cause is known
+  CHECK(r.app->system().faults().lastCode() == 0);                       // and the ER field stays blank
 }
 
 TEST_CASE("O2-6a: with credit enabled, a reset-button reset keeps the warm-up already earned") {
@@ -563,30 +609,34 @@ bool ledShows(AppRig& r, uint8_t segments) {
 }
 }  // namespace
 
-TEST_CASE("DSP-11: after a GOOD POST the LED shows 0000 for 10 s while the system already runs, then goes back to normal") {
+TEST_CASE("DSP-11/POST-5: a GOOD POST shows 0000 on the LED and POST OK on the LCD for 10 s, then goes back to normal") {
   AppRig r;
   r.tob(true);
   r.boot();
   r.tob(false);
-  REQUIRE(r.runUntilMode(App::Mode::kRun, 4000));
-  r.run(500);
-  CHECK(ledShows(r, 0x3F));          // 0000
-  r.run(8000);
-  CHECK(ledShows(r, 0x3F));          // still held
+  REQUIRE(r.runUntilMode(App::Mode::kPost, 1000));
   r.run(3000);
+  CHECK(ledShows(r, 0x3F));          // 0000
+  CHECK(r.app->mode() == App::Mode::kPost);
+  CHECK(std::string(r.app->display().lcd().shown(0)).substr(0, 7) == "POST OK");
+  r.run(6000);
+  CHECK(ledShows(r, 0x3F));          // still up at about 9 s
+  REQUIRE(r.runUntilMode(App::Mode::kRun, 4000));
+  r.run(2000);
   CHECK(ledShows(r, 0x00));          // TBS is off: the normal LED is blank
 }
 
-TEST_CASE("DSP-11: TBS switched ON ends the 0000 hold at once") {
+TEST_CASE("DSP-11: TBS switched ON ends the 0000 / POST OK screen at once") {
   AppRig r;
   r.tob(true);
   r.boot();
   r.tob(false);
-  REQUIRE(r.runUntilMode(App::Mode::kRun, 4000));
-  r.run(500);
+  REQUIRE(r.runUntilMode(App::Mode::kPost, 1000));
+  r.run(3000);
   REQUIRE(ledShows(r, 0x3F));
   r.tbs(true);
   r.run(600);
+  CHECK(r.app->mode() == App::Mode::kRun);
   CHECK_FALSE(ledShows(r, 0x3F));
 }
 
