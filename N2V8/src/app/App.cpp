@@ -130,32 +130,36 @@ const char* App::requestRec(const char* arg0, const char* arg1) {
   recEveryMs_ = static_cast<uint32_t>(ms);
   recOn_ = true;
   recNext_ = hal_.millis();
-  recTbs_ = sys_.inputs().tbs;
-  recTob_ = sys_.inputs().tob;
   char head[100];
   snprintf(head, sizeof head, "R#,N2V8 %s,%s,%s,adc %u bits,every %lu ms", info_.version, info_.board, runModeName(runMode_),
            static_cast<unsigned>(info_.adcBits), static_cast<unsigned long>(recEveryMs_));
   console_.tryPrint(head);
-  console_.tryPrint("R#,ms,air_raw,n2low_raw,n2high_raw,tbs,tob,LRFS");
-  snprintf(msg, sizeof msg, "rec ON every %lu ms. Lines start with R, (samples) and E, (TBS/TOB events). rec off stops.", static_cast<unsigned long>(recEveryMs_));
+  console_.tryPrint("R#,ms,air_raw,n2low_raw,n2high_raw,tbs,tob,LRFS,n2pct_x100,tower,compressor,o2,why");
+  snprintf(msg, sizeof msg, "rec ON every %lu ms. Lines start with R,. rec off stops.", static_cast<unsigned long>(recEveryMs_));
   return msg;
 }
 
-// One R, line from the inputs of the latest pass (raw ADC counts, debounced TBS and TOB, the four actual outputs as L R F S).
-void App::printSample(uint32_t now) {
+// One R, line from the inputs of the latest pass: raw ADC counts, debounced TBS and TOB, the four actual outputs (L R F S), the N2 purity
+// (x100, "-" when there is no valid reading), the tower / compressor / O2 state names, and WHY it was captured (tick, cap, ssr+, ssr-, tbs+,
+// tbs-, tob).
+void App::printSample(uint32_t now, const char* why) {
   const Inputs& in = sys_.inputs();
-  char line[80];
+  const DisplayData d = makeDisplayData(sys_, kAdcBits);
+  char line[100];
+  char pct[8];
+  if (d.n2Valid) snprintf(pct, sizeof pct, "%u", static_cast<unsigned>(d.n2PercentX100));
+  else snprintf(pct, sizeof pct, "-");
   const OutputRequest o = sys_.outputs().actualState();
-  snprintf(line, sizeof line, "R,%lu,%u,%u,%u,%u,%u,%c%c%c%c", static_cast<unsigned long>(now), static_cast<unsigned>(in.rawAir),
+  snprintf(line, sizeof line, "R,%lu,%u,%u,%u,%u,%u,%c%c%c%c,%s,%s,%s,%s,%s", static_cast<unsigned long>(now), static_cast<unsigned>(in.rawAir),
            static_cast<unsigned>(in.rawN2Low), static_cast<unsigned>(in.rawN2High), in.tbs ? 1u : 0u, in.tob ? 1u : 0u, o.left ? '1' : '0',
-           o.right ? '1' : '0', o.flush ? '1' : '0', o.ssr ? '1' : '0');
+           o.right ? '1' : '0', o.flush ? '1' : '0', o.ssr ? '1' : '0', pct, d.tower, d.compressor, d.o2, why);
   console_.tryPrint(line);
 }
 
 // `cap [text]` captures ONE reading now, `note text` writes only a note line. The converter attaches each N, line to the sample before it.
 const char* App::requestCap(const char* note, bool sample) {
   const uint32_t now = hal_.millis();
-  if (sample) printSample(now);
+  if (sample) printSample(now, "cap");
   if (note != nullptr && note[0] != '\0') {
     char line[72];
     snprintf(line, sizeof line, "N,%lu,%s", static_cast<unsigned long>(now), note);
@@ -165,19 +169,28 @@ const char* App::requestCap(const char* note, bool sample) {
   return sample ? "captured" : "usage: note <text>";
 }
 
+// The periodic sample of `rec on`.
 void App::recordTick(uint32_t now) {
-  const Inputs& in = sys_.inputs();
-  char line[80];
-  if (in.tbs != recTbs_ || in.tob != recTob_) {
-    if (in.tbs != recTbs_) { snprintf(line, sizeof line, "E,%lu,tbs,%u", static_cast<unsigned long>(now), in.tbs ? 1u : 0u); console_.tryPrint(line); }
-    if (in.tob != recTob_) { snprintf(line, sizeof line, "E,%lu,tob,%u", static_cast<unsigned long>(now), in.tob ? 1u : 0u); console_.tryPrint(line); }
-    recTbs_ = in.tbs;
-    recTob_ = in.tob;
-  }
   if (static_cast<int32_t>(now - recNext_) < 0) return;
   recNext_ += recEveryMs_;
   if (static_cast<int32_t>(now - recNext_) >= 0) recNext_ = now + recEveryMs_;   // fell far behind: do not burst
-  printSample(now);
+  printSample(now, "tick");
+}
+
+// Automatic captures, always on (owner 2026-10-09): when the SSR changes, when TBS changes, and when TOB is pressed (data only; TOB is unused
+// in normal operation, so a press is a free marker). O2 is not a trigger: it changes too often; its purity is in every line.
+void App::autoCaptureTick(uint32_t now) {
+  const Inputs& in = sys_.inputs();
+  const bool ssr = sys_.outputs().actualState().ssr;
+  if (!autoInit_) {   // the first pass only learns the starting levels
+    autoInit_ = true;
+    prevSsr_ = ssr; prevTbs_ = in.tbs; prevTob_ = in.tob;
+    return;
+  }
+  if (ssr != prevSsr_) printSample(now, ssr ? "ssr+" : "ssr-");
+  if (in.tbs != prevTbs_) printSample(now, in.tbs ? "tbs+" : "tbs-");
+  if (in.tob && !prevTob_) printSample(now, "tob");
+  prevSsr_ = ssr; prevTbs_ = in.tbs; prevTob_ = in.tob;
 }
 
 void App::setup() {
@@ -276,6 +289,7 @@ void App::announceConsole() {
 
 void App::runPass(uint32_t now) {
   sys_.step();
+  autoCaptureTick(now);
   if (recOn_) recordTick(now);
   DisplayData data = makeDisplayData(sys_, kAdcBits);
   if (runMode_ != RunMode::kField) data.version = info_.version;   // the version on the LCD while testing (not in FIELD)

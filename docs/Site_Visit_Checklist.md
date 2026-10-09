@@ -31,7 +31,11 @@ Plan agreed 2026-10-08: the visit is about **POST and BIST and verifying every p
 6. **`loop`** after a few minutes in RUN (min, mean, median, max) for NFR-1.
 7. **Bounce on the production switches:** upload `nvm_probe`, `m 1`, `c 30`, `b`; TBS (rotary) 30 cycles, then TOB 30 cycles. Then `r`. Do not store a value until you have decided (`w TBS TOB`).
 7b. **Run mode without recompiling:** the build you upload starts in DIAG (controllers off). `mode` shows it; `mode field confirm` (TBS OFF, console only) switches to production without a re-upload; `mode diag` goes back at once with every output off. The mode survives a RESET-button or watchdog reset, not a power cycle (a power cycle returns to DIAG). Nothing starts until TBS is switched ON.
-7c. **Record real data for the simulator (owner 2026-10-09):** `rec on` (1 s default; `rec on 200` for fast changes) prints `R,ms,air,n2low,n2high,tbs,tob,LRFS` (raw ADC counts) and `E,` lines for TBS/TOB changes. Read-only, any mode, `rec off` stops. Or capture ONLY on demand: `cap` prints one R, line now; `cap compressor started` adds a note; `note text` writes a note alone. Notes become the CSV's `note` column (TBS/TOB changes are added automatically). Run it while pressure builds and falls (compressor on/off, towers cycling, a purge), operating TBS and TOB as normal. Keep the console log, then `python3 tools/rec_to_csv.py LOGFILE` makes a CSV with PSI columns. Plain Notepad pastes work too. Useful runs: air pressure rising with the SSR on and falling at rest; N2 low and high while the towers alternate; TBS ON/OFF; a TOB press.
+7c. **Record real data for the simulator (owner 2026-10-09).** Captures are always printed as `R,ms,air,n2low,n2high,tbs,tob,LRFS,n2pct,tower,compressor,o2,why` (raw ADC counts; `why` says what triggered it).
+    * AUTOMATIC, always on: every SSR change (`ssr+`/`ssr-`), every TBS change (`tbs+`/`tbs-`), every TOB press (`tob`: data only, TOB is unused in normal operation, so press it as a free marker).
+    * EXPLICIT: `cap air almost ready` prints a capture now (`cap`) with your comment as a landmark; `note text` writes only a comment.
+    * OPTIONAL periodic: `rec on` (1 s; `rec on 200` for fast changes), `rec off`. All read-only, any mode.
+    * Keep the console log, then `python3 tools/rec_to_csv.py LOGFILE` makes a CSV with PSI columns, the reason, and your notes. Plain Notepad pastes work too.
 8. Decide GO / NO-GO for the production V8 (gates below).
 
 ## `pins` — verifying every pin (do this with the unit powered, outputs off)

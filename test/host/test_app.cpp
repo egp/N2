@@ -855,7 +855,7 @@ TEST_CASE("MODE-4: a mode record written by another build (a new upload) is igno
   CHECK_FALSE(r.app->system().controllersEnabled());
 }
 
-TEST_CASE("REC-1: `rec on` prints a header, then one R, line per interval with raw counts, TBS, TOB and LRFS; E, lines for TBS/TOB changes; `rec off` stops") {
+TEST_CASE("REC-1: `rec on` prints a header, then one R, line per interval ending in why=tick; `rec off` stops") {
   AppRig r;
   r.boot();
   REQUIRE(r.runUntilMode(App::Mode::kRun, 3000));
@@ -865,26 +865,42 @@ TEST_CASE("REC-1: `rec on` prints a header, then one R, line per interval with r
   CHECK(r.has("the interval must be 100..60000 ms"));
   r.type("REC ON 200");
   CHECK(r.has("rec ON every 200 ms"));
-  CHECK(r.has("R#,ms,air_raw,n2low_raw,n2high_raw,tbs,tob,LRFS"));
+  CHECK(r.has("R#,ms,air_raw,n2low_raw,n2high_raw,tbs,tob,LRFS,n2pct_x100,tower,compressor,o2,why"));
   r.out.clear();
   r.run(1000);
   int lines = 0;
-  for (size_t p = r.out.find("\nR,"); p != std::string::npos; p = r.out.find("\nR,", p + 1)) ++lines;
-  if (r.out.rfind("R,", 0) == 0) ++lines;
+  for (size_t p = r.out.find("R,"); p != std::string::npos; p = r.out.find("R,", p + 1)) ++lines;
   CHECK(lines >= 4);
   CHECK(lines <= 6);
-  CHECK(r.has(",0,0,0000"));            // TBS off, TOB off, all outputs off
-  r.out.clear();
-  r.tob(true);
-  r.run(300);
-  CHECK(r.has("E,"));
-  CHECK(r.has(",tob,1"));
-  r.tob(false);
+  CHECK(r.has(",0,0,0000,"));            // TBS off, TOB off, all outputs off
+  CHECK(r.has(",tick"));
   r.type("rec off");
   CHECK(r.has("rec OFF"));
   r.out.clear();
   r.run(1000);
   CHECK_FALSE(r.has("R,"));
+}
+
+TEST_CASE("REC-3: automatic captures, always on: a TOB press, TBS changes and SSR changes each print one R, line with the reason") {
+  AppRig r;
+  r.boot();
+  REQUIRE(r.runUntilMode(App::Mode::kRun, 3000));
+  r.run(200);
+  r.out.clear();
+  r.tob(true); r.run(100); r.tob(false); r.run(100);
+  CHECK(r.has(",tob"));
+  r.out.clear();
+  r.tbs(true);
+  r.run(200);
+  CHECK(r.has(",tbs+"));
+  r.out.clear();
+  r.run(9000);                                 // the controllers start the compressor
+  CHECK(r.has(",ssr+"));
+  r.out.clear();
+  r.tbs(false);
+  r.run(300);
+  CHECK(r.has(",tbs-"));
+  CHECK(r.has(",ssr-"));                      // TBS off closes everything
 }
 
 TEST_CASE("REC-2: `cap` prints one R, line now, `cap text` and `note text` add an N, line with the text as typed (case kept)") {
@@ -894,6 +910,7 @@ TEST_CASE("REC-2: `cap` prints one R, line now, `cap text` and `note text` add a
   r.out.clear();
   r.type("cap");
   CHECK(r.has("R,"));
+  CHECK(r.has(",cap"));
   CHECK(r.has("captured"));
   CHECK_FALSE(r.has("N,"));
   r.out.clear();

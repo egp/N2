@@ -107,11 +107,12 @@ class App : public CommandLauncher {
   ResetInfo resetInfo_;
   void applyMode(RunMode m);
   void recordTick(uint32_t now);
-  void printSample(uint32_t now);
+  void printSample(uint32_t now, const char* why);
+  void autoCaptureTick(uint32_t now);
+  bool autoInit_ = false, prevSsr_ = false, prevTbs_ = false, prevTob_ = false;
   bool recOn_ = false;
   uint32_t recEveryMs_ = 1000;
   uint32_t recNext_ = 0;
-  bool recTbs_ = false, recTob_ = false;
   RunMode runMode_ = RunMode::kDiag;
   bool tobAtBoot_ = false;
   uint32_t postArmStart_ = 0;
