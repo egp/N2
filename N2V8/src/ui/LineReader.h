@@ -12,9 +12,13 @@ class LineReader {
 
   // Feed one received character. kLine: line() holds a complete line (maybe empty).
   // kOverflow: the line was longer than kMaxLength and has been discarded.
+  // A line ends at LF, CR or CRLF (the Arduino Serial Monitor offers "New Line", "Carriage Return" and "Both NL & CR"; Windows and macOS
+  // setups differ). The LF that directly follows a CR belongs to the same line end and is swallowed.
   Result feed(char c) {
-    if (c == '\r') return Result::kNone;
-    if (c == '\n') {
+    const bool afterCr = afterCr_;
+    afterCr_ = (c == '\r');
+    if (c == '\n' && afterCr) return Result::kNone;
+    if (c == '\r' || c == '\n') {
       buf_[len_] = '\0';
       const bool over = overflow_;
       len_ = 0;
@@ -36,6 +40,7 @@ class LineReader {
   uint8_t len_ = 0;
   bool overflow_ = false;
   bool ready_ = false;
+  bool afterCr_ = false;
 };
 
 }  // namespace n2

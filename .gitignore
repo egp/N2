@@ -70,3 +70,5 @@ coverage/
 /logs/
 /test/host/build*/
 .claude/
+# generated site kit (zips are build products; README.txt is kept)
+deliverables/site_kit/*.zip

@@ -61,12 +61,19 @@ TEST_CASE("NFR-1: LoopStats bucket edges and reset") {
 }
 
 // ---------------------------------------------------------------------------- LineReader
-TEST_CASE("CON-6: LineReader collects a line and ignores CR") {
-  LineReader r;
-  for (char c : std::string("status")) CHECK(r.feed(c) == LineReader::Result::kNone);
-  CHECK(r.feed('\r') == LineReader::Result::kNone);
-  CHECK(r.feed('\n') == LineReader::Result::kLine);
-  CHECK(std::string(r.line()) == "status");
+TEST_CASE("CON-6: LineReader ends a line at LF, CR or CRLF - one line each, whatever the Serial Monitor sends") {
+  for (const char* ending : {"\n", "\r", "\r\n"}) {
+    LineReader r;
+    int lines = 0;
+    std::string typed = std::string("status") + ending + "ver" + ending;
+    std::string got;
+    for (char c : typed) {
+      if (r.feed(c) == LineReader::Result::kLine) { ++lines; got += std::string(r.line()) + "|"; }
+    }
+    INFO("ending length " << strlen(ending));
+    CHECK(lines == 2);          // no extra empty line from a CRLF
+    CHECK(got == "status|ver|");
+  }
 }
 
 TEST_CASE("CON-6: LineReader handles empty lines and back-to-back lines") {
