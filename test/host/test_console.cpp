@@ -381,7 +381,7 @@ TEST_CASE("LOG-2: report is one delimited block holding every section") {
   REQUIRE(end != std::string::npos);
   CHECK(begin < end);
   const std::string block = rep.substr(begin, end - begin);
-  for (const char* w : {"N2V8 0.0.0-test", "TBS ON", "FAULTS", "airLowOff", "loop n=", "LCD normal screen:"}) {
+  for (const char* w : {"N2V8 0.0.0-test", "TBS ON", "FAULTS", "airLowOff", "loop n=", "LCD normal screen:", "NVM:"}) {
     INFO(w);
     CHECK(contains(block, w));
   }

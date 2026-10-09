@@ -343,6 +343,7 @@ bool Commands::NvmInfo::line(uint8_t i, char* b, size_t n) {
 
 // One line per pin D0..D13 and A0..A5, in order, from the board table. Reads only; it changes no pin mode and drives no output.
 bool Commands::Pins::line(uint8_t i, char* b, size_t n) {
+  if (c_.board == nullptr || c_.hal == nullptr) return false;   // no pin table in this context (tests); the report skips it
   if (i == 0) {
     snprintf(b, n, "pins of %s (level now; analog = raw / volts). Move a switch or a sensor and ask again to find its pin.", c_.board->name);
     return true;
@@ -458,7 +459,7 @@ bool Commands::Scan::line(uint8_t i, char* b, size_t n) {
 
 // One block with everything, for pasting back to the author (LOG-2).
 bool Commands::Report::line(uint8_t i, char* b, size_t n) {
-  Responder* parts[] = {&o_.ver_, &o_.time_, &o_.status_, &o_.faults_, &o_.cfg_, &o_.loop_, &o_.display_};
+  Responder* parts[] = {&o_.ver_, &o_.time_, &o_.status_, &o_.faults_, &o_.cfg_, &o_.loop_, &o_.display_, &o_.nvmInfo_, &o_.pins_};
   if (i == 0) { snprintf(b, n, "==== N2 REPORT BEGIN ===="); return true; }
   uint8_t idx = static_cast<uint8_t>(i - 1);
   for (Responder* p : parts) {
