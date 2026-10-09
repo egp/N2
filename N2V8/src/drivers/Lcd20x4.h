@@ -105,6 +105,11 @@ class Lcd20x4 {
   void serviceHealing(uint32_t now);
   bool healOn_ = false;
   bool alwaysRewrite_ = false;
+  // Each periodic full rewrite is preceded by ONE command, Return Home (0x02): it cancels a display SHIFT that a corrupted command left behind
+  // (seen on three LCD modules on two panels, 2026-10-09: the whole screen one cell left or right). Nothing else is sent: no entry mode, no
+  // display on/off, no backlight. It does not clear the display and does not blink.
+  bool homePending_ = false;
+  uint32_t homeUntil_ = 0;
   Healing heal_;
   bool healStarted_ = false;
   uint32_t healReadyAt_ = 0;

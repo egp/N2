@@ -57,8 +57,7 @@ void buildScanReport(const BoardDef& b, const uint8_t found[16], ScanReport& r) 
     if (has(found, 0x57)) { add("RTC found at 0x%02X (its EEPROM at 0x57, unused)", static_cast<unsigned>(b.addrRtc)); ++accounted; }
     else add("RTC found at 0x%02X", static_cast<unsigned>(b.addrRtc));
   } else {
-    add("RTC NOT found (expected 0x%02X)", static_cast<unsigned>(b.addrRtc));
-    ++r.missing;
+    add("RTC not fitted (optional, expected at 0x%02X)", static_cast<unsigned>(b.addrRtc));
     if (has(found, 0x57)) { addText("EEPROM at 0x57 answered (RTC module present, but the clock chip does not answer)"); ++accounted; }
   }
 

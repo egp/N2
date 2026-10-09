@@ -306,7 +306,8 @@ TEST_CASE("BIST step 4/DRV-3: the LCD test only changes the text (text, a full b
     const auto& w = r.gen.hal.i2cWrites[i];
     if (w.address != kLcdAddress || w.bytes.size() != 4) continue;
     const bool data = (w.bytes[0] & 0x01) != 0;
-    if (!data) CHECK((w.bytes[0] & 0x80) != 0);   // a command: its high nibble must have bit 7 set (cursor address 0x80|addr)
+    const bool home = w.bytes[0] == 0x0C && w.bytes[2] == 0x2C;   // Return Home (0x02) of the periodic repair is allowed
+    if (!data && !home) CHECK((w.bytes[0] & 0x80) != 0);   // any other command must be a cursor address (0x80|addr)
   }
   CHECK(r.display.led().shownSegments(3) == Led1650::segmentsFor('4'));   // the LED shows the step number
 }

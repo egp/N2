@@ -411,7 +411,7 @@ TEST_CASE("DSP-7: an LCD that dies mid-run is detected, then recovers") {
   CHECK(std::string(lcd.shown(0)).substr(0, 3) == "two");
 }
 
-TEST_CASE("DRV-3: the periodic repair rewrites TEXT only: cursor positions and characters, never entry mode, return home or backlight") {
+TEST_CASE("DRV-3: the periodic repair is one Return Home (0x02) followed by the text: cursor positions and characters; never entry mode, display on/off or backlight") {
   FakeHal hal;
   hal.i2cPresent = {kLcd};
   Lcd20x4 lcd(hal, kLcd);
@@ -421,10 +421,14 @@ TEST_CASE("DRV-3: the periodic repair rewrites TEXT only: cursor positions and c
   hal.i2cWrites.clear();
   for (uint32_t i = 0; i < 6000; ++i) lcd.service(t + i);   // several repair rewrites (250 ms, then doubling up to 5 s)
   REQUIRE(hal.i2cWrites.size() > 10);
+  int homes = 0;
   for (const auto& w : hal.i2cWrites) {
     REQUIRE(w.bytes.size() == 4);                  // every write is one command or one character
     const bool data = (w.bytes[0] & 0x01) != 0;
-    if (!data) CHECK((w.bytes[0] & 0x80) != 0);     // a command must be a cursor position (0x80 | address)
+    if (data) continue;
+    if (w.bytes == Bytes{0x0C, 0x08, 0x2C, 0x28}) { ++homes; continue; }   // 0x02 Return Home
+    CHECK((w.bytes[0] & 0x80) != 0);                // anything else must be a cursor position (0x80 | address)
   }
+  CHECK(homes >= 2);
   CHECK(std::string(lcd.shown(0)).substr(0, 1) == "A");
 }
