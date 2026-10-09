@@ -13,6 +13,7 @@
 
 #include <stdint.h>
 
+#include "../core/Debounce.h"
 #include "../core/Faults.h"
 #include "../core/O2Reader.h"
 #include "../core/Sensors.h"
@@ -88,8 +89,10 @@ class Bist : public LineHook {
   void tickSwitches(uint32_t now);
   void tickI2c(uint32_t now);
   void printSummary();
-  bool tbsOn();
+  bool tbsOn();        // debounced while the BIST runs, raw otherwise
   bool tobPressed();
+  bool rawTbs();
+  bool rawTob();
   Signal outputSignal() const;
 
   Hal& hal_;
@@ -114,6 +117,7 @@ class Bist : public LineHook {
   uint32_t lastTick_ = 0;
   uint32_t aborts_ = 0;
   bool tobWasUp_ = true;
+  Debouncer tbsDeb_, tobDeb_;   // TBS and TOB as the operator's answer keys: TOB = pass, TBS switched ON = fail (debounced like the system's)
 
   // step-local state
   uint8_t phase_ = 0;

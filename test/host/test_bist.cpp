@@ -148,8 +148,25 @@ TEST_CASE("BIST-3: TOB means pass - after a fresh press") {
   REQUIRE(r.start() == Bist::Start::kOk);
   r.run(100);
   r.gen.tob(true);
-  r.run(30);
+  r.run(10);
+  CHECK(r.bist.verdict(BistStep::kBanner) != BistVerdict::kPass);   // debounced: a press shorter than the debounce time is nothing
+  r.run(80);
   CHECK(r.bist.verdict(BistStep::kBanner) == BistVerdict::kPass);
+}
+
+TEST_CASE("BIST-3: TBS switched ON answers FAIL on a step (not the switch step), debounced; a glitch does nothing") {
+  Rig r;
+  REQUIRE(r.start() == Bist::Start::kOk);
+  r.run(100);
+  r.gen.tbs(true);
+  r.run(10);
+  r.gen.tbs(false);                  // a 10 ms glitch
+  r.run(100);
+  CHECK(r.bist.current() == BistStep::kBanner);
+  CHECK(r.bist.verdict(BistStep::kBanner) != BistVerdict::kFail);
+  r.gen.tbs(true);
+  r.run(100);
+  CHECK(r.bist.verdict(BistStep::kBanner) == BistVerdict::kFail);
 }
 
 TEST_CASE("BIST-1: a TOB held since power-up (how BIST was requested) does not auto-answer step 0") {
@@ -159,9 +176,9 @@ TEST_CASE("BIST-1: a TOB held since power-up (how BIST was requested) does not a
   r.run(200);
   CHECK(r.bist.current() == BistStep::kBanner);  // still waiting
   r.gen.tob(false);
-  r.run(30);
+  r.run(100);
   r.gen.tob(true);
-  r.run(30);
+  r.run(100);
   CHECK(r.bist.verdict(BistStep::kBanner) == BistVerdict::kPass);
 }
 

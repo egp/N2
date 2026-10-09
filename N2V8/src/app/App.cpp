@@ -54,7 +54,7 @@ const char* App::requestBist() {
   if (mode_ != Mode::kRun) return "BIST refused: the POST or BIST is already running. Wait for it to finish (BIST: type q).";
   if (sys_.inputs().tbs) return "BIST refused: the system is enabled (TBS is ON). Switch TBS OFF, then type bist.";
   bistRequested_ = true;
-  return "starting BIST: answer each step with p, f, r, s or q (TOB = p)";
+  return "starting BIST: answer each step with p, f, r, s or q (TOB = p, TBS ON = f)";
 }
 
 void App::setup() {

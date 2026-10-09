@@ -101,14 +101,16 @@ void Bist::flushOutput() {
 }
 
 // ---------------------------------------------------------------------------------------------- helpers
-bool Bist::tbsOn() {
+bool Bist::rawTbs() {
   const SignalDef& d = def(board_, Signal::kTbs);
   return isOn(hal_.digitalRead(d.pin), d.active);
 }
-bool Bist::tobPressed() {
+bool Bist::rawTob() {
   const SignalDef& d = def(board_, Signal::kTob);
   return isOn(hal_.digitalRead(d.pin), d.active);
 }
+bool Bist::tbsOn() { return running_ ? tbsDeb_.level() : rawTbs(); }
+bool Bist::tobPressed() { return running_ ? tobDeb_.level() : rawTob(); }
 
 Signal Bist::outputSignal() const {
   switch (step_) {
@@ -153,7 +155,9 @@ Bist::Start Bist::begin(uint32_t now, bool requireTbsOff) {
   key_ = Key::kNone;
   qHead_ = qCount_ = 0;
   queueDrops_ = 0;
-  tobWasUp_ = !tobPressed();  // a TOB held since boot (that is how BIST was requested) must be released first
+  tbsDeb_ = Debouncer(rawTbs(), sys_.tbsDebounceMs());   // start from the present levels: no false edge
+  tobDeb_ = Debouncer(rawTob(), sys_.tobDebounceMs());
+  tobWasUp_ = !tobDeb_.level();  // a TOB held since boot must be released first
   console_.setLineHook(this);
   outputsOff(now);
   lastTick_ = now;
@@ -269,7 +273,7 @@ void Bist::enter(uint32_t now) {
       return;
   }
   if (step_ != BistStep::kSummary)
-    say("  answer: p=pass f=fail r=rerun s=skip q=quit%s", step_ == BistStep::kSwitches ? "" : "   (TOB = pass)");
+    say("  answer: p=pass f=fail r=rerun s=skip q=quit%s", step_ == BistStep::kSwitches ? "" : "   (TOB = pass, TBS ON = fail)");
 }
 
 // ---------------------------------------------------------------------------------------------- operator input
@@ -462,7 +466,7 @@ void Bist::tickO2(uint32_t now) {
 void Bist::tickOutputStep(uint32_t now, Signal sig) {
   if (phase_ == 0) {  // may we start? (BIST-4, BIST-11)
     const char* why = nullptr;
-    if (tbsOn()) why = "TBS is ON - switch it OFF";
+    if (rawTbs()) why = "TBS is ON - switch it OFF";
     else why = vetoReason(sig, inputs_, sys_.config());
     if (why != nullptr) {
       if (!refused_) {
@@ -480,7 +484,7 @@ void Bist::tickOutputStep(uint32_t now, Signal sig) {
   }
   if (phase_ != 1) return;
 
-  const char* abortWhy = tbsOn() ? "TBS switched ON" : vetoReason(sig, inputs_, sys_.config());
+  const char* abortWhy = rawTbs() ? "TBS switched ON" : vetoReason(sig, inputs_, sys_.config());
   if (abortWhy != nullptr) {  // BIST-11: stop at once
     outputsOff(now);
     ++aborts_;
@@ -557,9 +561,15 @@ bool Bist::step(uint32_t now) {
 
   sensors_.sample(hal_, now, faults_, inputs_);
 
-  const bool tob = tobPressed();
+  tbsDeb_.update(rawTbs(), now);
+  tobDeb_.update(rawTob(), now);
+  const bool tob = tobDeb_.level();
   if (tob && tobWasUp_ && step_ != BistStep::kSwitches) key_ = Key::kPass;  // TOB = p
   tobWasUp_ = !tob;
+  if (tbsDeb_.changed() && tbsDeb_.level() && step_ != BistStep::kSwitches && key_ == Key::kNone) {   // TBS switched ON = f
+    key_ = Key::kFail;
+    snprintf(keyNote_, sizeof keyNote_, "TBS ON = fail");
+  }
 
   tick(now);
 
