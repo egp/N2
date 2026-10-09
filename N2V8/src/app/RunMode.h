@@ -20,10 +20,20 @@ inline const char* runModeName(RunMode m) { return m == RunMode::kField ? "FIELD
 struct ModeRecord {
   uint32_t magic;
   uint32_t mode;
+  uint32_t build;   // identity of the program that wrote it: a record from another build (a new upload) is ignored
   uint32_t check;
 };
 constexpr uint32_t kModeRecordMagic = 0x4E324D44u;   // "N2MD"
-inline uint32_t modeRecordChecksum(const ModeRecord& r) { return (r.magic ^ 0x5A3CC3A5u) * 31u + r.mode; }
+inline uint32_t modeRecordChecksum(const ModeRecord& r) { return ((r.magic ^ 0x5A3CC3A5u) * 31u + r.mode) * 31u + r.build; }
 inline bool modeRecordValid(const ModeRecord& r) { return r.magic == kModeRecordMagic && r.mode <= 2 && r.check == modeRecordChecksum(r); }
+
+// FNV-1a over version, build date and build time: changes with every upload.
+inline uint32_t buildIdentity(const char* a, const char* b, const char* c) {
+  uint32_t h = 2166136261u;
+  const char* parts[3] = {a, b, c};
+  for (const char* s : parts)
+    for (; s != nullptr && *s; ++s) h = (h ^ static_cast<uint8_t>(*s)) * 16777619u;
+  return h;
+}
 
 }  // namespace n2

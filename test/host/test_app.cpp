@@ -840,3 +840,17 @@ TEST_CASE("MODE-3: FIELD means the O2 sensor is mandatory (no sensor: everything
   r.run(100);
   CHECK(r.app->runMode() == RunMode::kDiag);
 }
+
+TEST_CASE("MODE-4: a mode record written by another build (a new upload) is ignored: the new build starts in its compiled mode") {
+  AppOptions o; o.controllersEnabled = false;
+  AppRig r(quickWarmConfig(), o);
+  r.boot();
+  REQUIRE(r.runUntilMode(App::Mode::kRun, 3000));
+  r.type("mode field confirm");
+  REQUIRE(r.app->runMode() == RunMode::kField);
+  r.info.time = "12:34:56";                       // the same board, a different build (new upload), reset-button style
+  ResetInfo ri; ri.known = true;
+  r.boot(ri);
+  CHECK(r.app->runMode() == RunMode::kDiag);
+  CHECK_FALSE(r.app->system().controllersEnabled());
+}

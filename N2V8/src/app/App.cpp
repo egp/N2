@@ -72,6 +72,7 @@ void App::applyMode(RunMode m) {
   if (opt_.modeRecord != nullptr) {
     opt_.modeRecord->magic = kModeRecordMagic;
     opt_.modeRecord->mode = static_cast<uint32_t>(m);
+    opt_.modeRecord->build = buildIdentity(info_.version, info_.date, info_.time);
     opt_.modeRecord->check = modeRecordChecksum(*opt_.modeRecord);
   }
 }
@@ -118,7 +119,8 @@ void App::setup() {
     const RunMode compiled = !opt_.controllersEnabled ? RunMode::kDiag : (sys_.config().o2Mandatory ? RunMode::kField : RunMode::kBench);
     RunMode m = compiled;
     const bool keeps = resetInfo_.known && !resetInfo_.powerOn && !resetInfo_.brownout;   // button or watchdog
-    if (keeps && opt_.modeRecord != nullptr && modeRecordValid(*opt_.modeRecord)) m = static_cast<RunMode>(opt_.modeRecord->mode);
+    if (keeps && opt_.modeRecord != nullptr && modeRecordValid(*opt_.modeRecord) && opt_.modeRecord->build == buildIdentity(info_.version, info_.date, info_.time))
+      m = static_cast<RunMode>(opt_.modeRecord->mode);   // only a record written by THIS build: a new upload starts in its compiled mode
     applyMode(m);
     if (m != compiled) logf(console_, LogLevel::kInfo, "%lu MODE %s restored after a reset (compiled: %s)", static_cast<unsigned long>(now), runModeName(m), runModeName(compiled));
   }
