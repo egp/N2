@@ -737,3 +737,24 @@ TEST_CASE("BIST-11: key h holds the valve open (no toggling) so the air pressure
   for (size_t p = r.out.find("LEFT valve OFF"); p != std::string::npos; p = r.out.find("LEFT valve OFF", p + 1)) ++offs;
   CHECK(offs == 0);
 }
+
+TEST_CASE("BIST-11: a valve step shows the air pressure now and the lowest so far on the LCD, updated live") {
+  Rig r;
+  REQUIRE(r.start() == Bist::Start::kOk);
+  r.goTo(BistStep::kLeft);
+  r.gen.air(1040);
+  r.run(700);
+  r.gen.air(780);
+  r.run(300);
+  std::string rows = "";
+  for (int i = 0; i < 4; ++i) rows += std::string(r.display.lcd().shown(i)) + "|";
+  INFO(rows);
+  CHECK(rows.find("AIR  78.0 PSI") != std::string::npos);
+  CHECK(rows.find("min  78.0 PSI") != std::string::npos);
+  r.gen.air(1000);
+  r.run(300);
+  rows = "";
+  for (int i = 0; i < 4; ++i) rows += std::string(r.display.lcd().shown(i)) + "|";
+  CHECK(rows.find("AIR  100.0 PSI") != std::string::npos);
+  CHECK(rows.find("min  78.0 PSI") != std::string::npos);     // the lowest is kept
+}

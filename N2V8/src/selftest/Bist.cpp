@@ -245,6 +245,8 @@ void Bist::printSummary() {
 
 // ---------------------------------------------------------------------------------------------- enter a step
 void Bist::enter(uint32_t now) {
+  airMinX10_ = 0xFFFF;
+  lcdAirMark_ = 0;
   firstOnAt_ = 0;
   saveRecord(true);   // the step and the verdicts so far, for a resume after a reset-button reset
   stepStart_ = now;
@@ -529,6 +531,15 @@ void Bist::tickOutputStep(uint32_t now, Signal sig) {
   if (abortWhy != nullptr && strcmp(abortWhy, "air supply pressure is low") == 0) {
     const bool inGrace = outputOn_ && firstOnAt_ != 0 && static_cast<uint32_t>(now - firstOnAt_) < cfg_.airGraceMs;   // the drop after EVERY opening is expected (owner 2026-10-09)
     if (airAbortOff_ || inGrace) abortWhy = nullptr;   // observe-only (key `a`), or inside the grace time
+  }
+  if (inputs_.airX10 < airMinX10_) airMinX10_ = inputs_.airX10;
+  if (sig != Signal::kSsr && static_cast<uint32_t>(now - lcdAirMark_) >= 100) {   // the LCD shows the air live: now, and the lowest so far
+    lcdAirMark_ = now;
+    char l1[24], l2[24], l3[24];
+    snprintf(l1, sizeof l1, "%s %s", signalLabel(sig), outputOn_ ? "OPEN" : "closed");
+    snprintf(l2, sizeof l2, "AIR  %u.%u PSI", static_cast<unsigned>(inputs_.airX10 / 10u), static_cast<unsigned>(inputs_.airX10 % 10u));
+    snprintf(l3, sizeof l3, "min  %u.%u PSI", static_cast<unsigned>(airMinX10_ / 10u), static_cast<unsigned>(airMinX10_ % 10u));
+    showStep(l1, l2, l3);
   }
   if (sig != Signal::kSsr && static_cast<uint32_t>(now - airLogMark_) >= 50) {   // the air pressure while the valve works, every 50 ms
     airLogMark_ = now;
