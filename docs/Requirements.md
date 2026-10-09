@@ -16,7 +16,7 @@ requirement shall be reused rather than rewritten (GOAL-8).
 
 | ID | Requirement |
 |---|---|
-| GOAL-1 | Production shall run **headless**. Normal operation needs no console, no operator, and no button press. |
+| GOAL-1 | Production **may run headless or with a console attached [owner 2026-10-08]**. Normal operation needs no console, no operator, and no button press; the firmware never depends on a console. **If a console is attached, it receives every state transition** (controllers, TBS, faults, mode changes) at INFO level; with none attached, nothing waits for it (output is dropped, F40 if the host stops reading). |
 | GOAL-2 | The software shall be **debuggable remotely-in-time**: the author cannot easily reach production, so diagnostics (POST, BIST, console, closed-loop log capture, fault display) must make a short site visit sufficient to find a problem. |
 | GOAL-3 | Nearly all logic shall be testable on a **host** (macOS and Ubuntu CI) without hardware. A thin Hardware Access Layer (HAL) is the only code that touches Arduino APIs. [CHG] V6 forbade abstraction. |
 | GOAL-4 | One code base shall build for UNO R4 Minima and UNO R4 WiFi. The board is detected with the macros the Arduino IDE/CLI defines: `ARDUINO_UNOR4_MINIMA` and `ARDUINO_UNOR4_WIFI`. |
@@ -34,7 +34,7 @@ requirement shall be reused rather than rewritten (GOAL-8).
 | Phase | Purpose | Console | Logging default |
 |---|---|---|---|
 | **Debug** (now) | Find software and hardware faults. BIST is the most important feature. | **Guaranteed attached** | Verbose |
-| **Production** (later) | Run headless. A normal boot runs no self-test; POST mode (TOB at power-up) is quick. | May or may not be attached | Quiet (faults and state changes only) |
+| **Production** (later) | Run headless. A normal boot runs no self-test; POST mode (TOB at power-up) is quick. | May or may not be attached | Quiet: INFO level = every state transition and fault, nothing chattier; DEBUG on request |
 
 | Build | Board macro | Real devices | Simulated | Purpose |
 |---|---|---|---|---|
@@ -348,7 +348,7 @@ text; commands are one line.
 | CON-2 | **Output shall never block the loop and shall never inhibit input.** TX is non-blocking; when it cannot keep up, lines are dropped and counted (F40). The console receive path is polled on every pass, independent of TX state, so IDE→Arduino commands always get through. **[found]** In core 1.6.0 `Serial.write()` returns 0 at once with no host attached, but with a host attached that is not reading, the core's write loop spins until the buffer drains. The USB CDC TX buffer is **256 bytes**. The console layer therefore checks free space (`availableForWrite()`) before every line and never waits: log lines are dropped and counted; multi-line answers (`status`, `report`, BIST output) are queued and **deferred, never dropped**; a line is never longer than about 100 bytes so it always fits once the host drains. The watchdog is the backstop. To be verified on the bench. |
 | CON-3 | Connecting or disconnecting the Serial Monitor while running **shall not affect operation**, other than enabling logging and commands. This shall be verified on both boards (including whether the board resets on connect; never open the port at 1200 baud, which triggers the bootloader). |
 | CON-4 | **Attach detection.** The firmware shall detect whether a console is attached and expose it as `console.attached()`. **[found]** The two boards differ. *UNO R4 Minima* (native USB): `if (Serial)` is true only while a host has the port open (CDC DTR); never call `Serial.dtr()` (it forces the connected state permanently); the core starts `Serial` itself. *UNO R4 WiFi* (core built with `-DNO_USB`): `Serial` is a hardware UART to the ESP32 USB bridge; **the sketch must call `Serial.begin(115200)` itself** (until then every print returns 0); `if (Serial)` is **always true** (a PC cannot be detected); `availableForWrite()` is **not implemented** (always 0); and each `write()` **blocks until the byte has left the UART** (about 87 µs per byte at 115200). The HAL shall therefore provide `consoleBegin()`, and on the WiFi board shall treat the console as always attached, pace output with a byte budget of about 11 bytes per millisecond (capped around 128 bytes per call) so one loop pass never blocks long, and keep a periodic banner so a monitor opened later sees the build identity. BIST "needs an attached console" can only be enforced on the Minima. |
-| CON-5 | Log levels `ERR, WARN, INFO, DEBUG`; default DEBUG in Debug, INFO in Production; `log <level>`. |
+| CON-5 | Log levels `ERR, WARN, INFO, DEBUG`; default DEBUG in Debug, INFO in Production; `log <level>`. **Every state transition is logged at INFO or higher**, so a production unit with a console attached shows them all (and a headless unit simply drops them); DEBUG only adds detail. |
 | CON-6 | The line reader is a non-blocking accumulator with a bounded line length; over-long lines are discarded with an error. |
 | CON-7 | In the `FIELD` build no console command shall drive an output directly. Outputs are exercised only through BIST. [Q12] |
 

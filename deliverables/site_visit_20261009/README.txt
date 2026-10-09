@@ -9,4 +9,4 @@ Read docs/Site_Visit_Checklist.md first.
 
 NOTE: the .bin files are build outputs and are NOT in git (*.bin is ignored); they exist only on the Mac that built them.
 If the laptop is a different machine, rebuild from the commit with the Arduino IDE (see docs/Site_Visit_Checklist.md).
-sha1 (first 12): minima_diag 9428de0698dc, minima_bench 0292d754dbc1, minima_field 7a75411758ec, wifi_diag cfd63fa3c533
+sha1 (first 12): e452512cd5a7 minima_diag/N2V8.ino.bin, f28ec1d3ed64 minima_bench/N2V8.ino.bin, 9f62f0bc664d minima_field/N2V8.ino.bin, 1972c06b7ffe wifi_diag/N2V8.ino.bin
