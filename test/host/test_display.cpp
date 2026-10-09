@@ -182,8 +182,8 @@ TEST_CASE("every fault in the table renders a screen that fits 20 columns") {
 }
 
 TEST_CASE("DSP-8: startup banner") {
-  expectScreen(renderBanner("8.1.0", "UNO R4 Minima", "Oct  2 2026 14:05"),
-               "N2V8 8.1.0          ", "UNO R4 Minima       ", "Oct  2 2026 14:05   ", "POST ...            ");
+  expectScreen(renderBanner("8.1.2", "UNO R4 Minima", "Oct  2 2026 14:05"),
+               "N2V8 8.1.2          ", "UNO R4 Minima       ", "Oct  2 2026 14:05   ", "POST ...            ");
 }
 
 TEST_CASE("DSP-3: LED text") {
@@ -325,9 +325,9 @@ TEST_CASE("the version is shown on row 4, columns 10-14, when given, and not oth
   DisplayData d;
   Screen plain = renderNormal(d, LcdLayout::kClearLabels);
   CHECK(std::string(plain.row[3]).substr(10, 5) == "     ");
-  d.version = "8.1.0";
+  d.version = "8.1.2";
   Screen withVer = renderNormal(d, LcdLayout::kClearLabels);
-  CHECK(std::string(withVer.row[3]).substr(10, 5) == "8.1.0");
+  CHECK(std::string(withVer.row[3]).substr(10, 5) == "8.1.2");
   CHECK(std::string(withVer.row[3]).substr(0, 4) == "AIR ");
 }
 
