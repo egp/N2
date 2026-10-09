@@ -36,7 +36,7 @@
 //   src/drivers/Led1650.cpp:59         LED driver
 //   src/drivers/Rtc3231.cpp:7          RTC driver
 //   src/selftest/Post.cpp:40           POST
-//   src/selftest/Bist.cpp:657          BIST
+//   src/selftest/Bist.cpp:667          BIST
 //   src/ui/Commands.cpp:17             console commands
 //   src/hal/HalArduino.cpp:98          hardware access: console, I2C, reset cause
 //   N2V8.ino:118                       this file: setup() and loop() glue (:119)
