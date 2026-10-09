@@ -34,7 +34,9 @@ App::App(Hal& hal, const BoardDef& board, const ControlConfig& cfg, O2Reader& o2
       commands_(ctx_),
       post_(hal, board_, sys_, display_, console_, info_, ResetInfo(), options.post),
       bist_(hal, board_, sys_, display_, console_, o2, info_, options.bist),
-      credit_(warmRecord != nullptr ? *warmRecord : dummyRecord_, options.warmCreditEnabled) {}
+      credit_(warmRecord != nullptr ? *warmRecord : dummyRecord_, options.warmCreditEnabled) {
+  bist_.setRecord(options.bistRecord);
+}
 
 bool App::tobPressed() {
   const SignalDef& d = def(board_, Signal::kTob);
@@ -93,7 +95,18 @@ void App::setup() {
     tobReleased_ = false;
     mode_ = Mode::kPostArm;
   } else {
+#if defined(N2_BOOT_LCD_TEST)
+    mode_ = bist_.beginAt(now, BistStep::kLcd) == Bist::Start::kOk ? Mode::kBist : Mode::kRun;   // bench diagnostic build only
+#else
     mode_ = Mode::kRun;   // normal boot: outputs are safe, the sensor rules and invariants protect the machine as always
+#endif
+    // A reset-button reset in the middle of a BIST resumes it at the same step. Not after a power loss, a watchdog or a brown-out.
+    const bool buttonReset = resetInfo_.known && !resetInfo_.powerOn && !resetInfo_.watchdog && !resetInfo_.brownout;
+    if (buttonReset) {
+      if (bist_.resume(now) == Bist::Start::kOk) mode_ = Mode::kBist;
+    } else {
+      bist_.forgetRecord();
+    }
   }
 }
 

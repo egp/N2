@@ -31,6 +31,20 @@ constexpr uint8_t kBistSteps = static_cast<uint8_t>(BistStep::kCount);
 
 enum class BistVerdict : uint8_t { kNotRun, kPass, kFail, kSkip };
 
+// What the BIST was doing, kept in RAM that survives a reset-button reset (NOT a power loss, and NOT in NVM: no flash wear). After a
+// reset-button reset in the middle of a BIST, the BIST resumes at the step it was on, with the verdicts so far (owner 2026-10-08).
+struct BistRecord {
+  uint32_t magic;
+  uint8_t running;     // 1 while a BIST is in progress
+  uint8_t step;        // BistStep it was on
+  uint8_t verdict[kBistSteps];
+  uint8_t pad[2];
+  uint32_t check;
+};
+constexpr uint32_t kBistRecordMagic = 0x4E324252u;   // "N2BR"
+uint32_t bistRecordChecksum(const BistRecord& r);
+bool bistRecordValid(const BistRecord& r);
+
 struct BistConfig {
   uint32_t halfPeriodMs = 500;       // output steps toggle at ~2 Hz (valves are audible)
   uint32_t outputStepMaxMs = 10000;  // an output step ends by itself after this long
@@ -41,7 +55,7 @@ struct BistConfig {
 
 class Bist : public LineHook {
  public:
-  enum class Start : uint8_t { kOk, kNoConsole, kTbsOn };
+  enum class Start : uint8_t { kOk, kNoConsole, kTbsOn, kNothingToResume };
 
   Bist(Hal& hal, const BoardDef& board, System& sys, DisplayManager& display, Console& console, O2Reader& o2,
        const BuildInfo& info, BistConfig config = BistConfig())
@@ -51,6 +65,12 @@ class Bist : public LineHook {
   // requireTbsOff: true for the `bist` command; false when BIST was requested with TOB at power-up
   // (output steps still need TBS OFF, BIST-4).
   Start begin(uint32_t now, bool requireTbsOff = true);
+  // The RAM record that survives a reset (nullptr: no resume). resume() restarts an interrupted BIST at its step; forgetRecord() discards it.
+  void setRecord(BistRecord* r) { rec_ = r; }
+  // Diagnostic: start directly at one step (bench; used by the N2_BOOT_LCD_TEST build flag so the LCD test runs from power-up).
+  Start beginAt(uint32_t now, BistStep step) { const Start s = begin(now, false); if (s == Start::kOk) { step_ = step; enter(now); } return s; }
+  Start resume(uint32_t now);
+  void forgetRecord() { saveRecord(false); }
   bool step(uint32_t now);  // true when BIST has finished (completed or quit)
   bool running() const { return running_; }
 
@@ -109,6 +129,8 @@ class Bist : public LineHook {
   FaultSet faults_;
   Inputs inputs_;
 
+  void saveRecord(bool running);
+  BistRecord* rec_ = nullptr;
   bool running_ = false;
   BistStep step_ = BistStep::kBanner;
   Result result_[kBistSteps];

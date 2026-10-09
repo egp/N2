@@ -167,10 +167,49 @@ Bist::Start Bist::begin(uint32_t now, bool requireTbsOff) {
   return Start::kOk;
 }
 
+uint32_t bistRecordChecksum(const BistRecord& r) {
+  uint32_t sum = r.magic ^ 0xA5C3E1F7u;
+  sum = sum * 31u + r.running;
+  sum = sum * 31u + r.step;
+  for (uint8_t i = 0; i < kBistSteps; ++i) sum = sum * 31u + r.verdict[i];
+  return sum;
+}
+
+bool bistRecordValid(const BistRecord& r) { return r.magic == kBistRecordMagic && r.check == bistRecordChecksum(r) && r.step < kBistSteps; }
+
+void Bist::saveRecord(bool running) {
+  if (rec_ == nullptr) return;
+  rec_->magic = kBistRecordMagic;
+  rec_->running = running ? 1 : 0;
+  rec_->step = static_cast<uint8_t>(step_);
+  for (uint8_t i = 0; i < kBistSteps; ++i) rec_->verdict[i] = static_cast<uint8_t>(result_[i].verdict);
+  rec_->pad[0] = rec_->pad[1] = 0;
+  rec_->check = bistRecordChecksum(*rec_);
+}
+
+Bist::Start Bist::resume(uint32_t now) {
+  if (rec_ == nullptr || !bistRecordValid(*rec_) || !rec_->running) return Start::kNothingToResume;
+  const BistRecord saved = *rec_;   // begin() overwrites the record
+  const Start s = begin(now, true);   // needs the console and TBS OFF, like any BIST
+  if (s != Start::kOk) {
+    saveRecord(false);
+    return s;
+  }
+  for (uint8_t i = 0; i < kBistSteps; ++i) {
+    const uint8_t v = saved.verdict[i];
+    result_[i].verdict = v <= static_cast<uint8_t>(BistVerdict::kSkip) ? static_cast<BistVerdict>(v) : BistVerdict::kNotRun;
+  }
+  step_ = static_cast<BistStep>(saved.step);
+  say("BIST RESUMED after a reset at step %c %s (the results so far are kept; q quits)", hexDigit(saved.step), kStepNames[saved.step]);
+  enter(now);
+  return Start::kOk;
+}
+
 void Bist::finish(uint32_t now, const char* why) {
   outputsOff(now);
   say("BIST finished: %s", why);
   running_ = false;
+  saveRecord(false);
   console_.setLineHook(nullptr);
   display_.clearOverride();
 }
@@ -204,6 +243,7 @@ void Bist::printSummary() {
 
 // ---------------------------------------------------------------------------------------------- enter a step
 void Bist::enter(uint32_t now) {
+  saveRecord(true);   // the step and the verdicts so far, for a resume after a reset-button reset
   stepStart_ = now;
   mark_ = now;
   phase_ = 0;
@@ -545,6 +585,7 @@ bool Bist::step(uint32_t now) {
   if (!console_.attached()) {  // the operator's console went away: stop safely
     outputsOff(now);
     running_ = false;
+    saveRecord(false);
     console_.setLineHook(nullptr);
     display_.clearOverride();
     qCount_ = 0;

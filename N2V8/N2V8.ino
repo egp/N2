@@ -1,4 +1,4 @@
-// N2V8.ino — PSA nitrogen generator controller (UNO R4 Minima / UNO R4 WiFi).      VERSION 8.1.B  (N2_VERSION in src/BuildConfig.h)
+// N2V8.ino — PSA nitrogen generator controller (UNO R4 Minima / UNO R4 WiFi).      VERSION 8.1.C  (N2_VERSION in src/BuildConfig.h)
 //
 // All behaviour lives in src/ and is tested on the host; this file is only glue.
 //   build mode (src/BuildConfig.h): DIAG (default) = diagnostics only, no controllers;
@@ -19,8 +19,8 @@
 //   src/BuildConfig.h:23       build mode (DIAG default / FIELD), default log level, O2 mandatory
 //   src/BoardPins.h:92         pins, active levels (kLcdAddress = 0x23 just above the boards)
 // CODE BY AREA
-//   src/app/App.cpp:167                loop(): POST mode / BIST / RUN
-//   src/app/App.cpp:60                 setup(): outputs safe first, then the rest
+//   src/app/App.cpp:180                loop(): POST mode / BIST / RUN
+//   src/app/App.cpp:62                 setup(): outputs safe first, then the rest
 //   src/core/System.cpp:47             one pass: inputs, controllers, invariants, outputs
 //   src/core/Tower.cpp:43              TOWER controller
 //   src/core/Compressor.cpp:39         COMPRESSOR controller
@@ -36,10 +36,10 @@
 //   src/drivers/Led1650.cpp:59         LED driver
 //   src/drivers/Rtc3231.cpp:7          RTC driver
 //   src/selftest/Post.cpp:40           POST
-//   src/selftest/Bist.cpp:520          BIST
+//   src/selftest/Bist.cpp:560          BIST
 //   src/ui/Commands.cpp:17             console commands
 //   src/hal/HalArduino.cpp:98          hardware access: console, I2C, reset cause
-//   N2V8.ino:104                       this file: setup() and loop() glue (:105)
+//   N2V8.ino:111                       this file: setup() and loop() glue (:112)
 // To refresh these line numbers after editing, run:   python3 deliverables/update_sketch_toc.py N2V8/N2V8.ino
 // END WHERE TO EDIT
 
@@ -77,6 +77,12 @@ n2::WarmRecord* warmRecord() {
   return reinterpret_cast<n2::WarmRecord*>(address);
 }
 
+n2::BistRecord* bistRecord() {   // RAM that survives a reset-button reset, next to the warm-up record
+  const uintptr_t address = n2::kBistRecordAddress;
+  if (reinterpret_cast<uintptr_t>(&__HeapLimit) < address + sizeof(n2::BistRecord)) return nullptr;
+  return reinterpret_cast<n2::BistRecord*>(address);
+}
+
 n2::App& app() {
   static n2::ControlConfig cfg = [] {
     n2::ControlConfig c = n2::kDefaultControl;
@@ -87,6 +93,7 @@ n2::App& app() {
     n2::AppOptions o;
     o.controllersEnabled = N2_CONTROLLERS_ENABLED;
     o.bist.switchKeys = N2_BIST_SWITCH_KEYS;   // TOB/TBS answer the BIST on the bench only
+    o.bistRecord = bistRecord();       // an interrupted BIST resumes after a reset-button reset
     o.nvm = &nvm();                    // data flash: stored debounce times (docs/NVM_Layout.md)
     o.sketchVersion = N2_VERSION_HEX;
     o.logLevel = n2::LogLevel::N2_DEFAULT_LOG_LEVEL;

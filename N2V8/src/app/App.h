@@ -40,6 +40,7 @@ struct AppOptions {
   bool controllersEnabled = true;    // false in the DIAG build
   bool warmCreditEnabled = false;    // O2-6b: false until the reset probe has proven the credit logic on both boards
   LogLevel logLevel = LogLevel::kDebug;
+  BistRecord* bistRecord = nullptr;  // RAM record that survives a reset-button reset: lets an interrupted BIST resume (nullptr: no resume)
   Nvm* nvm = nullptr;                // non-volatile memory (data flash); nullptr = none: the compiled debounce default is used
   uint16_t sketchVersion = 0;        // BuildConfig.h N2_VERSION_HEX: stored in every NVM record
   uint8_t debounceDefaultMs = kBringupDebounceMs;  // compiled default; 0 = no debounce (host tests of the controllers)

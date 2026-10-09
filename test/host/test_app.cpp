@@ -20,6 +20,7 @@ struct AppRig {
   ControlConfig cfg;
   AppOptions opt;
   WarmRecord rec{};
+  BistRecord bistRec{};   // survives the simulated resets, like the RAM record on the board
   std::unique_ptr<App> app;
   std::string out;  // everything the console printed
 
@@ -45,6 +46,7 @@ struct AppRig {
 
   void boot(ResetInfo reset = ResetInfo()) {
     hal.resetCause = reset;
+    opt.bistRecord = &bistRec;
     app.reset(new App(hal, kHostBoard, cfg, o2, info, &rec, opt));
     hal.nowMs = 0;
     app->setup();
@@ -701,4 +703,62 @@ TEST_CASE("DSP-6: the `lcd` command reports the driver state; `lcd resync` and `
   CHECK(r.has("LCD bus test: 5 rounds"));
   r.type("lcd frob");
   CHECK(r.has("usage: lcd | lcd resync | lcd reinit | lcd bus [rounds]"));
+}
+
+// ---------------------------------------------------------------------------- BIST resume after a reset-button reset
+namespace {
+ResetInfo buttonReset() { ResetInfo i; i.known = true; return i; }
+ResetInfo powerOnReset() { ResetInfo i; i.known = true; i.powerOn = true; return i; }
+ResetInfo watchdogReset() { ResetInfo i; i.known = true; i.watchdog = true; return i; }
+}  // namespace
+
+TEST_CASE("BIST-7: a reset-button reset in the middle of a BIST resumes it at the same step, with the verdicts so far") {
+  AppRig r;
+  r.boot();
+  REQUIRE(r.runUntilMode(App::Mode::kRun, 3000));
+  r.type("bist");
+  r.run(100);
+  r.type("p");          // banner: pass
+  r.type("s");          // switches: skipped
+  REQUIRE(r.app->bist().current() == BistStep::kI2c);
+  r.boot(buttonReset());      // the RESET button: same RAM, new App
+  CHECK(r.app->mode() == App::Mode::kBist);
+  r.run(100);
+  CHECK(r.app->bist().current() == BistStep::kI2c);
+  CHECK(r.app->bist().verdict(BistStep::kBanner) == BistVerdict::kPass);
+  CHECK(r.app->bist().verdict(BistStep::kSwitches) == BistVerdict::kSkip);
+  CHECK(r.has("BIST RESUMED after a reset at step 2 I2C scan"));
+  CHECK_FALSE(r.anyOutputOn());
+}
+
+TEST_CASE("BIST-7: no resume after a power-on, a watchdog reset, when TBS is ON, or when the BIST was quit") {
+  for (int how = 0; how < 4; ++how) {
+    AppRig r;
+    r.boot();
+    REQUIRE(r.runUntilMode(App::Mode::kRun, 3000));
+    r.type("bist");
+    r.run(100);
+    r.type("p");
+    if (how == 3) { r.type("q"); r.run(100); }       // quit: the record says "not running"
+    if (how == 2) r.tbs(true);                        // TBS ON at the reset
+    r.boot(how == 0 ? powerOnReset() : (how == 1 ? watchdogReset() : buttonReset()));
+    r.run(100);
+    INFO("case " << how);
+    CHECK(r.app->mode() == App::Mode::kRun);
+  }
+}
+
+TEST_CASE("BIST-7: after a resume, q ends the BIST and the next reset-button reset starts normally") {
+  AppRig r;
+  r.boot();
+  REQUIRE(r.runUntilMode(App::Mode::kRun, 3000));
+  r.type("bist");
+  r.run(100);
+  r.boot(buttonReset());
+  REQUIRE(r.app->mode() == App::Mode::kBist);
+  r.type("q");
+  r.run(200);
+  CHECK(r.app->mode() == App::Mode::kRun);
+  r.boot(buttonReset());
+  CHECK(r.app->mode() == App::Mode::kRun);
 }
