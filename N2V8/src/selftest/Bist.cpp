@@ -13,6 +13,14 @@
 
 namespace n2 {
 
+constexpr uint32_t kBothDelayMs = 3000;   // key b: the second tower valve opens this long after the first (the first has recovered by then)
+constexpr uint32_t kSeqLeftAloneMs = 10000;   // key o: LEFT alone this long, then RIGHT opens
+constexpr uint32_t kSeqOverlapMs = 750;      // RIGHT is open together with LEFT this long (the tower overlap time), then LEFT closes
+constexpr uint32_t kSeqRightAloneMs = 10000; // RIGHT alone this long, then it closes and the test ends
+constexpr uint32_t kEvSettleMs = 5000;    // key x: LEFT alone this long (pressure settles), then RIGHT opens
+constexpr uint32_t kEvDropWaitMs = 3000;  // ... wait at most this long for the air to drop (2 PSI below where it was)
+constexpr uint32_t kEvRiseWaitMs = 8000;  // ... and at most this long for the air to rise 2 PSI off its minimum
+constexpr uint32_t kEvTailMs = 5000;      // ... after LEFT closes, RIGHT stays open this long
 constexpr uint32_t kSagMs = 10000;   // the timed sag test keeps the valve open this long
 
 namespace {
@@ -215,6 +223,24 @@ void Bist::sagSummary(Signal sig, uint32_t now) {
   (void)now;
   // the CSV-like list of the samples, for the graph: one line per 0.5 s would hide the shape, so print every sample compactly
   if (sagN_ < 12) { say("  SAG TEST: too few samples (%u)", static_cast<unsigned>(sagN_)); return; }
+  if (seqTest_ && seqRightIdx_ > 0 && seqLeftOffIdx_ > seqRightIdx_ && seqLeftOffIdx_ < sagN_) {
+    const auto lowest = [&](uint16_t a, uint16_t b) { uint16_t m = a; for (uint16_t i = a; i < b && i < sagN_; ++i) if (sagHist_[i] < sagHist_[m]) m = i; return m; };
+    const uint16_t m1 = lowest(0, seqRightIdx_), m2 = lowest(seqRightIdx_, seqLeftOffIdx_ + 20u), m3 = lowest(seqLeftOffIdx_ + 20u, sagN_);
+    const auto psi = [&](uint16_t i) { return sagHist_[i]; };
+    say("  OVERLAP TEST: LEFT alone %lu ms, then RIGHT open together with LEFT for %lu ms, then LEFT closed, RIGHT alone %lu ms",
+        static_cast<unsigned long>(seqRightAt_ - sagOpenAt_), static_cast<unsigned long>(seqLeftOffAt_ - seqRightAt_), static_cast<unsigned long>(seqRightOffAt_ - seqLeftOffAt_));
+    say("  AIR: before %u.%u; LEFT opens: min %u.%u at %u ms; just before RIGHT %u.%u; RIGHT opens: min %u.%u at %u ms; LEFT closes: min %u.%u at %u ms; end %u.%u PSI",
+        static_cast<unsigned>(airBeforeX10_ / 10u), static_cast<unsigned>(airBeforeX10_ % 10u), static_cast<unsigned>(psi(m1) / 10u), static_cast<unsigned>(psi(m1) % 10u),
+        static_cast<unsigned>(m1) * 50u, static_cast<unsigned>(psi(seqRightIdx_ - 1) / 10u), static_cast<unsigned>(psi(seqRightIdx_ - 1) % 10u),
+        static_cast<unsigned>(psi(m2) / 10u), static_cast<unsigned>(psi(m2) % 10u), static_cast<unsigned>(m2) * 50u, static_cast<unsigned>(psi(m3) / 10u),
+        static_cast<unsigned>(psi(m3) % 10u), static_cast<unsigned>(m3) * 50u, static_cast<unsigned>(psi(sagN_ - 1) / 10u), static_cast<unsigned>(psi(sagN_ - 1) % 10u));
+    say("  CURVE (air x10 per 50 ms, from the LEFT opening): %u samples; RIGHT opened at sample %u, LEFT closed at sample %u", static_cast<unsigned>(sagN_),
+        static_cast<unsigned>(seqRightIdx_), static_cast<unsigned>(seqLeftOffIdx_));
+    curveRow_ = 0;
+    curveMark_ = now;
+    showStep("OVERLAP TEST done", "see the console");
+    return;
+  }
   const uint16_t base = airBeforeX10_;
   uint16_t iMin = 0;
   for (uint16_t i = 1; i < sagN_; ++i) if (sagHist_[i] < sagHist_[iMin]) iMin = i;
@@ -293,6 +319,15 @@ void Bist::printSummary() {
 void Bist::enter(uint32_t now) {
   curveRow_ = 0xFFFF;
   sagTest_ = false;
+  bothTest_ = false;
+  bothAtIdx_ = 0;
+  rangeBadSince_ = 0;
+  n2hNoted_ = false;
+  evTest_ = false;
+  seqTest_ = false;
+  seqPhase_ = 0;
+  seqRightIdx_ = 0;
+  seqLeftOffIdx_ = 0;
   sagN_ = 0;
   airMinX10_ = 0xFFFF;
   lcdAirMark_ = 0;
@@ -408,6 +443,44 @@ void Bist::onLine(const char* line) {
     holdOpen_ = true;
     airAbortOff_ = false;
     say("  timed sag test armed: the valve opens once, stays open 10 s while the air is recorded, then one summary. (Low air is tolerated for the first 1000 ms.)");
+    return;
+  }
+  if (c == 'b' && rest[0] == '\0' && (step_ == BistStep::kLeft || step_ == BistStep::kRight)) {   // timed sag test, then the other tower valve joins
+    sagTest_ = true;
+    bothTest_ = true;
+    bothAtIdx_ = 0;
+    sagN_ = 0;
+    holdOpen_ = true;
+    airAbortOff_ = false;
+    say("  BOTH test armed: this valve opens, %lu s later the OTHER tower valve opens too, 10 s of air recorded, then one summary. (Low air is tolerated for 1000 ms after each opening.)",
+        static_cast<unsigned long>(kBothDelayMs / 1000));
+    return;
+  }
+  if (c == 'o' && rest[0] == '\0' && step_ == BistStep::kLeft) {   // overlap test
+    sagTest_ = true;
+    seqTest_ = true;
+    seqPhase_ = 0;
+    seqRightIdx_ = 0;
+    seqLeftOffIdx_ = 0;
+    bothTest_ = false;
+    sagN_ = 0;
+    holdOpen_ = true;
+    airAbortOff_ = false;
+    say("  OVERLAP test armed: LEFT opens, 10 s later RIGHT opens for exactly 750 ms, LEFT closes, 10 s later RIGHT closes (about 21 s).");
+    return;
+  }
+  if (c == 'x' && rest[0] == '\0' && step_ == BistStep::kLeft) {   // event-driven overlap test
+    sagTest_ = true;
+    seqTest_ = true;
+    evTest_ = true;
+    seqPhase_ = 0;
+    seqRightIdx_ = 0;
+    seqLeftOffIdx_ = 0;
+    bothTest_ = false;
+    sagN_ = 0;
+    holdOpen_ = true;
+    airAbortOff_ = false;
+    say("  EVENT test armed: LEFT opens, 5 s settle, RIGHT opens, wait for the air to drop then rise, LEFT closes, 5 s later RIGHT closes.");
     return;
   }
   if (c == 'h' && rest[0] == '\0') {   // toggle hold-open for the valve steps
@@ -566,6 +639,19 @@ void Bist::tickOutputStep(uint32_t now, Signal sig) {
   if (curveRow_ != 0xFFFF) {   // printing the recorded curve, one row of ten samples every 30 ms
     if (static_cast<uint32_t>(now - curveMark_) >= 30) {
       curveMark_ = now;
+      if (curveRow_ == 0 && bothTest_ && bothAtIdx_ > 0 && bothAtIdx_ + 4 < sagN_) {   // paced: one line per tick
+      const uint16_t j0 = bothAtIdx_;
+      uint16_t jMin = j0;
+      for (uint16_t i = j0; i < sagN_; ++i) if (sagHist_[i] < sagHist_[jMin]) jMin = i;
+      const uint16_t pre = sagHist_[j0 - 1];
+      say("  SECOND VALVE opened at %u ms: air before %u.%u PSI, MINIMUM %u.%u PSI at %u ms (%u ms later; down %u.%u); at the end %u.%u PSI", static_cast<unsigned>(j0) * 50u,
+          static_cast<unsigned>(pre / 10u), static_cast<unsigned>(pre % 10u), static_cast<unsigned>(sagHist_[jMin] / 10u), static_cast<unsigned>(sagHist_[jMin] % 10u),
+          static_cast<unsigned>(jMin) * 50u, static_cast<unsigned>(jMin - j0) * 50u, static_cast<unsigned>((pre > sagHist_[jMin] ? pre - sagHist_[jMin] : 0) / 10u),
+          static_cast<unsigned>((pre > sagHist_[jMin] ? pre - sagHist_[jMin] : 0) % 10u), static_cast<unsigned>(sagHist_[sagN_ - 1] / 10u), static_cast<unsigned>(sagHist_[sagN_ - 1] % 10u));
+      curveRow_ = 1;   // (row 0 follows on the next tick)
+      return;
+      }
+      if (curveRow_ == 1 && bothTest_) curveRow_ = 0;
       if (curveRow_ < sagN_) {
         char row[100];
         int len = snprintf(row, sizeof row, "  C%u:", static_cast<unsigned>(curveRow_));
@@ -604,6 +690,18 @@ void Bist::tickOutputStep(uint32_t now, Signal sig) {
     const bool inGrace = outputOn_ && firstOnAt_ != 0 && static_cast<uint32_t>(now - firstOnAt_) < cfg_.airGraceMs;   // the drop after EVERY opening is expected (owner 2026-10-09)
     if (airAbortOff_ || inGrace) abortWhy = nullptr;   // observe-only (key `a`), or inside the grace time
   }
+  if (abortWhy != nullptr && strstr(abortWhy, "sensor out of range") != nullptr) {
+    if (seqTest_ && strcmp(abortWhy, "N2-high sensor out of range") == 0) {   // owner 2026-10-09: N2-high is ignored during the one-off overlap test
+      if (!n2hNoted_) { n2hNoted_ = true; say("  N2-high out of range (raw %u) IGNORED during the overlap test", static_cast<unsigned>(inputs_.rawN2High)); }
+      abortWhy = nullptr;
+      rangeBadSince_ = 0;
+    } else {
+      if (rangeBadSince_ == 0) rangeBadSince_ = now != 0 ? now : 1;
+      if (static_cast<uint32_t>(now - rangeBadSince_) < 50) abortWhy = nullptr;   // one bad sample is tolerated; 50 ms is a fault
+    }
+  } else {
+    rangeBadSince_ = 0;
+  }
   if (inputs_.airX10 < airMinX10_) airMinX10_ = inputs_.airX10;
   if (sig != Signal::kSsr && static_cast<uint32_t>(now - lcdAirMark_) >= 100) {   // the LCD shows the air live: now, and the lowest so far
     lcdAirMark_ = now;
@@ -613,10 +711,88 @@ void Bist::tickOutputStep(uint32_t now, Signal sig) {
     snprintf(l3, sizeof l3, "min  %u.%u PSI", static_cast<unsigned>(airMinX10_ / 10u), static_cast<unsigned>(airMinX10_ % 10u));
     showStep(l1, l2, l3);
   }
+  if (evTest_ && sagTest_ && outputOn_ && sagN_ > 0) {   // key x
+    const uint16_t air = inputs_.airX10;
+    if (seqPhase_ == 0 && static_cast<uint32_t>(now - sagOpenAt_) >= kEvSettleMs) {
+      evBefore_ = air;
+      evMin_ = 0xFFFF;
+      evSeen_ = sagN_;
+      evPrev_ = 0;
+      evMinIdx_ = sagN_;
+      sys_.outputDriver().forceDrive(Signal::kRightValve, true, now);
+      firstOnAt_ = now != 0 ? now : 1;
+      seqRightAt_ = now;
+      seqRightIdx_ = sagN_;
+      seqPhase_ = 1;
+      say("  RIGHT valve ON (air %u.%u PSI): waiting for the air to drop", static_cast<unsigned>(air / 10u), static_cast<unsigned>(air % 10u));
+    } else if (seqPhase_ == 1 || seqPhase_ == 2) {
+      bool rose = false;
+      while (evSeen_ < sagN_) {   // judged on the 50 ms samples: the raw readings ripple by a few PSI
+        const uint16_t s = sagHist_[evSeen_];
+        if (s < evMin_) { evMin_ = s; evMinIdx_ = evSeen_; }
+        if (seqPhase_ == 1 && s + 30 <= evBefore_) {
+          seqPhase_ = 2;
+          say("  air dropped (%u.%u PSI, %lu ms after RIGHT opened): waiting for it to rise", static_cast<unsigned>(s / 10u), static_cast<unsigned>(s % 10u),
+              static_cast<unsigned long>(now - seqRightAt_));
+        }
+        if (seqPhase_ == 2 && s >= evMin_ + 20 && evPrev_ >= evMin_ + 20 && evSeen_ >= evMinIdx_ + 2) rose = true;   // two samples in a row, 2 PSI above a minimum at least 100 ms old
+        evPrev_ = s;
+        ++evSeen_;
+      }
+      const bool noDrop = seqPhase_ == 1 && static_cast<uint32_t>(now - seqRightAt_) >= kEvDropWaitMs;
+      const bool noRise = seqPhase_ == 2 && static_cast<uint32_t>(now - seqRightAt_) >= kEvDropWaitMs + kEvRiseWaitMs;
+      if (rose || noDrop || noRise) {
+        say("  %s: LEFT closes (minimum %u.%u PSI, %lu ms after RIGHT opened)", rose ? "air is rising" : (noDrop ? "NO DROP seen" : "NO RISE seen (timeout)"),
+            static_cast<unsigned>(evMin_ / 10u), static_cast<unsigned>(evMin_ % 10u), static_cast<unsigned long>(now - seqRightAt_));
+        sys_.outputDriver().forceDrive(Signal::kLeftValve, false, now);
+        seqLeftOffAt_ = now;
+        seqLeftOffIdx_ = sagN_;
+        seqPhase_ = 3;
+      }
+    } else if (seqPhase_ == 3 && static_cast<uint32_t>(now - seqLeftOffAt_) >= kEvTailMs) {
+      seqRightOffAt_ = now;
+      outputsOff(now);
+      sagSummary(sig, now);
+      sagTest_ = false;
+      holdOpen_ = false;
+      phase_ = 2;
+      return;
+    }
+  } else if (seqTest_ && sagTest_ && outputOn_ && sagN_ > 0) {   // the overlap test's valve events run every pass, not on the 50 ms sample grid
+    if (seqPhase_ == 0 && static_cast<uint32_t>(now - sagOpenAt_) >= kSeqLeftAloneMs) {
+      sys_.outputDriver().forceDrive(Signal::kRightValve, true, now);
+      firstOnAt_ = now != 0 ? now : 1;
+      seqRightAt_ = now;
+      seqRightIdx_ = sagN_;
+      seqPhase_ = 1;
+      say("  RIGHT valve ON (overlap starts)");
+    } else if (seqPhase_ == 1 && static_cast<uint32_t>(now - seqRightAt_) >= kSeqOverlapMs) {
+      sys_.outputDriver().forceDrive(Signal::kLeftValve, false, now);
+      seqLeftOffAt_ = now;
+      seqLeftOffIdx_ = sagN_;
+      seqPhase_ = 2;
+      say("  LEFT valve OFF (RIGHT alone)");
+    } else if (seqPhase_ == 2 && static_cast<uint32_t>(now - seqLeftOffAt_) >= kSeqRightAloneMs) {
+      seqRightOffAt_ = now;
+      outputsOff(now);
+      sagSummary(sig, now);
+      sagTest_ = false;
+      holdOpen_ = false;
+      phase_ = 2;
+      return;
+    }
+  }
   if (sagTest_ && sig != Signal::kSsr && outputOn_ && static_cast<uint32_t>(now - airLogMark_) >= 50) {   // timed sag test: record 5 s of air
     if (sagN_ == 0) sagOpenAt_ = firstOnAt_ != 0 ? firstOnAt_ : now;
+    if (bothTest_ && bothAtIdx_ == 0 && sagN_ > 0 && static_cast<uint32_t>(now - sagOpenAt_) >= kBothDelayMs) {   // the second valve joins
+      const Signal other = sig == Signal::kLeftValve ? Signal::kRightValve : Signal::kLeftValve;
+      sys_.outputDriver().forceDrive(other, true, now);
+      firstOnAt_ = now != 0 ? now : 1;   // a new grace time
+      bothAtIdx_ = sagN_;
+      say("  %s ON too (both open)", signalLabel(other));
+    }
     if (sagN_ < kSagSamples) sagHist_[sagN_++] = inputs_.airX10;
-    if (static_cast<uint32_t>(now - sagOpenAt_) >= kSagMs || sagN_ >= kSagSamples) {
+    if ((!seqTest_ && static_cast<uint32_t>(now - sagOpenAt_) >= kSagMs) || sagN_ >= kSagSamples) {
       outputsOff(now);
       sagSummary(sig, now);
       sagTest_ = false;

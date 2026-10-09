@@ -143,12 +143,22 @@ class Bist : public LineHook {
   bool tobWasUp_ = true;
   int8_t lcdPhase_ = -1;
   // Timed sag test (key t on a valve step): the valve opens once and stays open sagMs, the air is recorded every 50 ms, then one summary.
-  static constexpr uint16_t kSagSamples = 230;   // 11 s at 50 ms
+  static constexpr uint16_t kSagSamples = 440;   // 22 s at 50 ms (the overlap test runs 20.75 s)
   bool sagTest_ = false;
   uint16_t sagN_ = 0;
   uint16_t curveRow_ = 0xFFFF;   // next row of the recorded curve to print (0xFFFF = none pending)
   uint32_t curveMark_ = 0;
   uint32_t sagOpenAt_ = 0;
+  uint32_t rangeBadSince_ = 0;   // a sensor-out-of-range reading must persist 50 ms before an output step aborts (owner 2026-10-09: one bad sample is tolerated)
+  bool n2hNoted_ = false;
+  bool seqTest_ = false;         // key o (LEFT step): LEFT 10 s alone, RIGHT opens for exactly 750 ms, LEFT closes, 10 s later RIGHT closes
+  uint8_t seqPhase_ = 0;
+  bool evTest_ = false;          // key x: like o, but RIGHT's hold is event driven: wait for the air to drop, then to rise off its minimum, then close LEFT, 5 s later RIGHT
+  uint16_t evBefore_ = 0, evMin_ = 0xFFFF, evMinIdx_ = 0, evSeen_ = 0, evPrev_ = 0;
+  uint32_t seqRightAt_ = 0, seqLeftOffAt_ = 0, seqRightOffAt_ = 0;
+  uint16_t seqRightIdx_ = 0, seqLeftOffIdx_ = 0;
+  bool bothTest_ = false;        // key b: the sag test opens the OTHER tower valve too, kBothDelayMs after the first (LEFT into BOTH / RIGHT into BOTH)
+  uint16_t bothAtIdx_ = 0;       // the sample index at which the second valve opened (0 = not yet)
   uint16_t sagHist_[kSagSamples] = {};
   void sagSummary(Signal sig, uint32_t now);
   bool holdOpen_ = false;       // key `h`: a valve step keeps the valve OPEN (no toggling) to see where the air pressure settles; ends at the step limit or on an answer

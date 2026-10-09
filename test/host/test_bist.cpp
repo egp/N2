@@ -481,13 +481,14 @@ TEST_CASE("BIST-11: the SSR is vetoed unless N2-high is below its START threshol
   CHECK(r.allOff());
 }
 
-TEST_CASE("BIST-11: a sensor wire that falls off mid-step aborts the step at once, every output OFF") {
+TEST_CASE("BIST-11: a sensor wire that falls off mid-step aborts the step within 50 ms, every output OFF") {
   Rig r;
   REQUIRE(r.start() == Bist::Start::kOk);
   r.goTo(BistStep::kRight);
   r.run(700);
   REQUIRE(r.gen.right());
   r.gen.rawN2High(0);  // the sensor reads as an empty tank - exactly the dangerous misreading
+  r.run(100);          // (one bad sample is tolerated; 50 ms is a fault)
   r.pass();
   CHECK(r.allOff());
   CHECK(r.has("ABORTED: N2-high sensor out of range"));
@@ -789,4 +790,182 @@ TEST_CASE("BIST-11: the timed sag test (key t) opens the valve once for 5 s and 
   CHECK(r.has("answer p or f (r repeats)"));
   CHECK_FALSE(r.has("ABORTED"));
   CHECK_FALSE(r.gen.left());                  // the valve is closed again after the test
+}
+
+TEST_CASE("BIST-11: the BOTH test (key b) opens the second tower valve 3 s after the first and reports the second sag") {
+  Rig r;
+  REQUIRE(r.start() == Bist::Start::kOk);
+  r.goTo(BistStep::kLeft);
+  r.gen.air(1000);
+  r.run(100);
+  r.type("b");
+  CHECK(r.has("BOTH test armed"));
+  uint32_t openedAt = 0, rightAt = 0;
+  for (int i = 0; i < 1500; ++i) {
+    r.run(10);
+    if (r.gen.left() && openedAt == 0) openedAt = r.now;
+    if (r.gen.right() && rightAt == 0) rightAt = r.now;
+    int air = 1000;
+    if (rightAt != 0) { const int dt = static_cast<int>(r.now - rightAt); air = dt < 200 ? 1000 - dt / 2 : 900; }   // the second opening sags 10 PSI
+    r.gen.air(static_cast<uint16_t>(air));
+  }
+  CHECK(r.has("RIGHT valve ON too (both open)"));
+  CHECK(rightAt - openedAt >= 3000);
+  CHECK(rightAt - openedAt < 3200);
+  CHECK(r.has("SECOND VALVE opened at 29"));   // sample 59, about 3 s after the first opening
+  CHECK(r.has("CURVE (air x10 per 50 ms"));
+  CHECK_FALSE(r.has("ABORTED"));
+  CHECK_FALSE(r.gen.left());
+  CHECK_FALSE(r.gen.right());                 // both closed again
+}
+
+TEST_CASE("BIST-11: the OVERLAP test (key o): LEFT 10 s, RIGHT open exactly 750 ms with LEFT, LEFT closes, 10 s later RIGHT closes, one summary and curve") {
+  Rig r;
+  REQUIRE(r.start() == Bist::Start::kOk);
+  r.goTo(BistStep::kLeft);
+  r.gen.air(1000);
+  r.run(100);
+  r.type("o");
+  CHECK(r.has("OVERLAP test armed"));
+  uint32_t leftOn = 0, rightOn = 0, leftOff = 0, rightOff = 0;
+  for (int i = 0; i < 2700; ++i) {
+    r.run(10);
+    if (r.gen.left() && leftOn == 0) leftOn = r.now;
+    if (r.gen.right() && rightOn == 0) rightOn = r.now;
+    if (rightOn != 0 && !r.gen.left() && leftOff == 0) leftOff = r.now;
+    if (rightOn != 0 && !r.gen.right() && rightOff == 0) rightOff = r.now;
+    r.gen.air(rightOn != 0 && r.now - rightOn < 200 ? 850 : 1000);
+  }
+  CHECK(rightOn - leftOn >= 10000);
+  CHECK(rightOn - leftOn <= 10040);
+  CHECK(leftOff - rightOn >= 750);
+  CHECK(leftOff - rightOn <= 770);
+  CHECK(rightOff - leftOff >= 10000);
+  CHECK(rightOff - leftOff <= 10040);
+  CHECK(r.has("OVERLAP TEST: LEFT alone 100"));
+  CHECK(r.has("together with LEFT for 75"));
+  CHECK(r.has("CURVE (air x10 per 50 ms, from the LEFT opening)"));
+  CHECK(r.has("C410:"));
+  CHECK(r.has("answer p or f (r repeats)"));
+  CHECK_FALSE(r.has("ABORTED"));
+  CHECK_FALSE(r.gen.left());
+  CHECK_FALSE(r.gen.right());
+}
+
+TEST_CASE("BIST-11: an output step tolerates one bad air sample (50 ms rule), but aborts when the sensor stays out of range") {
+  {
+    Rig r;
+    REQUIRE(r.start() == Bist::Start::kOk);
+    r.goTo(BistStep::kLeft);
+    r.gen.healthy();
+    r.run(700);                      // the valve is toggling
+    r.gen.rawAir(3);
+    r.run(20);
+    r.gen.healthy();
+    r.run(300);
+    CHECK_FALSE(r.has("ABORTED"));
+  }
+  {
+    Rig r;
+    REQUIRE(r.start() == Bist::Start::kOk);
+    r.goTo(BistStep::kLeft);
+    r.gen.healthy();
+    r.run(700);
+    r.gen.rawAir(3);
+    r.run(200);
+    CHECK(r.has("ABORTED: air sensor out of range"));
+  }
+}
+
+TEST_CASE("BIST-11: the overlap test ignores N2-high out of range (owner 2026-10-09) and finishes") {
+  Rig r;
+  REQUIRE(r.start() == Bist::Start::kOk);
+  r.goTo(BistStep::kLeft);
+  r.gen.healthy();
+  r.gen.air(1000);
+  r.run(100);
+  r.type("o");
+  for (int i = 0; i < 2700; ++i) {
+    r.run(10);
+    if (i == 1000) r.gen.rawN2High(47);   // the glitch at the RIGHT opening
+    if (i == 1004) r.gen.n2High(kHealthyN2HighX10);
+  }
+  CHECK(r.has("N2-high out of range (raw 47) IGNORED"));
+  CHECK_FALSE(r.has("ABORTED"));
+  CHECK(r.has("OVERLAP TEST: LEFT alone"));
+}
+
+TEST_CASE("BIST-11: the EVENT test (key x): LEFT 5 s, RIGHT opens, wait for the air to drop and rise, LEFT closes, 5 s later RIGHT closes") {
+  Rig r;
+  REQUIRE(r.start() == Bist::Start::kOk);
+  r.goTo(BistStep::kLeft);
+  r.gen.healthy();
+  r.gen.air(1000);
+  r.run(100);
+  r.type("x");
+  CHECK(r.has("EVENT test armed"));
+  uint32_t leftOn = 0, rightOn = 0, leftOff = 0, rightOff = 0;
+  for (int i = 0; i < 2200; ++i) {
+    r.run(10);
+    if (r.gen.left() && leftOn == 0) leftOn = r.now;
+    if (r.gen.right() && rightOn == 0) rightOn = r.now;
+    if (rightOn != 0 && !r.gen.left() && leftOff == 0) leftOff = r.now;
+    if (rightOn != 0 && !r.gen.right() && rightOff == 0) rightOff = r.now;
+    int air = 1000;                                   // after RIGHT opens: falls to 800 in 300 ms, then climbs back to 1000 by 2.3 s
+    if (rightOn != 0) { const int dt = static_cast<int>(r.now - rightOn); air = dt < 300 ? 1000 - (200 * dt) / 300 : (dt < 2300 ? 800 + (200 * (dt - 300)) / 2000 : 1000); }
+    r.gen.air(static_cast<uint16_t>(air));
+  }
+  CHECK(rightOn - leftOn >= 5000);
+  CHECK(rightOn - leftOn <= 5040);
+  CHECK(leftOff - rightOn > 300);                     // not before the minimum
+  CHECK(leftOff - rightOn < 1500);                    // as soon as it has risen 2 PSI
+  CHECK(rightOff - leftOff >= 5000);
+  CHECK(rightOff - leftOff <= 5040);
+  CHECK(r.has("air dropped"));
+  CHECK(r.has("air is rising: LEFT closes"));
+  CHECK(r.has("OVERLAP TEST: LEFT alone 50"));
+  CHECK_FALSE(r.has("ABORTED"));
+  CHECK_FALSE(r.gen.left());
+  CHECK_FALSE(r.gen.right());
+}
+
+TEST_CASE("BIST-11: the EVENT test gives up waiting when the air never drops") {
+  Rig r;
+  REQUIRE(r.start() == Bist::Start::kOk);
+  r.goTo(BistStep::kLeft);
+  r.gen.healthy();
+  r.gen.air(1000);
+  r.run(100);
+  r.type("x");
+  for (int i = 0; i < 1700; ++i) r.run(10);
+  CHECK(r.has("NO DROP seen"));
+  CHECK_FALSE(r.has("ABORTED"));
+  CHECK_FALSE(r.gen.left());
+  CHECK_FALSE(r.gen.right());
+}
+
+TEST_CASE("BIST-11: the EVENT test is not fooled by ripple at the start of the dip: it waits for the real minimum and the rise after it") {
+  Rig r;
+  REQUIRE(r.start() == Bist::Start::kOk);
+  r.goTo(BistStep::kLeft);
+  r.gen.healthy();
+  r.gen.air(1000);
+  r.run(100);
+  r.type("x");
+  uint32_t rightOn = 0, leftOff = 0;
+  for (int i = 0; i < 2200; ++i) {
+    r.run(10);
+    if (r.gen.right() && rightOn == 0) rightOn = r.now;
+    if (rightOn != 0 && !r.gen.left() && leftOff == 0) leftOff = r.now;
+    int air = 1000;      // the dip is rippled: 880 at 10 ms, 905 at 20 ms, 860 at 30 ms, then down to 800 at 450 ms and back to 1000 by 2.4 s
+    if (rightOn != 0) {
+      const int dt = static_cast<int>(r.now - rightOn);
+      if (dt < 10) air = 1000; else if (dt < 20) air = 880; else if (dt < 30) air = 905; else if (dt < 40) air = 860;
+      else if (dt < 450) air = 860 - (60 * (dt - 40)) / 410; else if (dt < 2400) air = 800 + (200 * (dt - 450)) / 1950; else air = 1000;
+    }
+    r.gen.air(static_cast<uint16_t>(air));
+  }
+  CHECK(leftOff - rightOn > 450);              // LEFT stays open until the air really has passed its minimum and risen
+  CHECK(r.has("air is rising: LEFT closes (minimum 80."));
+  CHECK_FALSE(r.has("ABORTED"));
 }
