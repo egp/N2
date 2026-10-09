@@ -205,6 +205,7 @@ void Bist::enter(uint32_t now) {
   stepStart_ = now;
   mark_ = now;
   phase_ = 0;
+  lcdPhase_ = -1;
   refused_ = false;
   outputOn_ = false;
   pulseDone_ = false;
@@ -273,7 +274,7 @@ void Bist::enter(uint32_t now) {
       return;
   }
   if (step_ != BistStep::kSummary)
-    say("  answer: p=pass f=fail r=rerun s=skip q=quit%s", step_ == BistStep::kSwitches ? "" : "   (TOB = pass, TBS ON = fail)");
+    say("  answer: p=pass f=fail r=rerun s=skip q=quit%s", (step_ == BistStep::kSwitches || !cfg_.switchKeys) ? "" : "   (TOB = pass, TBS ON = fail)");
 }
 
 // ---------------------------------------------------------------------------------------------- operator input
@@ -349,8 +350,9 @@ void Bist::tickI2c(uint32_t now) {
     uint8_t count = 0;
     for (uint8_t a = 0x08; a < 0x78; ++a) {
       if (!(found_[a / 8] & (1u << (a % 8)))) continue;
-      ++count;
-      const char* label = a == 0x57 ? "EEPROM on the RTC module (unused)" : "UNEXPECTED";
+      const bool alias = isLedAlias(board_, a);
+      if (!alias) ++count;   // the aliases are the same chip as the LED control: not separate devices
+      const char* label = a == 0x57 ? "EEPROM on the RTC module (unused)" : (alias ? "LED control (alias of the same chip)" : "UNEXPECTED");
       for (const Known& k : known) if (k.addr == a) label = k.name;
       say("  0x%02X  %s", static_cast<unsigned>(a), label);
     }
@@ -393,6 +395,12 @@ void Bist::tickLed(uint32_t now) {
 void Bist::tickLcd(uint32_t now) {
   const uint32_t t = static_cast<uint32_t>(now - stepStart_) % 4000u;
   Lcd20x4& lcd = display_.lcd();
+  // Resync the controller at the start of every phase (bench 2026-10-08: the test left the LCD blank): ordinary commands, not a re-init.
+  const int8_t phase = t < 500 ? 0 : (t < 1000 ? 1 : (t < 1500 ? 2 : (t < 2000 ? 3 : (t < 3500 ? 4 : 5))));
+  if (phase != lcdPhase_) {
+    lcdPhase_ = phase;
+    lcd.resync();
+  }
   lcd.setBacklight(!(t < 500));
   lcd.setDisplayOn(!(t >= 1000 && t < 1500));
   if (t >= 2000 && t < 3500) {
@@ -564,9 +572,9 @@ bool Bist::step(uint32_t now) {
   tbsDeb_.update(rawTbs(), now);
   tobDeb_.update(rawTob(), now);
   const bool tob = tobDeb_.level();
-  if (tob && tobWasUp_ && step_ != BistStep::kSwitches) key_ = Key::kPass;  // TOB = p
+  if (cfg_.switchKeys && tob && tobWasUp_ && step_ != BistStep::kSwitches) key_ = Key::kPass;  // TOB = p (bench)
   tobWasUp_ = !tob;
-  if (tbsDeb_.changed() && tbsDeb_.level() && step_ != BistStep::kSwitches && key_ == Key::kNone) {   // TBS switched ON = f
+  if (cfg_.switchKeys && tbsDeb_.changed() && tbsDeb_.level() && step_ != BistStep::kSwitches && key_ == Key::kNone) {   // TBS switched ON = f
     key_ = Key::kFail;
     snprintf(keyNote_, sizeof keyNote_, "TBS ON = fail");
   }

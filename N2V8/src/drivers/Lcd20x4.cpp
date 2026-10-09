@@ -195,6 +195,14 @@ bool Lcd20x4::serviceInit(uint32_t now) {
 
 void Lcd20x4::serviceContent(uint32_t now) {
   if (!deadlineReached(now, homeUntil_)) return;   // 'return home' takes 1.5 ms: write nothing until it is done
+  if (resyncPending_) {
+    if (!writeByte(0x28, false) || !writeByte(displayOn_ ? 0x0C : 0x08, false) || !writeByte(0x06, false) || !writeByte(0x02, false)) return fail(now);
+    resyncPending_ = false;
+    homePending_ = false;
+    homeUntil_ = now + 2;
+    curRow_ = curCol_ = -1;
+    return;
+  }
   if (homePending_) {
     if (!writeByte(0x06, false) || !writeByte(0x02, false)) return fail(now);
     homePending_ = false;

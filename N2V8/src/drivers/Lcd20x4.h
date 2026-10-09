@@ -57,6 +57,10 @@ class Lcd20x4 {
   void setAlwaysRewrite(bool on) { alwaysRewrite_ = on; }
   void enableHealing(const Healing& healing = Healing()) { heal_ = healing; healOn_ = true; }
   void refresh();
+  // Re-send the LCD controller's own settings (function set 0x28, display control, entry mode 0x06, return home 0x02) and rewrite every cell.
+  // NOT the power-up initialisation (that made things worse on the bench): these are ordinary commands that restore a display left in an odd
+  // state. Used by the BIST LCD test at the start of each phase, and available to any caller.
+  void resync() { resyncPending_ = true; refresh(); }
   void reinit(uint32_t now);
   void setBacklight(bool on);            // BIST
   void setDisplayOn(bool on);            // BIST: display on/off, content kept
@@ -109,6 +113,7 @@ class Lcd20x4 {
   // stray command or a reset in mid-transaction left behind (bench 2026-10-08: the whole screen sat one column to the right, the last column
   // lost and the first column showing the end of another row). It does not clear DDRAM and does not blink: not a re-initialisation.
   bool homePending_ = false;
+  bool resyncPending_ = false;
   uint32_t homeUntil_ = 0;
   Healing heal_;
   bool healStarted_ = false;

@@ -442,7 +442,7 @@ bool Commands::Scan::line(uint8_t i, char* b, size_t n) {
   for (uint8_t a = 0x08; a < 0x78; ++a) {
     if (!(found_[a / 8] & (1u << (a % 8)))) continue;
     if (idx-- == 0) {
-      const char* label = a == 0x57 ? "EEPROM on the RTC module (unused)" : "unexpected";
+      const char* label = a == 0x57 ? "EEPROM on the RTC module (unused)" : (isLedAlias(kBoard, a) ? "LED control (alias of the same chip)" : "unexpected");
       for (const Known& k : known) if (k.addr == a) label = k.name;
       snprintf(b, n, "  0x%02X %s", static_cast<unsigned>(a), label);
       return true;

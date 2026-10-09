@@ -167,6 +167,12 @@ constexpr bool inTm1650Range(const BoardDef& b, uint8_t a) {
   if (ledOnSoftBus(b)) return false;  // the LED is not on the shared bus, so it cannot answer there
   return (a >= b.addrLed && a < b.addrLed + 4) || (a >= b.addrLedDigits && a < b.addrLedDigits + 4);
 }
+// An address the TM1650 answers only because it ignores the low bits of its control address (0x25-0x27 when the control address is 0x24).
+// It is the same chip: expected, never reported as an unexpected device (owner 2026-10-08).
+constexpr bool isLedAlias(const BoardDef& b, uint8_t a) {
+  if (ledOnSoftBus(b)) return false;
+  return a > b.addrLed && a < b.addrLed + 4 && a != b.addrLcd;
+}
 // True if the LCD address is inside the range the LED module answers (a known hardware conflict; not a compile error because the
 // production wiring is unconfirmed: see docs/Owner_TODO.md).
 constexpr bool lcdOverlapsLed(const BoardDef& b) { return inTm1650Range(b, b.addrLcd); }

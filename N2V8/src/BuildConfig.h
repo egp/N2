@@ -14,7 +14,7 @@
 
 // THE version (one number: major.minor.patch). Shown on the LCD row 4 in every build except FIELD, by `ver`, in the boot banner, and in the top
 // comment of N2V8.ino. Bump it with every change you load onto a board, and keep N2_VERSION_HEX in step.
-#define N2_VERSION "8.1.5"
+#define N2_VERSION "8.1.6"
 #define N2_VERSION_HEX 0x0801   // stored in every NVM record (high byte major, low byte minor)
 
 #if !defined(N2_BUILD_HOST) && !defined(N2_BUILD_BENCH) && \
@@ -64,4 +64,12 @@
 #define N2_BOARD_HOST
 #else
 #error "BuildConfig.h: unsupported board (need UNO R4 Minima or UNO R4 WiFi)"
+#endif
+
+// BIST answer keys on the panel switches (TOB = pass, TBS ON = fail): the WiFi bench and BENCH builds only [owner 2026-10-08].
+// On the production Minima the BIST is answered from the console, so a stray touch of a switch cannot answer a step.
+#if defined(N2_BOARD_WIFI) || defined(N2_BUILD_BENCH) || defined(N2_BUILD_HOST)
+#define N2_BIST_SWITCH_KEYS true
+#else
+#define N2_BIST_SWITCH_KEYS false
 #endif

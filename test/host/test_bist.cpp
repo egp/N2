@@ -636,3 +636,23 @@ TEST_CASE("BIST-3: every answer key is case-insensitive: P F R S Q, and the gaug
   for (const char* key : {"S", "s"}) { Rig r; REQUIRE(r.start() == Bist::Start::kOk); r.run(100); r.type(key); CHECK(r.bist.verdict(BistStep::kBanner) == BistVerdict::kSkip); }
   { Rig r; REQUIRE(r.start() == Bist::Start::kOk); r.run(100); r.type("Q"); r.run(100); CHECK_FALSE(r.bist.running()); }
 }
+
+TEST_CASE("BIST-3: with switchKeys OFF (production Minima) TOB and TBS never answer a step; the console does") {
+  BistConfig cfg; cfg.switchKeys = false;
+  Rig r(cfg);
+  REQUIRE(r.start() == Bist::Start::kOk);
+  r.run(100);
+  r.gen.tob(true);
+  r.run(200);
+  r.gen.tob(false);
+  r.run(100);
+  r.gen.tbs(true);
+  r.run(200);
+  CHECK(r.bist.current() == BistStep::kBanner);
+  CHECK(r.bist.verdict(BistStep::kBanner) != BistVerdict::kPass);
+  CHECK(r.bist.verdict(BistStep::kBanner) != BistVerdict::kFail);
+  r.gen.tbs(false);
+  r.run(100);
+  r.type("p");
+  CHECK(r.bist.verdict(BistStep::kBanner) == BistVerdict::kPass);
+}

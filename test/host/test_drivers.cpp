@@ -426,3 +426,21 @@ TEST_CASE("DRV-3: each scheduled full rewrite starts with entry mode and return 
   CHECK(homes >= 1);
   CHECK(std::string(lcd.shown(0)).substr(0, 1) == "A");
 }
+
+TEST_CASE("DRV-3: resync() sends function set, display control, entry mode and return home, then rewrites every cell") {
+  FakeHal hal;
+  hal.i2cPresent = {kLcd};
+  Lcd20x4 lcd(hal, kLcd);
+  lcd.setScreen(screen("A"));
+  uint32_t t = bringUp(hal, lcd);
+  for (uint32_t i = 1; i < 200; ++i) lcd.service(t + i);   // let the first screen settle
+  hal.i2cWrites.clear();
+  lcd.resync();
+  for (uint32_t i = 200; i < 260; ++i) lcd.service(t + i);
+  REQUIRE(hal.i2cWrites.size() >= 5);
+  CHECK(hal.i2cWrites[0].bytes == Bytes{0x2C, 0x28, 0x8C, 0x88});   // 0x28 function set
+  CHECK(hal.i2cWrites[1].bytes == Bytes{0x0C, 0x08, 0xCC, 0xC8});   // 0x0C display on
+  CHECK(hal.i2cWrites[2].bytes == Bytes{0x0C, 0x08, 0x6C, 0x68});   // 0x06 entry mode
+  CHECK(hal.i2cWrites[3].bytes == Bytes{0x0C, 0x08, 0x2C, 0x28});   // 0x02 return home
+  CHECK(hal.i2cWrites[4].bytes.size() == 4);                         // then the cells are rewritten (cursor command first)
+}

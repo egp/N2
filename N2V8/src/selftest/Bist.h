@@ -36,6 +36,7 @@ struct BistConfig {
   uint32_t outputStepMaxMs = 10000;  // an output step ends by itself after this long
   bool ssrSinglePulse = true;        // HQ8 pending: one short pulse instead of 2 Hz on the compressor SSR
   uint32_t ssrPulseMs = 1000;
+  bool switchKeys = true;            // TOB = pass and TBS ON = fail answer the steps (bench only; production answers from the console)
 };
 
 class Bist : public LineHook {
@@ -117,6 +118,7 @@ class Bist : public LineHook {
   uint32_t lastTick_ = 0;
   uint32_t aborts_ = 0;
   bool tobWasUp_ = true;
+  int8_t lcdPhase_ = -1;   // LCD test: which phase of the 4 s cycle we are in (resync at each change)
   Debouncer tbsDeb_, tobDeb_;   // TBS and TOB as the operator's answer keys: TOB = pass, TBS switched ON = fail (debounced like the system's)
 
   // step-local state
