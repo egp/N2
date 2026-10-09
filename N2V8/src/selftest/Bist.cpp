@@ -208,6 +208,7 @@ void Bist::enter(uint32_t now) {
   mark_ = now;
   phase_ = 0;
   lcdPhase_ = -1;
+  if (step_ != BistStep::kLcd) lcdSkip_ = 0;
   refused_ = false;
   outputOn_ = false;
   pulseDone_ = false;
@@ -241,6 +242,8 @@ void Bist::enter(uint32_t now) {
       break;  // the LED step drives the LED itself; the LCD shows the step number
     case BistStep::kLcd:
       say("  EXPECT LCD: backlight off, on; display off, on; all 80 cells show '#'; then cleared. ~4 s, repeats.");
+      say("  LED shows s.t P = seconds.tenths in the cycle and phase P: 0 backlight off, 1 text, 2 display off, 3 text, 4 all #, 5 text.");
+      say("  Experiment keys: 1 toggles the backlight blink, 2 the display-off, 3 the resync, 4 the # fill.");
       break;  // the LCD step drives the LCD itself
     case BistStep::kPressures:
       say("  Raw counts, volts and PSI per sensor (printed on change). Compare with the production gauges and enter");
@@ -308,6 +311,12 @@ void Bist::onLine(const char* line) {
       }
     }
     say("  usage: g air|n2l|n2h <psi>   e.g. g air 120.5");
+    return;
+  }
+  if (step_ == BistStep::kLcd && c >= '1' && c <= '4') {   // LCD test experiment keys: each toggles one part of the test
+    lcdSkip_ = static_cast<uint8_t>(lcdSkip_ ^ (1u << (c - '1')));
+    say("  LCD test: backlight blink %s, display off %s, resync %s, # fill %s", (lcdSkip_ & 1) ? "OFF" : "on", (lcdSkip_ & 2) ? "OFF" : "on",
+        (lcdSkip_ & 4) ? "OFF" : "on", (lcdSkip_ & 8) ? "OFF" : "on");
     return;
   }
   switch (c) {
@@ -380,23 +389,29 @@ void Bist::tickLed(uint32_t now) {
 void Bist::tickLcd(uint32_t now) {
   const uint32_t t = static_cast<uint32_t>(now - stepStart_) % 4000u;
   Lcd20x4& lcd = display_.lcd();
-  // Resync the controller at the start of every phase (bench 2026-10-08: the test left the LCD blank): ordinary commands, not a re-init.
+  // Phases of the 4 s cycle: 0 backlight OFF, 1 text, 2 display OFF, 3 text, 4 all '#', 5 text.
   const int8_t phase = t < 500 ? 0 : (t < 1000 ? 1 : (t < 1500 ? 2 : (t < 2000 ? 3 : (t < 3500 ? 4 : 5))));
+  // Resync the controller at the start of every phase (ordinary commands, not a re-init). Experiment key 3 turns this off.
   if (phase != lcdPhase_) {
     lcdPhase_ = phase;
-    lcd.resync();
+    if (!(lcdSkip_ & 4)) lcd.resync();
   }
-  lcd.setBacklight(!(t < 500));
-  lcd.setDisplayOn(!(t >= 1000 && t < 1500));
-  if (t >= 2000 && t < 3500) {
+  lcd.setBacklight(!(phase == 0 && !(lcdSkip_ & 1)));
+  lcd.setDisplayOn(!(phase == 2 && !(lcdSkip_ & 2)));
+  if (phase == 4 && !(lcdSkip_ & 8)) {
     const char* full = "####################";
     lcd.setScreen(makeScreen(full, full, full, full));
   } else {
     lcd.setScreen(makeScreen("BIST 4 LCD test", "Watch the LCD", "then type p or f"));
   }
+  // The LED shows where we are in the cycle: seconds.tenths since the cycle began, a blank, and the phase number: "1.2 3".
   LedText led;
-  snprintf(led.digit, sizeof led.digit, "   4");  // the LED shows the step number during the LCD test
-  led.dotAfter = -1;
+  led.digit[0] = static_cast<char>('0' + t / 1000u);
+  led.digit[1] = static_cast<char>('0' + (t / 100u) % 10u);
+  led.digit[2] = ' ';
+  led.digit[3] = static_cast<char>('0' + phase);
+  led.digit[4] = '\0';
+  led.dotAfter = 0;
   display_.led().setText(led);
 }
 

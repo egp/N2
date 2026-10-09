@@ -297,7 +297,8 @@ TEST_CASE("BIST step 4/DRV-3: the LCD test cycles backlight, display and a full 
   CHECK(backlightWasOff);
   CHECK(displayWasOff);
   CHECK(sawFull);
-  CHECK(r.display.led().shownSegments(3) == Led1650::segmentsFor('4'));  // the LED shows the step number
+  CHECK(r.display.led().shownSegments(2) == 0);                 // the LED shows s.t _ P (seconds.tenths in the cycle, blank, phase)
+  CHECK((r.display.led().shownSegments(0) & 0x80) != 0);        // with the decimal point after the first digit  // the LED shows the step number
 }
 
 TEST_CASE("BIST step 5: raw counts, volts and PSI are printed; a dead sensor is called out") {
