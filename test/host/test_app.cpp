@@ -854,3 +854,35 @@ TEST_CASE("MODE-4: a mode record written by another build (a new upload) is igno
   CHECK(r.app->runMode() == RunMode::kDiag);
   CHECK_FALSE(r.app->system().controllersEnabled());
 }
+
+TEST_CASE("REC-1: `rec on` prints a header, then one R, line per interval with raw counts, TBS, TOB and LRFS; E, lines for TBS/TOB changes; `rec off` stops") {
+  AppRig r;
+  r.boot();
+  REQUIRE(r.runUntilMode(App::Mode::kRun, 3000));
+  r.type("rec");
+  CHECK(r.has("rec OFF."));
+  r.type("rec on 5");
+  CHECK(r.has("the interval must be 100..60000 ms"));
+  r.type("REC ON 200");
+  CHECK(r.has("rec ON every 200 ms"));
+  CHECK(r.has("R#,ms,air_raw,n2low_raw,n2high_raw,tbs,tob,LRFS"));
+  r.out.clear();
+  r.run(1000);
+  int lines = 0;
+  for (size_t p = r.out.find("\nR,"); p != std::string::npos; p = r.out.find("\nR,", p + 1)) ++lines;
+  if (r.out.rfind("R,", 0) == 0) ++lines;
+  CHECK(lines >= 4);
+  CHECK(lines <= 6);
+  CHECK(r.has(",0,0,0000"));            // TBS off, TOB off, all outputs off
+  r.out.clear();
+  r.tob(true);
+  r.run(300);
+  CHECK(r.has("E,"));
+  CHECK(r.has(",tob,1"));
+  r.tob(false);
+  r.type("rec off");
+  CHECK(r.has("rec OFF"));
+  r.out.clear();
+  r.run(1000);
+  CHECK_FALSE(r.has("R,"));
+}

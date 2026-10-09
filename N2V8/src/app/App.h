@@ -74,6 +74,7 @@ class App : public CommandLauncher {
   const char* requestPost() override;
   const char* requestBist() override;
   const char* requestMode(const char* name, bool confirmed) override;
+  const char* requestRec(const char* arg0, const char* arg1) override;
   RunMode runMode() const { return runMode_; }
 
  private:
@@ -104,6 +105,11 @@ class App : public CommandLauncher {
   Mode mode_ = Mode::kPost;
   ResetInfo resetInfo_;
   void applyMode(RunMode m);
+  void recordTick(uint32_t now);
+  bool recOn_ = false;
+  uint32_t recEveryMs_ = 1000;
+  uint32_t recNext_ = 0;
+  bool recTbs_ = false, recTob_ = false;
   RunMode runMode_ = RunMode::kDiag;
   bool tobAtBoot_ = false;
   uint32_t postArmStart_ = 0;

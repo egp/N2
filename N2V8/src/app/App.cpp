@@ -1,6 +1,7 @@
 #include "App.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "../board/BoardSetup.h"
@@ -108,6 +109,57 @@ const char* App::requestMode(const char* name, bool confirmed) {
   return msg;
 }
 
+// The data recorder (owner 2026-10-09): one compact line per sample, read-only, any mode. Raw ADC counts, so a replay can run the whole
+// conversion path. Lines go straight to the console (not through the log level) and are dropped when there is no room; the sample time
+// stays on the millisecond clock. TBS and TOB changes print an event line at once so a short press is never lost.
+const char* App::requestRec(const char* arg0, const char* arg1) {
+  static char msg[100];
+  if (arg0 == nullptr) {
+    if (recOn_) snprintf(msg, sizeof msg, "rec ON every %lu ms. (rec off)", static_cast<unsigned long>(recEveryMs_));
+    else snprintf(msg, sizeof msg, "rec OFF. (rec on [ms], 100..60000, default 1000)");
+    return msg;
+  }
+  if (strcmp(arg0, "off") == 0) {
+    recOn_ = false;
+    return "rec OFF";
+  }
+  if (strcmp(arg0, "on") != 0) return "usage: rec [on [ms] | off]";
+  long ms = 1000;
+  if (arg1 != nullptr) ms = strtol(arg1, nullptr, 10);
+  if (ms < 100 || ms > 60000) return "rec: the interval must be 100..60000 ms";
+  recEveryMs_ = static_cast<uint32_t>(ms);
+  recOn_ = true;
+  recNext_ = hal_.millis();
+  recTbs_ = sys_.inputs().tbs;
+  recTob_ = sys_.inputs().tob;
+  char head[100];
+  snprintf(head, sizeof head, "R#,N2V8 %s,%s,%s,adc %u bits,every %lu ms", info_.version, info_.board, runModeName(runMode_),
+           static_cast<unsigned>(info_.adcBits), static_cast<unsigned long>(recEveryMs_));
+  console_.tryPrint(head);
+  console_.tryPrint("R#,ms,air_raw,n2low_raw,n2high_raw,tbs,tob,LRFS");
+  snprintf(msg, sizeof msg, "rec ON every %lu ms. Lines start with R, (samples) and E, (TBS/TOB events). rec off stops.", static_cast<unsigned long>(recEveryMs_));
+  return msg;
+}
+
+void App::recordTick(uint32_t now) {
+  const Inputs& in = sys_.inputs();
+  char line[80];
+  if (in.tbs != recTbs_ || in.tob != recTob_) {
+    if (in.tbs != recTbs_) { snprintf(line, sizeof line, "E,%lu,tbs,%u", static_cast<unsigned long>(now), in.tbs ? 1u : 0u); console_.tryPrint(line); }
+    if (in.tob != recTob_) { snprintf(line, sizeof line, "E,%lu,tob,%u", static_cast<unsigned long>(now), in.tob ? 1u : 0u); console_.tryPrint(line); }
+    recTbs_ = in.tbs;
+    recTob_ = in.tob;
+  }
+  if (static_cast<int32_t>(now - recNext_) < 0) return;
+  recNext_ += recEveryMs_;
+  if (static_cast<int32_t>(now - recNext_) >= 0) recNext_ = now + recEveryMs_;   // fell far behind: do not burst
+  const OutputRequest o = sys_.outputs().actualState();
+  snprintf(line, sizeof line, "R,%lu,%u,%u,%u,%u,%u,%c%c%c%c", static_cast<unsigned long>(now), static_cast<unsigned>(in.rawAir),
+           static_cast<unsigned>(in.rawN2Low), static_cast<unsigned>(in.rawN2High), in.tbs ? 1u : 0u, in.tob ? 1u : 0u, o.left ? '1' : '0',
+           o.right ? '1' : '0', o.flush ? '1' : '0', o.ssr ? '1' : '0');
+  console_.tryPrint(line);
+}
+
 void App::setup() {
   const uint32_t now = hal_.millis();
   beginHardware(hal_, board_);  // RST-2: outputs safe first, then ADC and I2C
@@ -204,6 +256,7 @@ void App::announceConsole() {
 
 void App::runPass(uint32_t now) {
   sys_.step();
+  if (recOn_) recordTick(now);
   DisplayData data = makeDisplayData(sys_, kAdcBits);
   if (runMode_ != RunMode::kField) data.version = info_.version;   // the version on the LCD while testing (not in FIELD)
   display_.showNormal(data, now);
