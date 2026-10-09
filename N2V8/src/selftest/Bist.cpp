@@ -157,6 +157,7 @@ Bist::Start Bist::begin(uint32_t now, bool requireTbsOff) {
   key_ = Key::kNone;
   qHead_ = qCount_ = 0;
   queueDrops_ = 0;
+  airAbortOff_ = false;
   tbsDeb_ = Debouncer(rawTbs(), sys_.tbsDebounceMs());   // start from the present levels: no false edge
   tobDeb_ = Debouncer(rawTob(), sys_.tobDebounceMs());
   tobWasUp_ = !tobDeb_.level();  // a TOB held since boot must be released first
@@ -348,6 +349,11 @@ void Bist::onLine(const char* line) {
     say("  usage: g air|n2l|n2h <psi>   e.g. g air 120.5");
     return;
   }
+  if (c == 'a' && rest[0] == '\0') {   // toggle the low-air abort (for watching the pressure drop on a valve step)
+    airAbortOff_ = !airAbortOff_;
+    say("  low-air abort %s (key a toggles it; it never disables the TBS abort)", airAbortOff_ ? "OFF: observe only" : "ON");
+    return;
+  }
   switch (c) {
     case 'p': key_ = Key::kPass; break;
     case 'f': key_ = Key::kFail; snprintf(keyNote_, sizeof keyNote_, "%s", rest); break;
@@ -513,6 +519,13 @@ void Bist::tickOutputStep(uint32_t now, Signal sig) {
   if (phase_ != 1) return;
 
   const char* abortWhy = rawTbs() ? "TBS switched ON" : vetoReason(sig, inputs_, sys_.config());
+  if (airAbortOff_ && abortWhy != nullptr && strcmp(abortWhy, "air supply pressure is low") == 0) abortWhy = nullptr;   // observe-only (key `a`)
+  if (sig != Signal::kSsr && static_cast<uint32_t>(now - airLogMark_) >= 50) {   // the air pressure while the valve works, every 50 ms
+    airLogMark_ = now;
+    say("  AIR +%lu ms: raw %u = %u.%u PSI  (N2L raw %u, N2H raw %u)%s", static_cast<unsigned long>(now - stepStart_), static_cast<unsigned>(inputs_.rawAir),
+        static_cast<unsigned>(inputs_.airX10 / 10u), static_cast<unsigned>(inputs_.airX10 % 10u), static_cast<unsigned>(inputs_.rawN2Low),
+        static_cast<unsigned>(inputs_.rawN2High), inputs_.airX10 < sys_.config().airLowOff ? "  BELOW LIMIT" : "");
+  }
   if (abortWhy != nullptr) {  // BIST-11: stop at once
     outputsOff(now);
     ++aborts_;

@@ -679,3 +679,22 @@ TEST_CASE("BIST-3: with switchKeys OFF (production Minima) TOB and TBS never ans
   r.type("p");
   CHECK(r.bist.verdict(BistStep::kBanner) == BistVerdict::kPass);
 }
+
+TEST_CASE("BIST-11: LEFT valve: low air aborts; with key a (observe only) the step keeps running, logs the air every 50 ms and shows BELOW LIMIT") {
+  Rig r;
+  REQUIRE(r.start() == Bist::Start::kOk);
+  r.goTo(BistStep::kLeft);
+  r.run(100);
+  r.type("a");
+  CHECK(r.has("low-air abort OFF: observe only"));
+  r.gen.air(500);                        // 50.0 PSI, below the 70 PSI limit, once the valve is running
+  r.run(1500);
+  CHECK(r.has("BELOW LIMIT"));
+  CHECK(r.has("AIR +"));
+  CHECK_FALSE(r.has("ABORTED"));
+  r.type("a");
+  CHECK(r.has("low-air abort ON"));
+  r.run(1500);
+  CHECK(r.has("ABORTED: air supply pressure is low"));
+  CHECK(r.has("at the abort: AIR raw"));
+}

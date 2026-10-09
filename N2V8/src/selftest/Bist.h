@@ -141,6 +141,8 @@ class Bist : public LineHook {
   uint32_t aborts_ = 0;
   bool tobWasUp_ = true;
   int8_t lcdPhase_ = -1;
+  bool airAbortOff_ = false;    // key `a`: do not abort an output step on LOW AIR (observe the pressure drop); everything else still aborts
+  uint32_t airLogMark_ = 0;
   uint16_t airBeforeX10_ = 0;   // the air reading when an output step began, to show next to the reading at an abort
   Debouncer tbsDeb_, tobDeb_;   // TBS and TOB as the operator's answer keys: TOB = pass, TBS switched ON = fail (debounced like the system's)
 
