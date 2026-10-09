@@ -886,3 +886,25 @@ TEST_CASE("REC-1: `rec on` prints a header, then one R, line per interval with r
   r.run(1000);
   CHECK_FALSE(r.has("R,"));
 }
+
+TEST_CASE("REC-2: `cap` prints one R, line now, `cap text` and `note text` add an N, line with the text as typed (case kept)") {
+  AppRig r;
+  r.boot();
+  REQUIRE(r.runUntilMode(App::Mode::kRun, 3000));
+  r.out.clear();
+  r.type("cap");
+  CHECK(r.has("R,"));
+  CHECK(r.has("captured"));
+  CHECK_FALSE(r.has("N,"));
+  r.out.clear();
+  r.type("CAP Compressor started, 95 psi");
+  CHECK(r.has("R,"));
+  CHECK(r.has("N,"));
+  CHECK(r.has(",Compressor started, 95 psi"));   // the note keeps its case and commas
+  r.out.clear();
+  r.type("note   valve LEFT clicked ");
+  CHECK_FALSE(r.has("R,"));
+  CHECK(r.has(",valve LEFT clicked"));
+  r.type("note");
+  CHECK(r.has("usage: note <text>"));
+}

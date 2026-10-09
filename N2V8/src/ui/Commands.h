@@ -28,6 +28,7 @@ class CommandLauncher {
   virtual const char* requestBist() = 0;
   virtual const char* requestMode(const char* name, bool confirmed) = 0;   // name: nullptr = report the mode
   virtual const char* requestRec(const char* arg0, const char* arg1) = 0;  // the data recorder: nullptr = status, "on" [ms], "off"
+  virtual const char* requestCap(const char* note, bool sample) = 0;       // one capture now (sample = true) and/or a note line
 };
 
 struct ConsoleContext {

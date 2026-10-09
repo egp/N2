@@ -7,7 +7,7 @@ namespace n2 {
 
 enum class CommandId : uint8_t {
   kNone,  // empty line
-  kHelp, kVer, kStatus, kReport, kLog, kFaults, kCfg, kDisplay, kLoop, kScan, kPost, kBist, kTime, kNvm, kDebounce, kPins, kLcd, kMode, kRec,
+  kHelp, kVer, kStatus, kReport, kLog, kFaults, kCfg, kDisplay, kLoop, kScan, kPost, kBist, kTime, kNvm, kDebounce, kPins, kLcd, kMode, kRec, kCap, kNote,
   kUnknown
 };
 
@@ -16,6 +16,7 @@ struct Command {
   char name[16] = {};   // the word as typed, lower case (for error messages)
   char arg[3][20] = {};
   uint8_t argc = 0;
+  char rest[56] = {};   // everything after the command word, as typed (case kept): for `note` and `cap`
 };
 
 // Case-insensitive; words separated by spaces or tabs; at most three arguments are kept.

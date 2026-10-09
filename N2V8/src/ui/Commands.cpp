@@ -52,6 +52,11 @@ Responder* Commands::handle(const Command& cmd) {
       if (c_.launcher == nullptr) { message_.set("'rec' is not available in this build"); return &message_; }
       message_.set("%s", c_.launcher->requestRec(cmd.argc > 0 ? cmd.arg[0] : nullptr, cmd.argc > 1 ? cmd.arg[1] : nullptr));
       return &message_;
+    case CommandId::kCap:
+    case CommandId::kNote:
+      if (c_.launcher == nullptr) { message_.set("'%s' is not available in this build", cmd.name); return &message_; }
+      message_.set("%s", c_.launcher->requestCap(cmd.rest, cmd.id == CommandId::kCap));
+      return &message_;
     case CommandId::kLcd: {
       if (c_.lcd == nullptr) { message_.set("no LCD driver in this build"); return &message_; }
       Lcd20x4& l = *c_.lcd;
@@ -157,6 +162,7 @@ bool Commands::Help::line(uint8_t i, char* b, size_t n) {
       "  display            what the LCD and LED should show",
       "  lcd [reinit|bus]   LCD driver state; reinit = restart its controller; bus = I2C link test",
       "  mode [diag|bench|field [confirm]]  run mode: diag = controllers off; bench/field need TBS OFF and the word confirm",
+      "  cap [text]         capture ONE reading now as an R, line (optional note after it); note text = a note line",
       "  rec [on [ms] | off]  record sensors, TBS, TOB, outputs as R, lines (default every 1000 ms)",
       "  pins               every pin: which signal, its level now / raw volts (verify the wiring)",
       "  nvm                non-volatile memory: what is stored, each check, write count",

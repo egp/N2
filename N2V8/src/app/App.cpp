@@ -141,6 +141,30 @@ const char* App::requestRec(const char* arg0, const char* arg1) {
   return msg;
 }
 
+// One R, line from the inputs of the latest pass (raw ADC counts, debounced TBS and TOB, the four actual outputs as L R F S).
+void App::printSample(uint32_t now) {
+  const Inputs& in = sys_.inputs();
+  char line[80];
+  const OutputRequest o = sys_.outputs().actualState();
+  snprintf(line, sizeof line, "R,%lu,%u,%u,%u,%u,%u,%c%c%c%c", static_cast<unsigned long>(now), static_cast<unsigned>(in.rawAir),
+           static_cast<unsigned>(in.rawN2Low), static_cast<unsigned>(in.rawN2High), in.tbs ? 1u : 0u, in.tob ? 1u : 0u, o.left ? '1' : '0',
+           o.right ? '1' : '0', o.flush ? '1' : '0', o.ssr ? '1' : '0');
+  console_.tryPrint(line);
+}
+
+// `cap [text]` captures ONE reading now, `note text` writes only a note line. The converter attaches each N, line to the sample before it.
+const char* App::requestCap(const char* note, bool sample) {
+  const uint32_t now = hal_.millis();
+  if (sample) printSample(now);
+  if (note != nullptr && note[0] != '\0') {
+    char line[72];
+    snprintf(line, sizeof line, "N,%lu,%s", static_cast<unsigned long>(now), note);
+    console_.tryPrint(line);
+    return sample ? "captured, with the note" : "noted";
+  }
+  return sample ? "captured" : "usage: note <text>";
+}
+
 void App::recordTick(uint32_t now) {
   const Inputs& in = sys_.inputs();
   char line[80];
@@ -153,11 +177,7 @@ void App::recordTick(uint32_t now) {
   if (static_cast<int32_t>(now - recNext_) < 0) return;
   recNext_ += recEveryMs_;
   if (static_cast<int32_t>(now - recNext_) >= 0) recNext_ = now + recEveryMs_;   // fell far behind: do not burst
-  const OutputRequest o = sys_.outputs().actualState();
-  snprintf(line, sizeof line, "R,%lu,%u,%u,%u,%u,%u,%c%c%c%c", static_cast<unsigned long>(now), static_cast<unsigned>(in.rawAir),
-           static_cast<unsigned>(in.rawN2Low), static_cast<unsigned>(in.rawN2High), in.tbs ? 1u : 0u, in.tob ? 1u : 0u, o.left ? '1' : '0',
-           o.right ? '1' : '0', o.flush ? '1' : '0', o.ssr ? '1' : '0');
-  console_.tryPrint(line);
+  printSample(now);
 }
 
 void App::setup() {

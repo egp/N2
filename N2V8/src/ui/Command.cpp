@@ -15,7 +15,7 @@ const Entry kEntries[] = {
     {"faults", CommandId::kFaults}, {"cfg", CommandId::kCfg},      {"display", CommandId::kDisplay},
     {"loop", CommandId::kLoop},     {"scan", CommandId::kScan},    {"post", CommandId::kPost},
     {"bist", CommandId::kBist},     {"time", CommandId::kTime},
-    {"nvm", CommandId::kNvm},       {"debounce", CommandId::kDebounce}, {"pins", CommandId::kPins}, {"lcd", CommandId::kLcd}, {"mode", CommandId::kMode}, {"rec", CommandId::kRec},
+    {"nvm", CommandId::kNvm},       {"debounce", CommandId::kDebounce}, {"pins", CommandId::kPins}, {"lcd", CommandId::kLcd}, {"mode", CommandId::kMode}, {"rec", CommandId::kRec}, {"cap", CommandId::kCap}, {"note", CommandId::kNote},
 };
 
 char lower(char c) { return (c >= 'A' && c <= 'Z') ? static_cast<char>(c - 'A' + 'a') : c; }
@@ -39,6 +39,13 @@ Command parseCommand(const char* line) {
   Command c;
   const char* p = nextWord(line, c.name, sizeof c.name);
   if (p == nullptr) return c;  // kNone
+  {   // the rest of the line as typed, for free text
+    while (*p == ' ' || *p == '\t') ++p;
+    size_t n = 0;
+    for (const char* q = p; *q != '\0' && n + 1 < sizeof c.rest; ++q) c.rest[n++] = *q;
+    while (n > 0 && (c.rest[n - 1] == ' ' || c.rest[n - 1] == '\t')) --n;
+    c.rest[n] = '\0';
+  }
   c.id = CommandId::kUnknown;
   for (const Entry& e : kEntries)
     if (strcmp(c.name, e.name) == 0) c.id = e.id;
