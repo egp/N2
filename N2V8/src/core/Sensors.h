@@ -17,10 +17,11 @@ namespace n2 {
 // (FaultSet adds the clear hold.)
 class SensorChannel {
  public:
-  bool update(uint16_t raw, uint8_t adcBits, uint8_t samplesNeeded);
+  bool update(uint16_t raw, uint8_t adcBits, uint8_t samplesNeeded, uint32_t now = 0, uint32_t minMs = 0);
   bool asserted() const { return asserted_; }
 
  private:
+  uint32_t badSince_ = 0;
   uint8_t bad_ = 0;
   bool asserted_ = false;
 };

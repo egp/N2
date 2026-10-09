@@ -699,15 +699,41 @@ TEST_CASE("BIST-11: LEFT valve: low air aborts; with key a (observe only) the st
   CHECK(r.has("at the abort: AIR raw"));
 }
 
-TEST_CASE("BIST-11: low air is tolerated for 1000 ms after the valve first opens (the drop is expected), then it aborts") {
+TEST_CASE("BIST-11: low air is tolerated for 1000 ms after EVERY opening of the valve, then (valve held open) it aborts") {
   Rig r;
   REQUIRE(r.start() == Bist::Start::kOk);
   r.goTo(BistStep::kLeft);
-  r.run(520);                              // the first toggle (valve ON) happens at about 500 ms
+  r.type("h");                             // hold the valve open, so the grace of the single opening runs out
+  r.run(520);                              // the valve opens at about 500 ms
   r.gen.air(500);                          // 50 PSI as the valve opens
   r.run(700);
   CHECK_FALSE(r.has("ABORTED"));           // inside the grace time
   CHECK(r.has("BELOW LIMIT"));
   r.run(800);
-  CHECK(r.has("ABORTED: air supply pressure is low"));   // after 1000 ms the limit applies
+  CHECK(r.has("ABORTED: air supply pressure is low"));   // after 1000 ms with the valve still open the limit applies
+}
+
+TEST_CASE("BIST-11: with the valve toggling, every new opening restarts the 1000 ms grace, so a sag at each opening never aborts") {
+  Rig r;
+  REQUIRE(r.start() == Bist::Start::kOk);
+  r.goTo(BistStep::kLeft);
+  for (int i = 0; i < 500; ++i) {           // 5 s: the supply sags to 50 PSI whenever the valve is open and recovers when it is closed
+    r.gen.air(r.gen.left() ? 500 : 1000);
+    r.run(10);
+  }
+  CHECK_FALSE(r.has("ABORTED"));
+  CHECK(r.has("BELOW LIMIT"));
+}
+
+TEST_CASE("BIST-11: key h holds the valve open (no toggling) so the air pressure can settle; without it the valve toggles") {
+  Rig r;
+  REQUIRE(r.start() == Bist::Start::kOk);
+  r.goTo(BistStep::kLeft);
+  r.type("h");
+  CHECK(r.has("hold open ON"));
+  r.run(4000);
+  CHECK(r.gen.left());                       // still open after 4 s
+  int offs = 0;
+  for (size_t p = r.out.find("LEFT valve OFF"); p != std::string::npos; p = r.out.find("LEFT valve OFF", p + 1)) ++offs;
+  CHECK(offs == 0);
 }

@@ -36,13 +36,14 @@ struct ControlConfig {
   uint32_t faultHoldMs;         // FLT-1
   uint16_t sensorOrderMarginX100;  // INP-7: N2-low may exceed N2-high by this much (PSI x100)
   uint32_t sensorOrderHoldMs;
+  uint32_t sensorFaultMs;       // INP-5: an out-of-window reading must ALSO last this long before it is a fault (a switching spike of a few ms must not trip F01..F03)
 };
 
 inline constexpr ControlConfig kDefaultControl = {
     700, 900, 59250, 750,                          // tower (air off 70 / on 90 PSI: owner 2026-10-09, this machine's supply peaks at 100 PSI and sags when a valve opens)
     1000, 2000, 1000, 1200,                        // compressor
     60000, 2000, 250, 10, 1000, 3000, 60000, 300000, true,  // O2
-    1000, 3, 5000, 100, 5000};                     // outputs and faults
+    1000, 3, 5000, 100, 5000, 50};                 // outputs and faults (last: sensor fault persistence 50 ms)
 
 // CFG-5: hysteresis pairs must be ordered.
 constexpr bool validControl(const ControlConfig& c) {

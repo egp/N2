@@ -11,7 +11,7 @@ Severity: **INHIBIT** = the firmware switches outputs off (see the invariants); 
 
 | Code | Text (as shown) | Severity | Latching | What the system does | Raised when | What to check on site |
 |---|---|---|---|---|---|---|
-| F01 | AIR SENSOR RANGE | INHIBIT | no | TOWERS HELD OFF | The air-pressure input is outside its valid voltage window for `sensorFaultSamples` samples in a row | Air sensor wiring and 5 V supply, connector, the A0 input; compare with the production gauge |
+| F01 | AIR SENSOR RANGE | INHIBIT | no | TOWERS HELD OFF | The air-pressure input is outside its valid voltage window for `sensorFaultSamples` samples in a row AND for at least `sensorFaultMs` (50 ms) | Air sensor wiring and 5 V supply, connector, the A0 input; compare with the production gauge |
 | F02 | N2L SENSOR RANGE | INHIBIT | no | SSR HELD OFF | The N2-low input is outside its valid window (same rule) | N2-low sensor wiring, the A3 input |
 | F03 | N2H SENSOR RANGE | INHIBIT | no | TOWERS+SSR OFF | The N2-high input is outside its valid window (same rule) | N2-high sensor wiring; the pin is provisional (A1): confirm in `BoardPins.h` |
 | F04 | N2L ABOVE N2H | INHIBIT | no | TOWERS+SSR OFF | The N2-low reading exceeds N2-high by more than the margin for the hold time, with both sensors valid | The two N2 sensors swapped, or one miscalibrated or stuck; gauge check |

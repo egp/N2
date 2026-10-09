@@ -158,6 +158,7 @@ Bist::Start Bist::begin(uint32_t now, bool requireTbsOff) {
   qHead_ = qCount_ = 0;
   queueDrops_ = 0;
   airAbortOff_ = false;
+  holdOpen_ = false;
   tbsDeb_ = Debouncer(rawTbs(), sys_.tbsDebounceMs());   // start from the present levels: no false edge
   tobDeb_ = Debouncer(rawTob(), sys_.tobDebounceMs());
   tobWasUp_ = !tobDeb_.level();  // a TOB held since boot must be released first
@@ -350,6 +351,11 @@ void Bist::onLine(const char* line) {
     say("  usage: g air|n2l|n2h <psi>   e.g. g air 120.5");
     return;
   }
+  if (c == 'h' && rest[0] == '\0') {   // toggle hold-open for the valve steps
+    holdOpen_ = !holdOpen_;
+    say("  hold open %s (key h toggles it): a valve step %s", holdOpen_ ? "ON" : "off", holdOpen_ ? "opens the valve ONCE and keeps it open until you answer or the step limit" : "toggles at about 2 Hz");
+    return;
+  }
   if (c == 'a' && rest[0] == '\0') {   // toggle the low-air abort (for watching the pressure drop on a valve step)
     airAbortOff_ = !airAbortOff_;
     say("  low-air abort %s (key a toggles it; it never disables the TBS abort)", airAbortOff_ ? "OFF: observe only" : "ON");
@@ -521,7 +527,7 @@ void Bist::tickOutputStep(uint32_t now, Signal sig) {
 
   const char* abortWhy = rawTbs() ? "TBS switched ON" : vetoReason(sig, inputs_, sys_.config());
   if (abortWhy != nullptr && strcmp(abortWhy, "air supply pressure is low") == 0) {
-    const bool inGrace = firstOnAt_ != 0 && static_cast<uint32_t>(now - firstOnAt_) < cfg_.airGraceMs;   // the drop when the valve opens is expected
+    const bool inGrace = outputOn_ && firstOnAt_ != 0 && static_cast<uint32_t>(now - firstOnAt_) < cfg_.airGraceMs;   // the drop after EVERY opening is expected (owner 2026-10-09)
     if (airAbortOff_ || inGrace) abortWhy = nullptr;   // observe-only (key `a`), or inside the grace time
   }
   if (sig != Signal::kSsr && static_cast<uint32_t>(now - airLogMark_) >= 50) {   // the air pressure while the valve works, every 50 ms
@@ -565,11 +571,11 @@ void Bist::tickOutputStep(uint32_t now, Signal sig) {
     phase_ = 2;
     return;
   }
-  if (static_cast<uint32_t>(now - mark_) >= cfg_.halfPeriodMs) {
+  if (static_cast<uint32_t>(now - mark_) >= cfg_.halfPeriodMs && !(holdOpen_ && outputOn_)) {   // key h: once ON, stay ON
     mark_ = now;
     outputOn_ = !outputOn_;
     sys_.outputDriver().forceDrive(sig, outputOn_, now);
-    if (outputOn_ && firstOnAt_ == 0) firstOnAt_ = now != 0 ? now : 1;
+    if (outputOn_) firstOnAt_ = now != 0 ? now : 1;   // every opening starts a new grace time (the name is historic: it is the LAST opening)
     say("  %s %s", signalLabel(sig), outputOn_ ? "ON" : "OFF");
   }
 }

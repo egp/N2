@@ -50,10 +50,10 @@ TEST_CASE("INP-5: a sensor is declared faulty only after N consecutive bad sampl
   r.setHigh(500);
   r.hal.analogValue[pinOf(kHostBoard, Signal::kN2HighPressure)] = 0;  // wire off: 0 V
   r.sample(0);
-  r.sample(10);
+  r.sample(30);
   CHECK(r.in.n2HighOk);  // two bad samples: not yet
-  r.sample(20);
-  CHECK_FALSE(r.in.n2HighOk);  // third consecutive
+  r.sample(60);
+  CHECK_FALSE(r.in.n2HighOk);  // third consecutive, and bad for 60 ms (>= sensorFaultMs)
   CHECK(r.faults.active(FaultId::kN2HighSensor));
   CHECK(r.in.airOk);
   CHECK(r.in.n2LowOk);
@@ -77,7 +77,7 @@ TEST_CASE("INP-4: a disconnected sensor is a fault, not 0 PSI (the V7 failure)")
   r.setAir(1000);
   r.setLow(1500);
   r.hal.analogValue[pinOf(kHostBoard, Signal::kN2HighPressure)] = 0;
-  for (int i = 0; i < 3; ++i) r.sample(i);
+  for (int i = 0; i < 3; ++i) r.sample(i * 30);
   CHECK(r.in.n2HighX10 == 0);  // the scaled value alone would look like an empty tank
   CHECK_FALSE(r.in.n2HighOk);  // ...so the validity flag is what the controllers must use
 }
@@ -87,7 +87,7 @@ TEST_CASE("INP-4: a shorted high reading is also a fault") {
   r.setAir(1000);
   r.setLow(1500);
   r.hal.analogValue[pinOf(kHostBoard, Signal::kN2HighPressure)] = static_cast<uint16_t>(adcMaxRaw(r.bits));
-  for (int i = 0; i < 3; ++i) r.sample(i);
+  for (int i = 0; i < 3; ++i) r.sample(i * 30);
   CHECK_FALSE(r.in.n2HighOk);
 }
 
@@ -97,7 +97,7 @@ TEST_CASE("FLT-1: a recovered sensor stays 'not ok' until the clear hold has pas
   r.setLow(1500);
   const uint16_t pin = pinOf(kHostBoard, Signal::kN2HighPressure);
   r.hal.analogValue[pin] = 0;
-  for (int i = 0; i < 3; ++i) r.sample(i * 10);
+  for (int i = 0; i < 3; ++i) r.sample(i * 30);
   REQUIRE_FALSE(r.in.n2HighOk);
   r.setHigh(500);
   r.sample(100);
@@ -145,4 +145,20 @@ TEST_CASE("INP-7: the check is skipped when either sensor is faulty") {
   for (uint32_t t = 0; t < 20000; t += 100) r.sample(t);
   CHECK_FALSE(r.in.n2HighOk);
   CHECK_FALSE(r.in.sensorOrderFault);  // F03 explains it; F04 would be a false second alarm
+}
+
+TEST_CASE("INP-5: a few milliseconds of bad readings (a solenoid switching spike) is NOT a fault; 50 ms of it is") {
+  Rig r;
+  r.setAir(1000);
+  r.setLow(1500);
+  r.setHigh(500);
+  const uint16_t pin = pinOf(kHostBoard, Signal::kN2HighPressure);
+  r.hal.analogValue[pin] = 70;                       // the dip seen on the bench: raw 70 = 0.34 V
+  for (uint32_t t = 0; t < 6; ++t) r.sample(t);      // six consecutive bad samples, 5 ms in all
+  CHECK(r.in.n2HighOk);
+  r.setHigh(500);
+  r.sample(6);                                       // back to normal
+  r.hal.analogValue[pin] = 70;
+  for (uint32_t t = 100; t <= 160; t += 5) r.sample(t);   // bad for 60 ms
+  CHECK_FALSE(r.in.n2HighOk);
 }

@@ -1,4 +1,4 @@
-// N2V8.ino — PSA nitrogen generator controller (UNO R4 Minima / UNO R4 WiFi).      VERSION 8.1.1A  (N2_VERSION in src/BuildConfig.h)
+// N2V8.ino — PSA nitrogen generator controller (UNO R4 Minima / UNO R4 WiFi).      VERSION 8.1.1B  (N2_VERSION in src/BuildConfig.h)
 //
 // All behaviour lives in src/ and is tested on the host; this file is only glue.
 //   build mode (src/BuildConfig.h): DIAG (default) = diagnostics only, no controllers;
@@ -10,10 +10,10 @@
 
 // WHERE TO EDIT   (file:line, relative to this folder. In the Arduino IDE 2: open the file, then Ctrl+L = go to line)
 // COMMON EDITS (air and N2-high PSI x10, N2-low PSI x100, times in ms)
-//   src/ControlConfig.h:42     TOWER      airLowOff airLowOn towerFillMs towerOverlapMs
-//   src/ControlConfig.h:43     COMPRESSOR n2LowOff n2LowOn n2HighOn n2HighOff
-//   src/ControlConfig.h:44     O2         interval flush sample count retry timeout errorRetry warm-up mandatory
-//   src/ControlConfig.h:45     OUTPUTS/FAULTS  minHold sensorFaultSamples faultHold orderMargin orderHold
+//   src/ControlConfig.h:43     TOWER      airLowOff airLowOn towerFillMs towerOverlapMs
+//   src/ControlConfig.h:44     COMPRESSOR n2LowOff n2LowOn n2HighOn n2HighOff
+//   src/ControlConfig.h:45     O2         interval flush sample count retry timeout errorRetry warm-up mandatory
+//   src/ControlConfig.h:46     OUTPUTS/FAULTS  minHold sensorFaultSamples faultHold orderMargin orderHold
 //   src/Config.h:21            sensor valid window 0.5-4.5 V, fault window 0.4-4.6 V, full scales
 //   src/app/App.h:36           watchdog ms, LCD layout, LCD start delay, fault screen cycle, log level
 //   src/BuildConfig.h:23       build mode (DIAG default / FIELD), default log level, O2 mandatory
@@ -26,7 +26,7 @@
 //   src/core/Compressor.cpp:39         COMPRESSOR controller
 //   src/core/O2Controller.cpp:60       O2 controller (flush, sample, warm-up)
 //   src/drivers/O2SensorDfrobot.cpp:31 O2 sensor read (DFRobot library adapter)
-//   src/core/Sensors.cpp:16            pressure inputs, fault windows
+//   src/core/Sensors.cpp:19            pressure inputs, fault windows
 //   src/core/Invariants.cpp:14         SAFETY rules (INV-1 .. INV-10)
 //   src/core/OutputDriver.cpp:35       outputs: active levels, minimum hold
 //   src/core/Faults.cpp:8              fault table (codes, text, severity)
@@ -36,7 +36,7 @@
 //   src/drivers/Led1650.cpp:59         LED driver
 //   src/drivers/Rtc3231.cpp:7          RTC driver
 //   src/selftest/Post.cpp:40           POST
-//   src/selftest/Bist.cpp:577          BIST
+//   src/selftest/Bist.cpp:583          BIST
 //   src/ui/Commands.cpp:17             console commands
 //   src/hal/HalArduino.cpp:98          hardware access: console, I2C, reset cause
 //   N2V8.ino:118                       this file: setup() and loop() glue (:119)

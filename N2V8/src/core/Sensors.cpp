@@ -2,13 +2,16 @@
 
 namespace n2 {
 
-bool SensorChannel::update(uint16_t raw, uint8_t adcBits, uint8_t samplesNeeded) {
+bool SensorChannel::update(uint16_t raw, uint8_t adcBits, uint8_t samplesNeeded, uint32_t now, uint32_t minMs) {
   if (classifyRaw(raw, adcBits) == RawStatus::kOk) {
     bad_ = 0;
     asserted_ = false;
   } else {
+    if (bad_ == 0) badSince_ = now;
     if (bad_ < 255) ++bad_;
-    asserted_ = bad_ >= samplesNeeded;
+    // N consecutive bad samples AND bad for at least minMs: the loop runs about every millisecond, so 3 samples alone are only ~3 ms
+    // (bench 2026-10-09: the solenoid switching OFF put one bad N2-high reading on the line for a few ms).
+    asserted_ = bad_ >= samplesNeeded && static_cast<uint32_t>(now - badSince_) >= minMs;
   }
   return asserted_;
 }
@@ -18,9 +21,9 @@ void SensorMonitor::sample(Hal& hal, uint32_t now, FaultSet& faults, Inputs& in)
   const uint16_t rawLow = hal.analogRead(pinOf(board_, Signal::kN2LowPressure));
   const uint16_t rawHigh = hal.analogRead(pinOf(board_, Signal::kN2HighPressure));
 
-  faults.report(FaultId::kAirSensor, air_.update(rawAir, adcBits_, cfg_.sensorFaultSamples), now, cfg_.faultHoldMs);
-  faults.report(FaultId::kN2LowSensor, n2Low_.update(rawLow, adcBits_, cfg_.sensorFaultSamples), now, cfg_.faultHoldMs);
-  faults.report(FaultId::kN2HighSensor, n2High_.update(rawHigh, adcBits_, cfg_.sensorFaultSamples), now, cfg_.faultHoldMs);
+  faults.report(FaultId::kAirSensor, air_.update(rawAir, adcBits_, cfg_.sensorFaultSamples, now, cfg_.sensorFaultMs), now, cfg_.faultHoldMs);
+  faults.report(FaultId::kN2LowSensor, n2Low_.update(rawLow, adcBits_, cfg_.sensorFaultSamples, now, cfg_.sensorFaultMs), now, cfg_.faultHoldMs);
+  faults.report(FaultId::kN2HighSensor, n2High_.update(rawHigh, adcBits_, cfg_.sensorFaultSamples, now, cfg_.sensorFaultMs), now, cfg_.faultHoldMs);
 
   in.rawAir = rawAir;
   in.rawN2Low = rawLow;

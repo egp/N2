@@ -420,7 +420,7 @@ bool Commands::Cfg::line(uint8_t i, char* b, size_t n) {
                       static_cast<unsigned long>(c.o2CommTimeoutMs), static_cast<unsigned long>(c.o2ErrorRetryMs)); return true;
     case 10: snprintf(b, n, "o2Warmup    %lu ms  mandatory %s", static_cast<unsigned long>(c.o2WarmupMs), c.o2Mandatory ? "yes" : "no"); return true;
     case 11: snprintf(b, n, "outputMinHold %lu ms", static_cast<unsigned long>(c.outputMinHoldMs)); return true;
-    case 12: snprintf(b, n, "sensorFault %u samples  clear hold %lu ms", static_cast<unsigned>(c.sensorFaultSamples), static_cast<unsigned long>(c.faultHoldMs)); return true;
+    case 12: snprintf(b, n, "sensorFault %u samples and %lu ms  clear hold %lu ms", static_cast<unsigned>(c.sensorFaultSamples), static_cast<unsigned long>(c.sensorFaultMs), static_cast<unsigned long>(c.faultHoldMs)); return true;
     case 13: snprintf(b, n, "sensorOrder margin %u (PSI x100)  hold %lu ms", c.sensorOrderMarginX100, static_cast<unsigned long>(c.sensorOrderHoldMs)); return true;
   }
   return false;
