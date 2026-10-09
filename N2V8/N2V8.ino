@@ -1,4 +1,4 @@
-// N2V8.ino — PSA nitrogen generator controller (UNO R4 Minima / UNO R4 WiFi).      VERSION 8.1.14  (N2_VERSION in src/BuildConfig.h)
+// N2V8.ino — PSA nitrogen generator controller (UNO R4 Minima / UNO R4 WiFi).      VERSION 8.1.15  (N2_VERSION in src/BuildConfig.h)
 //
 // All behaviour lives in src/ and is tested on the host; this file is only glue.
 //   build mode (src/BuildConfig.h): DIAG (default) = diagnostics only, no controllers;
@@ -19,7 +19,7 @@
 //   src/BuildConfig.h:23       build mode (DIAG default / FIELD), default log level, O2 mandatory
 //   src/BoardPins.h:92         pins, active levels (kLcdAddress = 0x23 just above the boards)
 // CODE BY AREA
-//   src/app/App.cpp:322                loop(): POST mode / BIST / RUN
+//   src/app/App.cpp:328                loop(): POST mode / BIST / RUN
 //   src/app/App.cpp:196                setup(): outputs safe first, then the rest
 //   src/core/System.cpp:47             one pass: inputs, controllers, invariants, outputs
 //   src/core/Tower.cpp:43              TOWER controller

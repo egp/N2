@@ -490,17 +490,30 @@ TEST_CASE("RTC-5: the banner and `report` carry the RTC date/time when it is fit
   CHECK(r.has("RTC 2026-10-06 10:31:02 (trusted)"));
 }
 
-TEST_CASE("RTC-5: F13 appears in RUN when the RTC is missing, never stops the system, and clears when it returns") {
+TEST_CASE("RTC-5: an RTC that was fitted at boot and then disappears raises F13 in RUN (INFO, never stops the system) and clears when it returns") {
+  AppRig r;
+  r.tbs(true);
+  r.boot();
+  r.run(12000);
+  CHECK_FALSE(r.app->system().faults().active(FaultId::kRtc));
+  r.hal.i2cPresent.erase(0x68);                       // it was there at boot; now it is gone
+  r.run(25000);
+  CHECK(r.app->system().faults().active(FaultId::kRtc));
+  CHECK(r.outputOn(Signal::kSsr));                    // control is unaffected
+  r.hal.i2cPresent.insert(0x68);
+  r.run(30000);
+  CHECK_FALSE(r.app->system().faults().active(FaultId::kRtc));
+}
+
+TEST_CASE("RTC-5: a panel with NO RTC (absent at boot) never raises F13, so ER stays blank") {
   AppRig r;
   r.hal.i2cPresent.erase(0x68);
   r.tbs(true);
   r.boot();
-  r.run(12000);
-  CHECK(r.app->system().faults().active(FaultId::kRtc));
-  CHECK(r.outputOn(Signal::kSsr));  // control is unaffected
-  r.hal.i2cPresent.insert(0x68);
-  r.run(30000);
+  r.run(40000);
   CHECK_FALSE(r.app->system().faults().active(FaultId::kRtc));
+  CHECK(r.app->system().faults().lastCode() != 0x13);
+  CHECK(r.has("RTC: not fitted"));
 }
 
 TEST_CASE("RTC-3: `time set` works through the whole application console") {

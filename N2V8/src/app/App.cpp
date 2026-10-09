@@ -214,6 +214,8 @@ void App::setup() {
   nvmSvc_.load();  // NVM-1: read only. The stored debounce times (if valid for this board) replace the compiled default.
   sys_.setDebounce(nvmSvc_.choice().tbsMs, nvmSvc_.choice().tobMs);
   sys_.begin(resetInfo_, credit);
+  rtcFitted_ = rtc_.present();   // no RTC on a panel is NOT a fault: only an RTC that was there, or one that is set wrong, is
+  if (!rtcFitted_) logf(console_, LogLevel::kInfo, "%lu RTC: not fitted (no wall time in the log)", static_cast<unsigned long>(now));
   post_.setResetInfo(resetInfo_);
   display_.begin(now, opt_.lcdStartMs);
   tobAtBoot_ = tobPressed();  // TOB held at power-up or reset selects POST mode (RST-6, POST-1); a normal boot runs no self-test
@@ -311,8 +313,10 @@ void App::runPass(uint32_t now) {
   if (static_cast<int32_t>(now - nextRtcCheck_) >= 0) {
     nextRtcCheck_ = now + 10000;
     bool valid = false;
-    const bool ok = rtc_.present() && rtc_.timeValid(valid);
-    f.report(FaultId::kRtc, !ok || !valid, now, cfg_.faultHoldMs);
+    const bool present = rtc_.present();
+    if (present) rtcFitted_ = true;                        // fitted late: from now on it is watched
+    const bool ok = present && rtc_.timeValid(valid);
+    f.report(FaultId::kRtc, rtcFitted_ && (!ok || !valid), now, cfg_.faultHoldMs);   // F13: an RTC that is missing after it was there, or that holds no valid time
   }
 
   // Keep the warm-up record current; a sensor failure means it may have lost power (O2-6a).

@@ -46,7 +46,8 @@ TEST_CASE("PIN-7: wiring facts carried from V6/V7") {
     CHECK(def(b, s).active == Active::kHigh);
   }
   CHECK(def(b, Signal::kAirPressure).pin == pin::kA0);
-  CHECK(def(b, Signal::kN2LowPressure).pin == pin::kA3);
+  CHECK(def(b, Signal::kN2LowPressure).pin == pin::kA1);    // verified on the production panel 2026-10-09: A0 air, A1 N2 low, A2 N2 high, A3 unused
+  CHECK(def(b, Signal::kN2HighPressure).pin == pin::kA2);
   CHECK(b.addrLed == 0x24);
   CHECK(b.addrLedDigits == 0x34);  // TM1650 digit registers 0x34..0x37
   CHECK(b.addrLcd == kLcdAddress);

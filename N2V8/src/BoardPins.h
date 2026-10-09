@@ -98,10 +98,9 @@ inline constexpr SignalDef kMinimaSignals[kSignalCount] = {
     {"FLUSH",     pin::kD11, Dir::kOutput,      Active::kHigh, "HIGH = valve open; V6/V7"},
     {"SSR",       pin::kD8,  Dir::kOutput,      Active::kHigh, "HIGH = compressor on; V6/V7"},
     {"AIR",       pin::kA0,  Dir::kAnalogInput, Active::kNotApplicable, "0-150 PSI; V6/V7"},
-    {"N2LOW",     pin::kA3,  Dir::kAnalogInput, Active::kNotApplicable, "0-30 PSI; V6/V7"},
-    // V6/V7 put N2-high on A5, which is the I2C SCL line. A1 is a PROVISIONAL
-    // placeholder until the real wiring is confirmed (Requirements PIN-10).
-    {"N2HIGH",    pin::kA1,  Dir::kAnalogInput, Active::kNotApplicable, "0-150 PSI; PROVISIONAL (V6/V7: A5 = SCL)"},
+    {"N2LOW",     pin::kA1,  Dir::kAnalogInput, Active::kNotApplicable, "0-30 PSI; VERIFIED on the panel 2026-10-09 (V6/V7 said A3)"},
+    // Production panel, confirmed by the owner 2026-10-09: A0 = air, A1 = N2 low, A2 = N2 high, A3 unused.
+    {"N2HIGH",    pin::kA2,  Dir::kAnalogInput, Active::kNotApplicable, "0-150 PSI; VERIFIED on the panel 2026-10-09 (V6/V7 said A5 = SCL)"},
 };
 
 

@@ -63,12 +63,12 @@ void Post::runCheck(uint32_t now) {
       const bool rtcAck = rtc.present();
       bool rtcValid = false;
       if (rtcAck) rtc.timeValid(rtcValid);
-      faults.report(FaultId::kRtc, !rtcAck || !rtcValid, now, hold);
+      faults.report(FaultId::kRtc, rtcAck && !rtcValid, now, hold);   // absent = not fitted: fine; present but not set: F13 (INFO)
       if (sys_.config().o2Mandatory) faults.report(FaultId::kO2Comm, !o2, now, hold);
       char r[80];
       snprintf(r, sizeof r, "LCD %s  LED %s  O2 %s  RTC %s", lcd ? "ok" : "MISSING", led ? "ok" : "MISSING",
                o2 ? "ok" : (sys_.config().o2Mandatory ? "MISSING" : "absent (not required)"),
-               !rtcAck ? "MISSING" : (rtcValid ? "ok" : "NOT SET"));
+               !rtcAck ? "absent (not fitted)" : (rtcValid ? "ok" : "NOT SET"));
       say(now, "3 I2C", r);
       break;
     }

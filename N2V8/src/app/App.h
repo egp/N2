@@ -121,6 +121,7 @@ class App : public CommandLauncher {
   bool postRequested_ = false;
   bool bistRequested_ = false;
   bool consoleWasAttached_ = false;
+  bool rtcFitted_ = false;       // an RTC answered at boot (or has appeared since); a panel without one is a valid configuration (owner 2026-10-09)
   uint32_t nextRtcCheck_ = 0;    // the RTC is checked every 10 s while running (F13)
   uint32_t nextBanner_ = 10000;  // R4 WiFi: repeat the banner until a PC has been heard from
   uint32_t lastDropped_ = 0;

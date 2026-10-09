@@ -9,7 +9,7 @@ they must be right before the first hardware visit (DIAG).
 # Part 1 — HARDWARE (production, wiring, bench)
 
 ## 1A. Open
-1. [ ] **HQ7 — which analog pin carries the high-N2 sensor?** V6/V7 say A5, but A4/A5 are the I2C lines; `BoardPins.h` has **A1 as a placeholder**. Edit that one row when known. (PIN-10)
+1. [x] **HQ7 — RESOLVED 2026-10-09 on the production panel (owner): A0 = air, A1 = N2 low, A2 = N2 high, A3 unused.** `BoardPins.h` updated (kMinimaSignals). [was: which analog pin carries the high-N2 sensor? V6/V7 say A5, but A4/A5 are the I2C lines] — which analog pin carries the high-N2 sensor?** V6/V7 say A5, but A4/A5 are the I2C lines; `BoardPins.h` has **A1 as a placeholder**. Edit that one row when known. (PIN-10)
 2. [ ] **Confirm the I2C pins on production**: A4/A5 (core pins 18/19) on the Minima. You reported D18/D19 on the WiFi; the core lists both as 18/19. (PIN-11)
 3. [ ] **Verify pins and active levels against production.** V6 and V7 agree (adopted): TBS D0 and TOB D1 pull-up, active LOW; LEFT D4, RIGHT D7, FLUSH D11, SSR D8 active HIGH; AIR A0, N2-low A3. (PIN-7)
 4. [ ] **HQ4 — which production gauges can be read by eye?** Needed only in the diagnostic phase to check the sensors. (INP-8)

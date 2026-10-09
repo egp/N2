@@ -262,15 +262,15 @@ TEST_CASE("POST-1: after POST the system starts normally") {
 }
 
 // ============================================================================ RTC in POST (RTC-5)
-TEST_CASE("RTC-5: a missing RTC is only an INFO fault (F13): logged, no hold, POST WARN") {
+TEST_CASE("RTC-5: no RTC fitted is a valid configuration (owner 2026-10-09): no fault, POST PASS, the line says 'absent (not fitted)'") {
   Rig r;
   r.gen.hal.i2cPresent.erase(0x68);
   const int64_t t = r.runToEnd();
   REQUIRE(t >= 0);
-  CHECK(r.gen.sys().faults().active(FaultId::kRtc));
-  CHECK(r.post.level() == PostLevel::kWarn);
+  CHECK_FALSE(r.gen.sys().faults().active(FaultId::kRtc));
+  CHECK(r.post.level() == PostLevel::kPass);
   CHECK_FALSE(r.post.holding());
-  CHECK(has(r, "RTC MISSING"));
+  CHECK(has(r, "RTC absent (not fitted)"));
 }
 
 TEST_CASE("RTC-5: an RTC that lost power (time not trusted) is reported as 'NOT SET', INFO only") {
