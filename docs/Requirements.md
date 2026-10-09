@@ -230,6 +230,7 @@ so that a **later version** can change pressure thresholds from the console. In 
 | `ADC_BITS` | 10 | bits | ADC resolution (INP-2) |
 | `airLowOff` | 650 | PSI×10 (65.0) | tower disables below. [CHG 2026-10-09, owner: the machine's supply peaks at 100 PSI and sags to about 70 PSI for ~300 ms when a valve opens (measured); was 900, then 700] |
 | `airLowOn` | 900 | PSI×10 (90.0) | tower may start above. [CHG 2026-10-09, owner; was 1200] |
+| `airGraceFromOffMs` / `airGraceToBothMs` | 3000 / 2000 | ms | [NEW 2026-10-09, owner, measured on the machine: the supply sags ~35 PSI (to ~70) for ~300 ms when a tower valve opens and recovers within ~2 s] Low air (INV-2 and the tower's own check) is tolerated for 3 s after a tower valve opens from OFF (OFF->LEFT) and for 2 s after LEFT->BOTH and RIGHT->BOTH. A faulty air SENSOR is never tolerated. |
 | `towerFillTime` | 59 250 | ms | fill phase |
 | `towerOverlapTime` | 750 | ms | both valves open |
 | `n2LowOff` | 1000 | PSI×100 (10.00) | SSR off below |

@@ -85,6 +85,7 @@ void System::step() {
   prevEnabled_ = enabledNow;
 
   tower_.update(in_);
+  in_.airGrace = tower_.airGraceActive(now);   // after the tower decided: a valve that just opened starts the grace in this same pass
   compressor_.update(in_);
 
   request_.left = tower_.leftOpen();

@@ -20,6 +20,7 @@ struct Inputs {
   bool n2LowOk = true;
   bool n2HighOk = true;
   bool sensorOrderFault = false;  // F04: N2-low reads above N2-high
+  bool airGrace = false;   // a tower valve has just opened: LOW air is tolerated for a moment (INV-2 and the tower's own check)
   bool o2CommOk = false;   // filled from the O2 controller
   bool o2Warm = false;
 };

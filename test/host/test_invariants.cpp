@@ -153,3 +153,15 @@ TEST_CASE("INV: several rules at once combine their forced-off sets and violatio
   CHECK((r.violated & kInv4N2Low) != 0);
   CHECK((r.violated & kInv3N2High) == 0);
 }
+
+TEST_CASE("INV-2 grace: with airGrace set, low air alone does not force the valves closed; a sensor fault still does") {
+  Inputs in;
+  in.tbs = true; in.o2CommOk = true; in.o2Warm = true;
+  in.airX10 = kDefaultControl.airLowOff - 10;
+  OutputRequest req; req.left = true;
+  CHECK(checkInvariants(in, kDefaultControl, req).forced.left);      // no grace: forced closed
+  in.airGrace = true;
+  CHECK_FALSE(checkInvariants(in, kDefaultControl, req).forced.left);   // grace: tolerated
+  in.airOk = false;
+  CHECK(checkInvariants(in, kDefaultControl, req).forced.left);      // a faulty air sensor is never tolerated
+}

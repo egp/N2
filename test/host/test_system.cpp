@@ -170,7 +170,9 @@ TEST_CASE("INV-2: low air stops the towers but not the compressor") {
   REQUIRE(p.runUntil([&] { return p.ssr() && p.left(); }, 20000));
   p.air(kDefaultControl.airLowOff - 50);
   p.step(10);
-  CHECK_FALSE(p.left());
+  CHECK(p.left());                        // inside the grace after a valve opened (or LEFT -> BOTH): low air alone does not close it yet
+  p.step(kDefaultControl.airGraceFromOffMs + 100);
+  CHECK_FALSE(p.left());                  // the grace has run out and the air is still low
   CHECK_FALSE(p.right());
   CHECK(p.ssr());
 }

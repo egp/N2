@@ -1,4 +1,4 @@
-// N2V8.ino — PSA nitrogen generator controller (UNO R4 Minima / UNO R4 WiFi).      VERSION 8.1.1F  (N2_VERSION in src/BuildConfig.h)
+// N2V8.ino — PSA nitrogen generator controller (UNO R4 Minima / UNO R4 WiFi).      VERSION 8.1.20  (N2_VERSION in src/BuildConfig.h)
 //
 // All behaviour lives in src/ and is tested on the host; this file is only glue.
 //   build mode (src/BuildConfig.h): DIAG (default) = diagnostics only, no controllers;
@@ -10,10 +10,10 @@
 
 // WHERE TO EDIT   (file:line, relative to this folder. In the Arduino IDE 2: open the file, then Ctrl+L = go to line)
 // COMMON EDITS (air and N2-high PSI x10, N2-low PSI x100, times in ms)
-//   src/ControlConfig.h:43     TOWER      airLowOff airLowOn towerFillMs towerOverlapMs
-//   src/ControlConfig.h:44     COMPRESSOR n2LowOff n2LowOn n2HighOn n2HighOff
-//   src/ControlConfig.h:45     O2         interval flush sample count retry timeout errorRetry warm-up mandatory
-//   src/ControlConfig.h:46     OUTPUTS/FAULTS  minHold sensorFaultSamples faultHold orderMargin orderHold
+//   src/ControlConfig.h:45     TOWER      airLowOff airLowOn towerFillMs towerOverlapMs
+//   src/ControlConfig.h:46     COMPRESSOR n2LowOff n2LowOn n2HighOn n2HighOff
+//   src/ControlConfig.h:47     O2         interval flush sample count retry timeout errorRetry warm-up mandatory
+//   src/ControlConfig.h:48     OUTPUTS/FAULTS  minHold sensorFaultSamples faultHold orderMargin orderHold
 //   src/Config.h:21            sensor valid window 0.5-4.5 V, fault window 0.4-4.6 V, full scales
 //   src/app/App.h:36           watchdog ms, LCD layout, LCD start delay, fault screen cycle, log level
 //   src/BuildConfig.h:23       build mode (DIAG default / FIELD), default log level, O2 mandatory
@@ -22,7 +22,7 @@
 //   src/app/App.cpp:328                loop(): POST mode / BIST / RUN
 //   src/app/App.cpp:196                setup(): outputs safe first, then the rest
 //   src/core/System.cpp:47             one pass: inputs, controllers, invariants, outputs
-//   src/core/Tower.cpp:43              TOWER controller
+//   src/core/Tower.cpp:47              TOWER controller
 //   src/core/Compressor.cpp:39         COMPRESSOR controller
 //   src/core/O2Controller.cpp:60       O2 controller (flush, sample, warm-up)
 //   src/drivers/O2SensorDfrobot.cpp:31 O2 sensor read (DFRobot library adapter)

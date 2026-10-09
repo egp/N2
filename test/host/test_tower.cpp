@@ -111,7 +111,7 @@ TEST_CASE("INV-2: low air pressure closes both valves at once, mid-fill") {
   Rig r;
   r.tower.enable();
   r.tower.update(goodInputs(0));
-  Inputs in = goodInputs(5);
+  Inputs in = goodInputs(r.cfg.airGraceFromOffMs + 5);   // (inside the grace after OFF -> LEFT, low air is tolerated: see "INV-2 grace")
   in.airX10 = r.cfg.airLowOff - 1;
   r.tower.update(in);
   CHECK(r.tower.state() == Tower::State::kDisabled);
@@ -128,10 +128,11 @@ TEST_CASE("INV-2: air between OFF and ON thresholds keeps running but will not r
   r.tower.update(in);
   CHECK(r.tower.state() == Tower::State::kLeft);  // above OFF: keeps running
   in.airX10 = r.cfg.airLowOff - 1;
+  in.ms = r.cfg.airGraceFromOffMs + 5;   // after the grace that follows OFF -> LEFT
   r.tower.update(in);
   REQUIRE(r.tower.state() == Tower::State::kDisabled);
   in.airX10 = (r.cfg.airLowOff + r.cfg.airLowOn) / 2;
-  in.ms = 10;
+  in.ms = r.cfg.airGraceFromOffMs + 15;
   r.tower.update(in);
   CHECK(r.tower.state() == Tower::State::kDisabled);  // below ON: stays off
 }
@@ -237,4 +238,46 @@ TEST_CASE("ARC-7: every transition logs one line with timestamp, delta, names an
   CHECK(r.log.lines[1] == "60250+59250 TWR L->LB next:61000");
   r.tower.disable(61100);
   CHECK(r.log.lines.back() == "61100+850 TWR LB->OF next:-");
+}
+
+// ---- air sag grace (owner 2026-10-09): the supply sags ~35 PSI for ~300 ms when a valve opens and recovers in ~2 s
+TEST_CASE("INV-2 grace: low air right after OFF -> LEFT is tolerated for 3000 ms, then the tower stops") {
+  Rig r;
+  r.tower.enable();
+  r.tower.update(goodInputs(0));
+  REQUIRE(r.tower.state() == Tower::State::kLeft);
+  Inputs sag = goodInputs(0);
+  sag.airX10 = r.cfg.airLowOff - 50;            // below the limit
+  for (uint32_t t = 10; t < 2990; t += 10) { sag.ms = t; r.tower.update(sag); }
+  CHECK(r.tower.state() == Tower::State::kLeft); // still open at 2.99 s
+  sag.ms = 3010; r.tower.update(sag);
+  CHECK(r.tower.state() == Tower::State::kDisabled);   // the grace has ended and the air is still low
+}
+
+TEST_CASE("INV-2 grace: low air after LEFT -> BOTH and RIGHT -> BOTH is tolerated for 2000 ms") {
+  Rig r;
+  r.cfg.towerFillMs = 59250;
+  r.tower.enable();
+  r.tower.update(goodInputs(0));
+  uint32_t t = 0;
+  while (r.tower.state() != Tower::State::kLeftBoth && t < 70000) { t += 10; r.tower.update(goodInputs(t)); }
+  REQUIRE(r.tower.state() == Tower::State::kLeftBoth);
+  const uint32_t bothAt = t;
+  Inputs sag = goodInputs(t);
+  sag.airX10 = r.cfg.airLowOff - 50;
+  for (uint32_t k = 10; k < 1990; k += 10) { sag.ms = bothAt + k; r.tower.update(sag); }
+  CHECK(r.tower.state() != Tower::State::kDisabled);     // inside the 2 s grace
+  sag.ms = bothAt + 2010; r.tower.update(sag);
+  CHECK(r.tower.state() == Tower::State::kDisabled);
+}
+
+TEST_CASE("INV-2 grace: a SENSOR fault is never tolerated, grace or not") {
+  Rig r;
+  r.tower.enable();
+  r.tower.update(goodInputs(0));
+  REQUIRE(r.tower.state() == Tower::State::kLeft);
+  Inputs bad = goodInputs(20);
+  bad.airOk = false;
+  r.tower.update(bad);
+  CHECK(r.tower.state() == Tower::State::kDisabled);
 }

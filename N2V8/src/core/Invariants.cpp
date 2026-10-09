@@ -12,7 +12,7 @@ struct Rule {
 }  // namespace
 
 InvariantResult checkInvariants(const Inputs& in, const ControlConfig& cfg, const OutputRequest& req) {
-  const bool airBad = !in.airOk || in.airX10 < cfg.airLowOff;                       // INV-2
+  const bool airBad = !in.airOk || (in.airX10 < cfg.airLowOff && !in.airGrace);                       // INV-2
   const bool highBad = !in.n2HighOk || in.n2HighX10 > cfg.n2HighOff;                // INV-3
   const bool lowBad = !in.n2LowOk || in.n2LowX100 < cfg.n2LowOff;                   // INV-4
 

@@ -23,6 +23,8 @@ class Tower {
   void update(const Inputs& in);
 
   State state() const { return state_; }
+  // True for a short time after a tower valve OPENS (OFF -> LEFT: airGraceFromOffMs; LEFT -> BOTH and RIGHT -> BOTH: airGraceToBothMs).
+  bool airGraceActive(uint32_t now) const { return graceArmed_ && static_cast<int32_t>(now - graceUntil_) < 0; }
   bool leftOpen() const { return state_ == State::kLeft || state_ == State::kLeftBoth || state_ == State::kRightBoth; }
   bool rightOpen() const { return state_ == State::kLeftBoth || state_ == State::kRight || state_ == State::kRightBoth; }
   static const char* name(State s);
@@ -32,6 +34,8 @@ class Tower {
   bool mayStart(const Inputs& in) const;
   void transition(State to, uint32_t now, uint32_t delayMs);
 
+  uint32_t graceUntil_ = 0;
+  bool graceArmed_ = false;
   const ControlConfig& cfg_;
   TransitionLogger& log_;
   State state_ = State::kDisabled;

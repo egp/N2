@@ -36,7 +36,7 @@ void checkSafety(Generator& p, const ControlConfig& cfg, Tracker& tr, uint32_t s
                 << " o2=" << in.o2CommOk << "/" << in.o2Warm << " F04=" << in.sensorOrderFault);
 
   if (!in.tbs) { REQUIRE_FALSE(L); REQUIRE_FALSE(R); REQUIRE_FALSE(F); REQUIRE_FALSE(S); }                       // INV-1
-  if (!in.airOk || in.airX10 < cfg.airLowOff) { REQUIRE_FALSE(L); REQUIRE_FALSE(R); }                           // INV-2
+  if (!in.airOk || (in.airX10 < cfg.airLowOff && !in.airGrace)) { REQUIRE_FALSE(L); REQUIRE_FALSE(R); }         // INV-2 (low air is tolerated only inside the grace after a valve opens)
   if (!in.n2HighOk || in.n2HighX10 > cfg.n2HighOff || in.sensorOrderFault) { REQUIRE_FALSE(L); REQUIRE_FALSE(R); REQUIRE_FALSE(S); }  // INV-3, INV-8
   if (!in.n2LowOk || in.n2LowX100 < cfg.n2LowOff || in.sensorOrderFault) { REQUIRE_FALSE(S); }                // INV-4, INV-8
   if (cfg.o2Mandatory && !in.o2CommOk) { REQUIRE_FALSE(L); REQUIRE_FALSE(R); REQUIRE_FALSE(F); REQUIRE_FALSE(S); }  // INV-9
