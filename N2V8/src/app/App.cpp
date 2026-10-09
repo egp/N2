@@ -129,7 +129,7 @@ void App::runPass(uint32_t now) {
   sys_.step();
   DisplayData data = makeDisplayData(sys_, kAdcBits);
 #if !defined(N2_BUILD_FIELD)
-  data.version = info_.sub;   // sub-version on the LCD while testing
+  data.version = info_.version;   // the version on the LCD while testing
 #endif
   display_.showNormal(data, now);
 

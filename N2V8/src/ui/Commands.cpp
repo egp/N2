@@ -144,7 +144,7 @@ bool Commands::Help::line(uint8_t i, char* b, size_t n) {
 
 bool Commands::Ver::line(uint8_t i, char* b, size_t n) {
   switch (i) {
-    case 0: snprintf(b, n, "N2V8 %s  sub-version %s", c_.info.version, c_.info.sub); return true;
+    case 0: snprintf(b, n, "N2V8 %s", c_.info.version); return true;
     case 1: snprintf(b, n, "built %s %s", c_.info.date, c_.info.time); return true;
     case 2: snprintf(b, n, "board %s  mode %s  adc %u bits", c_.info.board, c_.info.mode, static_cast<unsigned>(c_.info.adcBits)); return true;
   }

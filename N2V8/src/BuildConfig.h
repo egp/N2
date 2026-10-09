@@ -12,9 +12,10 @@
 // system proves the pinouts and runs no production logic (Requirements GOAL-9).
 #pragma once
 
-#define N2_VERSION "8.1.0-m2"
-#define N2_SUBVERSION "8.1.1"   // shown on the LCD (row 4) in every build except FIELD, and in the top comment of N2V8.ino. Bump it with every change you load onto a board.
-#define N2_VERSION_HEX 0x0801   // stored in every NVM record (high byte major, low byte minor); change it together with N2_VERSION
+// THE version (one number: major.minor.patch). Shown on the LCD row 4 in every build except FIELD, by `ver`, in the boot banner, and in the top
+// comment of N2V8.ino. Bump it with every change you load onto a board, and keep N2_VERSION_HEX in step.
+#define N2_VERSION "8.1.0"
+#define N2_VERSION_HEX 0x0801   // stored in every NVM record (high byte major, low byte minor)
 
 #if !defined(N2_BUILD_HOST) && !defined(N2_BUILD_BENCH) && \
     !defined(N2_BUILD_DIAG) && !defined(N2_BUILD_FIELD)

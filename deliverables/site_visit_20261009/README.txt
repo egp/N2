@@ -1,4 +1,4 @@
-Site visit builds, 2026-10-09. Sub-version 8.1.1, commit: 471e37d (+ uncommitted at build time: see git log).
+Site visit builds, 2026-10-09. Version 8.1.0 (the files built earlier were labelled 8.1.1; rebuild to get 8.1.0), commit: 471e37d (+ uncommitted at build time: see git log).
 minima_diag   N2V8 DIAG   controllers OFF (the default; use this first)
 minima_bench  N2V8 BENCH  controllers ON, O2 not mandatory
 minima_field  N2V8 FIELD  production: controllers ON, O2 mandatory, quiet log

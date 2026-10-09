@@ -182,8 +182,8 @@ TEST_CASE("every fault in the table renders a screen that fits 20 columns") {
 }
 
 TEST_CASE("DSP-8: startup banner") {
-  expectScreen(renderBanner("8.1.0-m2", "UNO R4 Minima", "Oct  2 2026 14:05"),
-               "N2V8 8.1.0-m2       ", "UNO R4 Minima       ", "Oct  2 2026 14:05   ", "POST ...            ");
+  expectScreen(renderBanner("8.1.0", "UNO R4 Minima", "Oct  2 2026 14:05"),
+               "N2V8 8.1.0          ", "UNO R4 Minima       ", "Oct  2 2026 14:05   ", "POST ...            ");
 }
 
 TEST_CASE("DSP-3: LED text") {
@@ -321,7 +321,7 @@ TEST_CASE("DSP-4: row 2 shows the last fault raised as two hex digits (LF 12), o
   CHECK(std::string(renderNormal(d, LcdLayout::kClearLabels).row[2]).substr(0, 6) == "CMP LO");
 }
 
-TEST_CASE("the sub-version is shown on row 4, columns 10-14, when given, and not otherwise") {
+TEST_CASE("the version is shown on row 4, columns 10-14, when given, and not otherwise") {
   DisplayData d;
   Screen plain = renderNormal(d, LcdLayout::kClearLabels);
   CHECK(std::string(plain.row[3]).substr(10, 5) == "     ");
