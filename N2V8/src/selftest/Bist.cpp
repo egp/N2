@@ -243,7 +243,7 @@ void Bist::enter(uint32_t now) {
     case BistStep::kLcd:
       say("  EXPECT LCD: backlight off, on; display off, on; all 80 cells show '#'; then cleared. ~4 s, repeats.");
       say("  LED shows s.t P = seconds.tenths in the cycle and phase P: 0 backlight off, 1 text, 2 display off, 3 text, 4 all #, 5 text.");
-      say("  Experiment keys: 1 toggles the backlight blink, 2 the display-off, 3 the resync, 4 the # fill.");
+      say("  Experiment keys: 1 toggles the backlight blink, 2 the display-off, 3 the resync, 4 the # fill, 5 a fast backlight flip (stress).");
       break;  // the LCD step drives the LCD itself
     case BistStep::kPressures:
       say("  Raw counts, volts and PSI per sensor (printed on change). Compare with the production gauges and enter");
@@ -313,10 +313,10 @@ void Bist::onLine(const char* line) {
     say("  usage: g air|n2l|n2h <psi>   e.g. g air 120.5");
     return;
   }
-  if (step_ == BistStep::kLcd && c >= '1' && c <= '4') {   // LCD test experiment keys: each toggles one part of the test
+  if (step_ == BistStep::kLcd && c >= '1' && c <= '5') {   // LCD test experiment keys: each toggles one part of the test
     lcdSkip_ = static_cast<uint8_t>(lcdSkip_ ^ (1u << (c - '1')));
-    say("  LCD test: backlight blink %s, display off %s, resync %s, # fill %s", (lcdSkip_ & 1) ? "OFF" : "on", (lcdSkip_ & 2) ? "OFF" : "on",
-        (lcdSkip_ & 4) ? "OFF" : "on", (lcdSkip_ & 8) ? "OFF" : "on");
+    say("  LCD test: backlight blink %s, display off %s, resync %s, # fill %s, STRESS (backlight flips every 100 ms) %s", (lcdSkip_ & 1) ? "OFF" : "on",
+        (lcdSkip_ & 2) ? "OFF" : "on", (lcdSkip_ & 4) ? "OFF" : "on", (lcdSkip_ & 8) ? "OFF" : "on", (lcdSkip_ & 16) ? "ON" : "off");
     return;
   }
   switch (c) {
@@ -396,7 +396,8 @@ void Bist::tickLcd(uint32_t now) {
     lcdPhase_ = phase;
     if (!(lcdSkip_ & 4)) lcd.resync();
   }
-  lcd.setBacklight(!(phase == 0 && !(lcdSkip_ & 1)));
+  if (lcdSkip_ & 16) lcd.setBacklight(((t / 100u) & 1u) == 0);   // experiment key 5: the backlight flips every 100 ms, all the time
+  else lcd.setBacklight(!(phase == 0 && !(lcdSkip_ & 1)));
   lcd.setDisplayOn(!(phase == 2 && !(lcdSkip_ & 2)));
   if (phase == 4 && !(lcdSkip_ & 8)) {
     const char* full = "####################";
