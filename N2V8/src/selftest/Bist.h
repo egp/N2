@@ -51,8 +51,6 @@ class Bist : public LineHook {
   // requireTbsOff: true for the `bist` command; false when BIST was requested with TOB at power-up
   // (output steps still need TBS OFF, BIST-4).
   Start begin(uint32_t now, bool requireTbsOff = true);
-  // Diagnostic: start the BIST directly at one step (bench use, e.g. the LCD test running from power-up with no console command).
-  Start beginAt(uint32_t now, BistStep step);
   bool step(uint32_t now);  // true when BIST has finished (completed or quit)
   bool running() const { return running_; }
 
@@ -121,7 +119,6 @@ class Bist : public LineHook {
   uint32_t aborts_ = 0;
   bool tobWasUp_ = true;
   int8_t lcdPhase_ = -1;
-  uint8_t lcdSkip_ = 0;    // LCD test experiment keys (bench 2026-10-08): 1 = no backlight blink, 2 = no display off, 3 = no resync, 4 = no # fill, 5 = backlight stress   // LCD test: which phase of the 4 s cycle we are in (resync at each change)
   Debouncer tbsDeb_, tobDeb_;   // TBS and TOB as the operator's answer keys: TOB = pass, TBS switched ON = fail (debounced like the system's)
 
   // step-local state

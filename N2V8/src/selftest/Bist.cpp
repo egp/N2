@@ -167,15 +167,6 @@ Bist::Start Bist::begin(uint32_t now, bool requireTbsOff) {
   return Start::kOk;
 }
 
-Bist::Start Bist::beginAt(uint32_t now, BistStep step) {
-  const Start s = begin(now, false);
-  if (s == Start::kOk) {
-    step_ = step;
-    enter(now);
-  }
-  return s;
-}
-
 void Bist::finish(uint32_t now, const char* why) {
   outputsOff(now);
   say("BIST finished: %s", why);
@@ -217,7 +208,6 @@ void Bist::enter(uint32_t now) {
   mark_ = now;
   phase_ = 0;
   lcdPhase_ = -1;
-  if (step_ != BistStep::kLcd) lcdSkip_ = 0;
   refused_ = false;
   outputOn_ = false;
   pulseDone_ = false;
@@ -250,9 +240,7 @@ void Bist::enter(uint32_t now) {
       say("  walks across 8888 (left to right), then the display blinks off and on. ~4 s, repeats.");
       break;  // the LED step drives the LED itself; the LCD shows the step number
     case BistStep::kLcd:
-      say("  EXPECT LCD: backlight off, on; display off, on; all 80 cells show '#'; then cleared. ~4 s, repeats.");
-      say("  LED shows s.t P = seconds.tenths in the cycle and phase P: 0 backlight off, 1 text, 2 display off, 3 text, 4 all #, 5 text.");
-      say("  Experiment keys: 1 toggles the backlight blink, 2 the display-off, 3 the resync, 4 the # fill, 5 a fast backlight flip (stress).");
+      say("  EXPECT LCD: text; display off, on; all 80 cells '#'; text. ~4 s, repeats. Backlight never touched.");
       break;  // the LCD step drives the LCD itself
     case BistStep::kPressures:
       say("  Raw counts, volts and PSI per sensor (printed on change). Compare with the production gauges and enter");
@@ -320,12 +308,6 @@ void Bist::onLine(const char* line) {
       }
     }
     say("  usage: g air|n2l|n2h <psi>   e.g. g air 120.5");
-    return;
-  }
-  if (step_ == BistStep::kLcd && c >= '1' && c <= '5') {   // LCD test experiment keys: each toggles one part of the test
-    lcdSkip_ = static_cast<uint8_t>(lcdSkip_ ^ (1u << (c - '1')));
-    say("  LCD test: backlight blink %s, display off %s, resync %s, # fill %s, STRESS (backlight flips every 100 ms) %s", (lcdSkip_ & 1) ? "OFF" : "on",
-        (lcdSkip_ & 2) ? "OFF" : "on", (lcdSkip_ & 4) ? "OFF" : "on", (lcdSkip_ & 8) ? "OFF" : "on", (lcdSkip_ & 16) ? "ON" : "off");
     return;
   }
   switch (c) {
@@ -398,30 +380,23 @@ void Bist::tickLed(uint32_t now) {
 void Bist::tickLcd(uint32_t now) {
   const uint32_t t = static_cast<uint32_t>(now - stepStart_) % 4000u;
   Lcd20x4& lcd = display_.lcd();
-  // Phases of the 4 s cycle: 0 backlight OFF, 1 text, 2 display OFF, 3 text, 4 all '#', 5 text.
-  const int8_t phase = t < 500 ? 0 : (t < 1000 ? 1 : (t < 1500 ? 2 : (t < 2000 ? 3 : (t < 3500 ? 4 : 5))));
-  // Resync the controller at the start of every phase (ordinary commands, not a re-init). Experiment key 3 turns this off.
-  if (phase != lcdPhase_) {
+  // The backlight is NOT touched (owner decision 2026-10-08: it is on from LCD setup and never switched; switching it is suspected of
+  // disturbing the LCD). Phases of the 4 s cycle: 0 text, 1 display OFF, 2 text, 3 all '#', 4 text.
+  const int8_t phase = t < 1000 ? 0 : (t < 1500 ? 1 : (t < 2000 ? 2 : (t < 3500 ? 3 : 4)));
+  if (phase != lcdPhase_) {   // resync the controller at the start of every phase: ordinary commands, not a re-init
     lcdPhase_ = phase;
-    if (!(lcdSkip_ & 4)) lcd.resync();
+    lcd.resync();
   }
-  if (lcdSkip_ & 16) lcd.setBacklight(((t / 100u) & 1u) == 0);   // experiment key 5: the backlight flips every 100 ms, all the time
-  else lcd.setBacklight(!(phase == 0 && !(lcdSkip_ & 1)));
-  lcd.setDisplayOn(!(phase == 2 && !(lcdSkip_ & 2)));
-  if (phase == 4 && !(lcdSkip_ & 8)) {
+  lcd.setDisplayOn(phase != 1);
+  if (phase == 3) {
     const char* full = "####################";
     lcd.setScreen(makeScreen(full, full, full, full));
   } else {
     lcd.setScreen(makeScreen("BIST 4 LCD test", "Watch the LCD", "then type p or f"));
   }
-  // The LED shows where we are in the cycle: seconds.tenths since the cycle began, a blank, and the phase number: "1.2 3".
   LedText led;
-  led.digit[0] = static_cast<char>('0' + t / 1000u);
-  led.digit[1] = static_cast<char>('0' + (t / 100u) % 10u);
-  led.digit[2] = ' ';
-  led.digit[3] = static_cast<char>('0' + phase);
-  led.digit[4] = '\0';
-  led.dotAfter = 0;
+  snprintf(led.digit, sizeof led.digit, "   4");   // the LED shows the step number during the LCD test
+  led.dotAfter = -1;
   display_.led().setText(led);
 }
 

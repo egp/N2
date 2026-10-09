@@ -280,25 +280,26 @@ TEST_CASE("BIST step 3/DRV-3: the LED test states what to expect and runs the pa
   CHECK(std::string(r.display.lcd().shown(0)).substr(0, 15) == "BIST 3 LED test");  // LCD shows the step number
 }
 
-TEST_CASE("BIST step 4/DRV-3: the LCD test cycles backlight, display and a full block of '#'") {
+TEST_CASE("BIST step 4/DRV-3: the LCD test cycles the display off/on and a full block of '#', and never touches the backlight") {
   Rig r;
   REQUIRE(r.start() == Bist::Start::kOk);
   r.goTo(BistStep::kLcd);
   REQUIRE(r.bist.current() == BistStep::kLcd);
-  CHECK(r.has("EXPECT LCD: backlight off, on; display off, on; all 80 cells show '#'"));
+  CHECK(r.has("all 80 cells '#'"));
+  CHECK(r.has("Backlight never touched"));
   const uint32_t t0 = r.now;
-  bool backlightWasOff = false, displayWasOff = false, sawFull = false;
+  bool displayWasOff = false, sawFull = false, sawText = false;
   while (r.now - t0 < 4200) {
     r.pass();
-    if (!r.display.lcd().backlightOn()) backlightWasOff = true;
+    CHECK(r.display.lcd().backlightOn());
     if (!r.display.lcd().displayOn()) displayWasOff = true;
     if (std::string(r.display.lcd().shown(3)) == "####################") sawFull = true;
+    if (std::string(r.display.lcd().shown(0)).substr(0, 15) == "BIST 4 LCD test") sawText = true;
   }
-  CHECK(backlightWasOff);
   CHECK(displayWasOff);
   CHECK(sawFull);
-  CHECK(r.display.led().shownSegments(2) == 0);                 // the LED shows s.t _ P (seconds.tenths in the cycle, blank, phase)
-  CHECK((r.display.led().shownSegments(0) & 0x80) != 0);        // with the decimal point after the first digit  // the LED shows the step number
+  CHECK(sawText);
+  CHECK(r.display.led().shownSegments(3) == Led1650::segmentsFor('4'));   // the LED shows the step number
 }
 
 TEST_CASE("BIST step 5: raw counts, volts and PSI are printed; a dead sensor is called out") {
