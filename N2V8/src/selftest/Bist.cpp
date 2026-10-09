@@ -491,6 +491,7 @@ void Bist::tickO2(uint32_t now) {
 }
 
 void Bist::tickOutputStep(uint32_t now, Signal sig) {
+  if (phase_ == 0) airBeforeX10_ = inputs_.airX10;   // before the output is switched on
   if (phase_ == 0) {  // may we start? (BIST-4, BIST-11)
     const char* why = nullptr;
     if (rawTbs()) why = "TBS is ON - switch it OFF";
@@ -516,6 +517,10 @@ void Bist::tickOutputStep(uint32_t now, Signal sig) {
     outputsOff(now);
     ++aborts_;
     say("  ABORTED: %s - all outputs OFF", abortWhy);
+    say("  at the abort: AIR raw %u = %u.%u PSI, N2L raw %u, N2H raw %u; limit %u.%u PSI (air before the output: %u.%u PSI)", static_cast<unsigned>(inputs_.rawAir),
+        static_cast<unsigned>(inputs_.airX10 / 10u), static_cast<unsigned>(inputs_.airX10 % 10u), static_cast<unsigned>(inputs_.rawN2Low),
+        static_cast<unsigned>(inputs_.rawN2High), static_cast<unsigned>(sys_.config().airLowOff / 10u), static_cast<unsigned>(sys_.config().airLowOff % 10u),
+        static_cast<unsigned>(airBeforeX10_ / 10u), static_cast<unsigned>(airBeforeX10_ % 10u));
     showStep("ABORTED", abortWhy);
     phase_ = 3;
     return;
