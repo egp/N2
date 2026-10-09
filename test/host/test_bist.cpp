@@ -785,6 +785,8 @@ TEST_CASE("BIST-11: the timed sag test (key t) opens the valve once for 5 s and 
   CHECK(r.has("STABLE (+-1 PSI) at 89."));
   CHECK(r.has("CURVE (air x10 per 50 ms"));
   CHECK(r.has("C0:"));
+  CHECK(r.has("C190:"));                       // the whole 10 s curve is delivered, row by row (the console queue holds only 16 lines)
+  CHECK(r.has("answer p or f (r repeats)"));
   CHECK_FALSE(r.has("ABORTED"));
   CHECK_FALSE(r.gen.left());                  // the valve is closed again after the test
 }

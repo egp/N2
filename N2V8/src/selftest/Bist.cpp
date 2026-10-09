@@ -243,19 +243,14 @@ void Bist::sagSummary(Signal sig, uint32_t now) {
   else
     say("  NOT STABLE within the 10 s the valve was open (still moving by more than 1 PSI)");
   say("  CURVE (air x10 per 50 ms, from the valve opening): %u samples", static_cast<unsigned>(sagN_));
-  for (uint16_t i = 0; i < sagN_; i += 10) {
-    char row[100];
-    int len = snprintf(row, sizeof row, "  C%u:", static_cast<unsigned>(i));
-    for (uint16_t k = i; k < sagN_ && k < i + 10u && len < 90; ++k) len += snprintf(row + len, sizeof row - len, " %u", static_cast<unsigned>(sagHist_[k]));
-    say("%s", row);
-  }
+  curveRow_ = 0;       // the rows are printed one per 30 ms by tickOutputStep: the console queue holds only 16 lines
+  curveMark_ = now;
   char l1[24], l2[24], l3[24];
   snprintf(l1, sizeof l1, "MIN %u.%u PSI", static_cast<unsigned>(vmin / 10u), static_cast<unsigned>(vmin % 10u));
   snprintf(l2, sizeof l2, "fell %u ms", static_cast<unsigned>(iMin) * 50u);
   if (stableAt >= 0) snprintf(l3, sizeof l3, "stable +%d ms", stableAt - static_cast<int>(iMin) * 50);
   else snprintf(l3, sizeof l3, "not stable in 10 s");
   showStep(l1, l2, l3);
-  say("  answer p or f (r repeats)");
 }
 
 void Bist::finish(uint32_t now, const char* why) {
@@ -296,6 +291,7 @@ void Bist::printSummary() {
 
 // ---------------------------------------------------------------------------------------------- enter a step
 void Bist::enter(uint32_t now) {
+  curveRow_ = 0xFFFF;
   sagTest_ = false;
   sagN_ = 0;
   airMinX10_ = 0xFFFF;
@@ -567,6 +563,21 @@ void Bist::tickO2(uint32_t now) {
 }
 
 void Bist::tickOutputStep(uint32_t now, Signal sig) {
+  if (curveRow_ != 0xFFFF) {   // printing the recorded curve, one row of ten samples every 30 ms
+    if (static_cast<uint32_t>(now - curveMark_) >= 30) {
+      curveMark_ = now;
+      if (curveRow_ < sagN_) {
+        char row[100];
+        int len = snprintf(row, sizeof row, "  C%u:", static_cast<unsigned>(curveRow_));
+        for (uint16_t k = curveRow_; k < sagN_ && k < curveRow_ + 10u && len < 90; ++k) len += snprintf(row + len, sizeof row - len, " %u", static_cast<unsigned>(sagHist_[k]));
+        say("%s", row);
+        curveRow_ = static_cast<uint16_t>(curveRow_ + 10u);
+      } else {
+        curveRow_ = 0xFFFF;
+        say("  answer p or f (r repeats)");
+      }
+    }
+  }
   if (phase_ == 0) airBeforeX10_ = inputs_.airX10;   // before the output is switched on
   if (phase_ == 0) {  // may we start? (BIST-4, BIST-11)
     const char* why = nullptr;

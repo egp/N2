@@ -146,6 +146,8 @@ class Bist : public LineHook {
   static constexpr uint16_t kSagSamples = 230;   // 11 s at 50 ms
   bool sagTest_ = false;
   uint16_t sagN_ = 0;
+  uint16_t curveRow_ = 0xFFFF;   // next row of the recorded curve to print (0xFFFF = none pending)
+  uint32_t curveMark_ = 0;
   uint32_t sagOpenAt_ = 0;
   uint16_t sagHist_[kSagSamples] = {};
   void sagSummary(Signal sig, uint32_t now);
