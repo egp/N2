@@ -63,3 +63,10 @@ they must be right before the first hardware visit (DIAG).
 - [x] F04 inhibits (INV-8); output hold 1000 ms with a BIST 2 Hz exception (OUT-1).
 - [x] LCD: no TBS, N2% only, warm-up countdown replaces N2%, vertical LRFS, fault screen alternates (DSP-4/5/9).
 - [x] Priorities: testability, readability, maintainability (GOAL-10). Host tests first, then the R4 WiFi.
+
+## 2C. Next site visit (owner 2026-10-09 evening / 2026-10-10)
+- [ ] **BIST FLUSH (O2 flush valve) step: rewrite.** The flush valve needs N2-low pressure (owner's guess: at least 10 PSI; the true minimum is unknown) to work, so toggling it on a dead N2-low proves nothing. New step: check the air supply (minimum air for opening a tower), open a tower and run a fill cycle until N2-low >= 10 PSI (limit the time; abort on any BIST-11 veto), then toggle FLUSH and report N2-low before/after; record the minimum N2-low at which the owner hears/feels it work. Needs a requirement text first (BIST-xx), then tests.
+- [ ] **LCD `LRFS` -> `LROC`** (Left, Right, O2, Compressor) on the LCD (`LcdScreens.cpp:107`) and the recorder column header (`App.cpp:137`), with docs and tests. Open question: the O bit (suggestion: O2 sensor has a valid reading); C is the SSR/compressor output.
+- [ ] **Watchdog stalls on valve steps (3 times, 2026-10-09 at Tom's)**: board freezes (watchdog off) or resets ER30 (watchdog on) during valve steps/tests. Suspect: LCD updated every 100 ms during valve steps + solenoid EMI -> I2C stall. Candidate fixes: slower LCD refresh in valve steps, I2C timeout/stuck-bus recovery. Not yet confirmed.
+- [ ] BIST keys added on site (8.1.25, DIAG tools): `t` timed sag, `b` BOTH, `o` 750 ms overlap, `x` event overlap; measured data in `docs/results/*_20261009.csv/.svg`. BIST sensor-out-of-range now needs 50 ms; N2-high ignored in `o`/`x`.
+- [ ] Open from the visit: SSR step not run; RIGHT recorded PASS by owner verdict (no ear confirmation in the log); FLUSH answer pending; the N2-low sensor sits at ~0.43 V at zero (below 0.5 V).
