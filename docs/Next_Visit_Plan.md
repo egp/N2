@@ -24,7 +24,14 @@ Goal of the next visit: **more progress per hour at Tom's.** Everything below th
 6. Controlled first run in BENCH, attended, console attached; then decide GO/NO-GO for FIELD with the checklist gates.
 7. Collect: N2-low and N2-high curves during a few tower cycles (`rec on 200`), the compressor-on transient, and the sag/overlap data again at the production pressure.
 
-## C. Open questions for the owner (answers shape A1-A3)
-* Is the small solenoid on the compressor side the unload/dump valve? Does it need to be driven by the Arduino at all?
-* Which output drives the pilot air regulator's solenoid next to the AIR filter (left of the towers)?
-* The minimum N2-low at which the flush valve works (to be measured on site by the new FLUSH step).
+## C. Answers from the owner (2026-10-10)
+* The small solenoid on the compressor side is the compressor's **unload valve**. **The Arduino does not drive it** (nothing to do in firmware).
+* The **O2 flush valve** is driven by the Arduino: it is the valve above the white box (the box has an extension-cord end below it). **The white box contains the relay connected to the O2 flush pin (D11).** So the flush output switches a relay, and the valve on it is supplied through that box (not from the 24 V supply).
+* **Each tower has its own pressure sensor, but they are NOT hooked up**: their pins were reassigned to N2 LOW and N2 HIGH. (So the L/R tower pressure inputs of V6/V7 do not exist in this build; the firmware has no tower-pressure signals. Keep it that way unless the owner reconnects them.)
+* Still open: which output drives the solenoid beside the AIR filter on the pilot regulator (the owner has not said; it may be the compressor's or the tower valves' pilot air, not an Arduino output).
+* To be measured on site by the new FLUSH step: the minimum N2-low at which the flush valve works.
+
+## D. Consequences for the plan
+* A3 (SSR step): the SSR drives the compressor; nothing to do with the unload valve. No unload-valve BIST step is needed.
+* A2 (FLUSH step): the output is a relay in the white box: the click is the relay, the valve action is separate. The step should ask the owner to confirm BOTH (relay click, and the valve/air flow or the buffer tank gauge moving), and report N2-low before/after.
+* A4: only three sensors exist (air, N2 LOW, N2 HIGH): the `sensors` command lists exactly these.
