@@ -28,7 +28,7 @@ Goal of the next visit: **more progress per hour at Tom's.** Everything below th
 * The small solenoid on the compressor side is the compressor's **unload valve**. **The Arduino does not drive it** (nothing to do in firmware).
 * The **O2 flush valve** is driven by the Arduino: it is the valve above the white box (the box has an extension-cord end below it). **The white box contains the relay connected to the O2 flush pin (D11).** So the flush output switches a relay, and the valve on it is supplied through that box (not from the 24 V supply).
 * **Each tower has its own pressure sensor, but they are NOT hooked up**: their pins were reassigned to N2 LOW and N2 HIGH. (So the L/R tower pressure inputs of V6/V7 do not exist in this build; the firmware has no tower-pressure signals. Keep it that way unless the owner reconnects them.)
-* Still open: which output drives the solenoid beside the AIR filter on the pilot regulator (the owner has not said; it may be the compressor's or the tower valves' pilot air, not an Arduino output).
+* **Everything not listed here is manual** (owner 2026-10-10): the Arduino's only outputs are LEFT valve (D4), RIGHT valve (D7), FLUSH relay (D11) and the compressor SSR (D8). The solenoid beside the AIR filter, the pilot regulator, the olive-green lever valve and the compressor unload valve are NOT Arduino outputs. The question about the pilot-regulator solenoid is closed.
 * To be measured on site by the new FLUSH step: the minimum N2-low at which the flush valve works.
 
 ## D. Consequences for the plan
