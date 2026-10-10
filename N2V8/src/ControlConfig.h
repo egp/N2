@@ -40,14 +40,15 @@ struct ControlConfig {
   uint32_t airGraceToBothMs;    // ... and this long after LEFT->BOTH or RIGHT->BOTH (the second valve opens)
   uint32_t sensorFaultMs;       // INP-5: an out-of-window reading must ALSO last this long before it is a fault (a switching spike of a few ms must not trip F01..F03)
   uint32_t overlapMinMs;        // TWR-OV: the overlap is never ended by the air minimum earlier than this (towerOverlapMs is the CAP)
+  bool overlapAdaptive;         // TWR-OV: true = end the overlap at the air minimum (min/cap above); false = the fixed towerOverlapMs (Tom's decision 2026-10-10: fixed 500 ms until the CMS characterization)
   uint16_t overlapRiseX10;      // TWR-OV: the air counts as past its minimum when it is this much above it (PSI x10), twice in a row on the 50 ms grid
 };
 
 inline constexpr ControlConfig kDefaultControl = {
-    650, 900, 59250, 750,                          // tower (air off 65 / on 90 PSI: owner 2026-10-09, this machine's supply peaks at 100 PSI and sags when a valve opens)
+    650, 900, 59250, 500,                          // tower (air off 65 / on 90 PSI: owner 2026-10-09, this machine's supply peaks at 100 PSI and sags when a valve opens)
     1000, 2000, 1000, 1200,                        // compressor
     60000, 2000, 250, 10, 1000, 3000, 60000, 300000, true,  // O2
-    1000, 3, 5000, 100, 5000, 3000, 2000, 50, 200, 10};     // outputs and faults (then: air grace 3000 ms from OFF, 2000 ms to BOTH; sensor fault persistence 50 ms; overlap: not before 200 ms, air counted past its minimum at +1.0 PSI)
+    1000, 3, 5000, 100, 5000, 3000, 2000, 50, 200, false, 10};     // outputs and faults (then: air grace 3000 ms from OFF, 2000 ms to BOTH; sensor fault persistence 50 ms; overlap: not before 200 ms, air counted past its minimum at +1.0 PSI)
 
 // CFG-5: hysteresis pairs must be ordered.
 constexpr bool validControl(const ControlConfig& c) {

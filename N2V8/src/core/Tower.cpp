@@ -97,13 +97,13 @@ void Tower::update(const Inputs& in) {
       if (deadline_.reached(now)) transition(State::kLeftBoth, now, cfg_.towerOverlapMs);
       break;
     case State::kLeftBoth:
-      if (deadline_.reached(now) || overlapPast(in)) transition(State::kRight, now, cfg_.towerFillMs);
+      if (deadline_.reached(now) || (cfg_.overlapAdaptive && overlapPast(in))) transition(State::kRight, now, cfg_.towerFillMs);
       break;
     case State::kRight:
       if (deadline_.reached(now)) transition(State::kRightBoth, now, cfg_.towerOverlapMs);
       break;
     case State::kRightBoth:
-      if (deadline_.reached(now) || overlapPast(in)) transition(State::kLeft, now, cfg_.towerFillMs);
+      if (deadline_.reached(now) || (cfg_.overlapAdaptive && overlapPast(in))) transition(State::kLeft, now, cfg_.towerFillMs);
       break;
     default:  // unreachable; recover safely (ARC-6)
       transition(State::kDisabled, now, 0);

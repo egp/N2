@@ -235,7 +235,7 @@ TEST_CASE("ARC-7: every transition logs one line with timestamp, delta, names an
   CHECK(r.log.lines[0] == "1000+1000 TWR OF->L next:60250");
   r.tower.update(goodInputs(1000 + r.cfg.towerFillMs));
   REQUIRE(r.log.lines.size() == 2);
-  CHECK(r.log.lines[1] == "60250+59250 TWR L->LB next:61000");
+  CHECK(r.log.lines[1] == "60250+59250 TWR L->LB next:60750");
   r.tower.disable(61100);
   CHECK(r.log.lines.back() == "61100+850 TWR LB->OF next:-");
 }
@@ -292,6 +292,7 @@ struct OverlapRun {
   uint32_t length = 0;
   template <typename F>
   void run(F air) {
+    r.cfg.overlapAdaptive = true;   // the adaptive rule is OFF in the default config (fixed 500 ms): these tests switch it on
     r.tower.enable();
     r.tower.update(goodInputs(t));
     t += r.cfg.towerFillMs;
@@ -341,4 +342,26 @@ TEST_CASE("TWR-OV-3: the overlap is never shorter than overlapMinMs") {
   OverlapRun o;
   o.run([](uint32_t dt) -> uint16_t { return dt < 60 ? static_cast<uint16_t>(1040 - dt * 4) : static_cast<uint16_t>(800 + (dt - 60) * 3); });   // minimum at 60 ms
   CHECK(o.length >= 200);
+}
+
+TEST_CASE("TWR-OV-8: by default the overlap is the fixed 500 ms (Tom's decision 2026-10-10), whatever the air does") {
+  Rig r;
+  CHECK_FALSE(r.cfg.overlapAdaptive);
+  CHECK(r.cfg.towerOverlapMs == 500);
+  r.tower.enable();
+  uint32_t t = 0;
+  r.tower.update(goodInputs(t));
+  t += r.cfg.towerFillMs;
+  r.tower.update(goodInputs(t));                 // LEFT -> LEFT_BOTH
+  REQUIRE(r.tower.state() == Tower::State::kLeftBoth);
+  const uint32_t start = t;
+  uint32_t length = 0;
+  for (uint32_t dt = 5; dt < 2000 && r.tower.state() == Tower::State::kLeftBoth; dt += 5) {
+    Inputs in = goodInputs(start + dt);
+    in.airX10 = dt < 100 ? static_cast<uint16_t>(1040 - 2 * dt) : static_cast<uint16_t>(840 + (dt - 100) / 2);   // a dip whose bottom is at 100 ms
+    r.tower.update(in);
+    length = dt;
+  }
+  CHECK(length >= 500);
+  CHECK(length <= 505);
 }
