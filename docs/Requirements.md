@@ -268,6 +268,7 @@ States: `DISABLED, LEFT, LEFT_BOTH, RIGHT, RIGHT_BOTH` (OFF, L, LB, R, RB).
 | TWR-OV-3 | **Bounds:** never before `overlapMinMs` (200 ms), never after `towerOverlapMs` (750 ms, now the cap). If the minimum is not seen (flat air, a noisy sensor) the cap ends the overlap, exactly as the fixed-time design did: the rule can only shorten the overlap. |
 | TWR-OV-4 | The existing INV-2/INV-3 stops and the air grace times are unchanged and still take precedence. |
 | TWR-OV-6 | **Tuning from data (2026-10-09 recordings, `docs/results/*_20261009.csv`):** the supply minimum is at 400-500 ms into the overlap; with 1.0 PSI / median of 3 / two in a row the rule ends the overlap 600-700 ms after it began (2.0 PSI would end at 700-750 ms, almost at the cap). The cap (750 ms) leaves only 50-150 ms of margin: raise `towerOverlapMs` if the minimum is later on another day. |
+| TWR-OV-7 | **Tower pressure sensors, if ever connected, are OPTIMIZATION only (owner 2026-10-10).** N2 LOW and N2 HIGH keep their pins: they are the compressor's safety inputs. The Minima has ONE free analog pin (A3); two tower sensors would need an I2C ADC (e.g. ADS1115 at 0x48). A missing, absent or faulty tower sensor shall never raise an INHIBIT fault or stop the towers; the controller falls back to the supply-air dip rule (TWR-OV-1..3). |
 | TWR-OV-5 | The BIST (keys `o`, `x`) and the recorder shall keep measuring the real sag and overlap so these constants can be tuned from data. |
 
 ### 7.2 Compressor controller
