@@ -281,3 +281,64 @@ TEST_CASE("INV-2 grace: a SENSOR fault is never tolerated, grace or not") {
   r.tower.update(bad);
   CHECK(r.tower.state() == Tower::State::kDisabled);
 }
+
+// ---- TWR-OV: the overlap ends when the air has passed its minimum --------------------------------------------------
+namespace {
+// Drives the tower into LEFT_BOTH and then feeds the air curve `air(dt)` (PSI x10, dt ms since the overlap began) every 5 ms. `length` = the overlap
+// length in ms (the cap if it was never ended early).
+struct OverlapRun {
+  Rig r;
+  uint32_t t = 0;
+  uint32_t length = 0;
+  template <typename F>
+  void run(F air) {
+    r.tower.enable();
+    r.tower.update(goodInputs(t));
+    t += r.cfg.towerFillMs;
+    r.tower.update(goodInputs(t));               // LEFT -> LEFT_BOTH
+    REQUIRE(r.tower.state() == Tower::State::kLeftBoth);
+    const uint32_t start = t;
+    for (uint32_t dt = 5; dt < 2000 && r.tower.state() == Tower::State::kLeftBoth; dt += 5) {
+      Inputs in = goodInputs(start + dt);
+      in.airX10 = air(dt);
+      r.tower.update(in);
+      length = dt;
+    }
+  }
+};
+}  // namespace
+
+TEST_CASE("TWR-OV-1: the overlap ends shortly after the air minimum, well before the cap") {
+  OverlapRun o;
+  o.run([](uint32_t dt) -> uint16_t {          // 1040 -> falls to 800 at 450 ms -> climbs back to 1000 by 2.4 s
+    if (dt < 450) return static_cast<uint16_t>(1040 - (240 * dt) / 450);
+    return static_cast<uint16_t>(800 + (dt - 450) / 5);   // 1 PSI per 50 ms recovery
+  });
+  CHECK(o.r.tower.state() == Tower::State::kRight);
+  CHECK(o.length >= 450);                       // not before the minimum
+  CHECK(o.length <= 700);                       // soon after it (cap is 750)
+}
+
+TEST_CASE("TWR-OV-2: one rippled low sample early in the dip is not taken as the minimum") {
+  OverlapRun o;
+  o.run([](uint32_t dt) -> uint16_t {
+    uint16_t v = dt < 450 ? static_cast<uint16_t>(1040 - (240 * dt) / 450) : static_cast<uint16_t>(800 + (dt - 450) / 5);
+    if (dt >= 50 && dt < 60) v = 900;           // a 10 ms spike low in the middle of the fall (50 ms grid: at most one sample)
+    return v;
+  });
+  CHECK(o.length >= 450);
+}
+
+TEST_CASE("TWR-OV-3: with flat air (no sag seen) the cap ends the overlap, as before") {
+  OverlapRun o;
+  o.run([](uint32_t) -> uint16_t { return 1000; });
+  CHECK(o.r.tower.state() == Tower::State::kRight);
+  CHECK(o.length >= o.r.cfg.towerOverlapMs);
+  CHECK(o.length <= o.r.cfg.towerOverlapMs + 5);
+}
+
+TEST_CASE("TWR-OV-3: the overlap is never shorter than overlapMinMs") {
+  OverlapRun o;
+  o.run([](uint32_t dt) -> uint16_t { return dt < 60 ? static_cast<uint16_t>(1040 - dt * 4) : static_cast<uint16_t>(800 + (dt - 60) * 3); });   // minimum at 60 ms
+  CHECK(o.length >= 200);
+}

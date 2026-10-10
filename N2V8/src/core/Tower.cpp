@@ -20,6 +20,13 @@ void Tower::transition(State to, uint32_t now, uint32_t delayMs) {
   if (state_ == State::kDisabled && to == State::kLeft) { graceUntil_ = now + cfg_.airGraceFromOffMs; graceArmed_ = true; }
   else if ((state_ == State::kLeft && to == State::kLeftBoth) || (state_ == State::kRight && to == State::kRightBoth)) { graceUntil_ = now + cfg_.airGraceToBothMs; graceArmed_ = true; }
   else if (to == State::kDisabled) graceArmed_ = false;
+  if (to == State::kLeftBoth || to == State::kRightBoth) {   // a new overlap: start watching the air
+    ovStart_ = now;
+    ovNext_ = now + 50;
+    ovN_ = 0;
+    ovMin_ = 0xFFFF;
+    ovRun_ = 0;
+  }
   state_ = to;
 }
 
@@ -44,6 +51,37 @@ bool Tower::mayStart(const Inputs& in) const {
   return enabled_ && in.tbs && air && n2High && !in.sensorOrderFault && o2;
 }
 
+// TWR-OV: end the overlap when the air has passed its minimum (owner 2026-10-10): the second valve's opening drops the supply, which then recovers.
+// Not before overlapMinMs. Air is sampled every 50 ms; the median of three samples is tracked so a single rippled reading cannot be taken as the minimum.
+// The minimum is "past" when two consecutive medians are at least overlapRiseX10 above the lowest median. If that never happens the deadline
+// (towerOverlapMs) ends the overlap as before, so this can only shorten the overlap, never lengthen it.
+bool Tower::overlapPast(const Inputs& in) {
+  const uint32_t now = in.ms;
+  if (static_cast<int32_t>(now - ovNext_) >= 0) {
+    ovNext_ = now + 50;
+    if (ovN_ < 3) ovRing_[ovN_] = in.airX10;
+    else {
+      ovRing_[0] = ovRing_[1];
+      ovRing_[1] = ovRing_[2];
+      ovRing_[2] = in.airX10;
+    }
+    if (ovN_ < 255) ++ovN_;
+    if (ovN_ >= 3) {
+      uint16_t a = ovRing_[0], b = ovRing_[1], c = ovRing_[2];
+      const uint16_t med = a < b ? (b < c ? b : (a < c ? c : a)) : (a < c ? a : (b < c ? c : b));
+      if (med < ovMin_) {
+        ovMin_ = med;
+        ovRun_ = 0;
+      } else if (med >= static_cast<uint16_t>(ovMin_ + cfg_.overlapRiseX10)) {
+        if (ovRun_ < 255) ++ovRun_;
+      } else {
+        ovRun_ = 0;
+      }
+    }
+  }
+  return ovRun_ >= 2 && static_cast<uint32_t>(now - ovStart_) >= cfg_.overlapMinMs;
+}
+
 void Tower::update(const Inputs& in) {
   if (!enabled_) return;
   const uint32_t now = in.ms;
@@ -59,13 +97,13 @@ void Tower::update(const Inputs& in) {
       if (deadline_.reached(now)) transition(State::kLeftBoth, now, cfg_.towerOverlapMs);
       break;
     case State::kLeftBoth:
-      if (deadline_.reached(now)) transition(State::kRight, now, cfg_.towerFillMs);
+      if (deadline_.reached(now) || overlapPast(in)) transition(State::kRight, now, cfg_.towerFillMs);
       break;
     case State::kRight:
       if (deadline_.reached(now)) transition(State::kRightBoth, now, cfg_.towerOverlapMs);
       break;
     case State::kRightBoth:
-      if (deadline_.reached(now)) transition(State::kLeft, now, cfg_.towerFillMs);
+      if (deadline_.reached(now) || overlapPast(in)) transition(State::kLeft, now, cfg_.towerFillMs);
       break;
     default:  // unreachable; recover safely (ARC-6)
       transition(State::kDisabled, now, 0);
