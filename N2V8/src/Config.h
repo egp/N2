@@ -43,6 +43,10 @@ constexpr uint32_t kI2cClockHz = N2_I2C_HZ;
 #else
 constexpr uint32_t kI2cClockHz = 100000;
 #endif
+// Longest time one I2C transaction may take before the call gives up. The R4 Wire default is 100 ms PER TRANSACTION and one LCD refresh is dozens of
+// them: on a glitched bus that stalls the loop for seconds (3 freezes / watchdog resets on Tom's machine, 2026-10-09). A real 4-byte transfer takes
+// about 0.5 ms at 100 kHz, so 3 ms is generous. (Wire only honours it when the bus is held, not on a NACK: that is the case that stalled.)
+constexpr uint32_t kI2cTimeoutUs = 3000;
 // The UNO R4 Wire really has ONLY these two rates; any other value is silently ignored (the clock stays where it was).
 static_assert(kI2cClockHz == 100000 || kI2cClockHz == 400000,
               "Config.h: kI2cClockHz must be 100000 or 400000 (the R4 Wire.setClock has no other real speed)");

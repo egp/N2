@@ -51,6 +51,7 @@ struct BistConfig {
   bool ssrSinglePulse = true;        // HQ8 pending: one short pulse instead of 2 Hz on the compressor SSR
   uint32_t ssrPulseMs = 1000;
   uint32_t airGraceMs = 1000;        // a valve opening drops the air supply: LOW AIR is tolerated this long after EVERY opening of a tower valve (owner 2026-10-09)
+  uint32_t lcdAirMs = 250;           // the valve steps rewrite the LCD this often (4/s): fewer bus transactions beside the switching solenoids (stall hardening A1)
   bool switchKeys = true;            // TOB = pass and TBS ON = fail answer the steps (bench only; production answers from the console)
 };
 

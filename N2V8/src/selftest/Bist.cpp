@@ -703,7 +703,7 @@ void Bist::tickOutputStep(uint32_t now, Signal sig) {
     rangeBadSince_ = 0;
   }
   if (inputs_.airX10 < airMinX10_) airMinX10_ = inputs_.airX10;
-  if (sig != Signal::kSsr && static_cast<uint32_t>(now - lcdAirMark_) >= 100) {   // the LCD shows the air live: now, and the lowest so far
+  if (sig != Signal::kSsr && static_cast<uint32_t>(now - lcdAirMark_) >= cfg_.lcdAirMs) {   // the LCD shows the air live: now, and the lowest so far
     lcdAirMark_ = now;
     char l1[24], l2[24], l3[24];
     snprintf(l1, sizeof l1, "%s %s", signalLabel(sig), outputOn_ ? "OPEN" : "closed");

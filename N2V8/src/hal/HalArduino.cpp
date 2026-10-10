@@ -55,6 +55,7 @@ bool HalArduino::i2cRecover() {
   const bool sdaFree = ::digitalRead(A4) == HIGH;
   Wire.begin();
   Wire.setClock(kI2cClockHz);
+  Wire.setWireTimeout(kI2cTimeoutUs);   // see Config.h: the 100 ms default per transaction stalls the loop on a held bus
   return sdaFree;
 }
 

@@ -969,3 +969,21 @@ TEST_CASE("BIST-11: the EVENT test is not fooled by ripple at the start of the d
   CHECK(r.has("air is rising: LEFT closes (minimum 80."));
   CHECK_FALSE(r.has("ABORTED"));
 }
+
+TEST_CASE("Stall hardening A1: a valve step rewrites the LCD at most 4 times a second") {
+  Rig r;
+  REQUIRE(r.start() == Bist::Start::kOk);
+  r.goTo(BistStep::kLeft);
+  r.gen.healthy();
+  r.run(100);
+  int changes = 0;
+  std::string last = r.display.lcd().shown(2);
+  for (int i = 0; i < 200; ++i) {           // 2 s with the air changing on every pass
+    r.gen.air(static_cast<uint16_t>(1000 + (i % 7) * 3));
+    r.run(10);
+    const std::string now = r.display.lcd().shown(2);
+    if (now != last) { ++changes; last = now; }
+  }
+  CHECK(changes <= 9);                      // 2 s / 250 ms (+1)
+  CHECK(changes >= 1);
+}
