@@ -39,6 +39,8 @@ On our data that closes the first valve at about **600-700 ms**. (We detect the 
    * (c) neither: keep the air-dip rule.
    Questions: what are those tower sensors (part number, range, 0.5-4.5 V?), where are they plumbed, and is the tower pressure actually worth having for the overlap? In any of (a)/(b) they would be optional: a missing or faulty tower sensor would never stop the machine, just fall back to the air-dip rule.
 
+9. **Your pin spreadsheet:** could you send me the .csv (or spreadsheet) with your understanding of which Arduino pins connect to what (switches, valves, SSR, sensors, I2C, anything else)? I'll compare it line by line with what we verified on your machine on 2026-10-09 (TBS D0, TOB D1, LEFT D4, RIGHT D7, SSR D8, FLUSH D11, AIR A0, N2 LOW A1, N2 HIGH A2, A3 free, SDA/SCL A4/A5, LCD 0x23, LED 0x24, O2 0x74, RTC 0x68) and list every difference, so the wiring and the firmware say the same thing. The old V6/V7 sources had N2 LOW on A3 and N2 HIGH on A5, which we found were not how your panel is wired.
+
 I'll implement the min/max/bottom-of-dip rule in the firmware once I have your answers, and we will verify it on your machine with the same kind of recording. Nothing changes on your machine until we do that together.
 
 Thanks,

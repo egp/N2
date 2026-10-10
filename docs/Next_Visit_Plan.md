@@ -31,6 +31,8 @@ Goal of the next visit: **more progress per hour at Tom's.** Everything below th
 * **Everything not listed here is manual** (owner 2026-10-10): the Arduino's only outputs are LEFT valve (D4), RIGHT valve (D7), FLUSH valve (D11) and the compressor SSR (D8). The solenoid beside the AIR filter, the pilot regulator, the olive-green lever valve and the compressor unload valve are NOT Arduino outputs. The question about the pilot-regulator solenoid is closed.
 * To be measured on site by the new FLUSH step: the minimum N2-low at which the flush valve works.
 
+* Tom's pin spreadsheet (.csv): requested in the overlap email (2026-10-10). When it arrives: compare with `BoardPins.h` and the 2026-10-09 verification, list the differences, fix whichever is wrong.
+
 ## D. Consequences for the plan
 * A3 (SSR step): the white box is the compressor SSR (owner to confirm); nothing to do with the unload valve. No unload-valve BIST step is needed. The SSR step must include the compressor start in the safety check (the owner next to the machine).
 * A2 (FLUSH step): first LOCATE the flush valve on site (and what switches it). The step should ask the owner to confirm what he hears/sees (click, air flow, the buffer tank gauge moving) and report N2-low before/after.
