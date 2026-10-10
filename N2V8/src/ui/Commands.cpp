@@ -256,7 +256,7 @@ bool Commands::Status::line(uint8_t i, char* b, size_t n) {
       return true;
     case 6: {
       const OutputRequest o = s.outputs().actualState();
-      snprintf(b, n, "OUT L=%d R=%d F=%d S=%d   (min-hold deferrals: %lu)", o.left, o.right, o.flush, o.ssr,
+      snprintf(b, n, "OUT L=%d R=%d O=%d C=%d   (min-hold deferrals: %lu)", o.left, o.right, o.flush, o.ssr,
                static_cast<unsigned long>(s.outputs().deferredCount()));
       return true;
     }
