@@ -33,7 +33,9 @@ class Tower {
   bool mustStop(const Inputs& in) const;
   bool mayStart(const Inputs& in) const;
   void transition(State to, uint32_t now, uint32_t delayMs);
+#if defined(N2_OVERLAP_ADAPTIVE) || defined(N2_BUILD_HOST)   // not compiled into the device binary unless -DN2_OVERLAP_ADAPTIVE (Tom prefers a fixed time)
   bool overlapPast(const Inputs& in);   // TWR-OV: the air has passed its minimum (the second valve's sag is over)
+#endif
 
   uint32_t graceUntil_ = 0;
   bool graceArmed_ = false;
@@ -42,12 +44,14 @@ class Tower {
   State state_ = State::kDisabled;
   Deadline deadline_;
   bool enabled_ = false;
+#if defined(N2_OVERLAP_ADAPTIVE) || defined(N2_BUILD_HOST)
   // TWR-OV: the air seen during the current overlap, on a 50 ms grid, median of 3 (one rippled sample cannot be the minimum)
   uint32_t ovStart_ = 0, ovNext_ = 0;
   uint16_t ovRing_[3] = {0, 0, 0};
   uint8_t ovN_ = 0;           // grid samples taken so far
   uint16_t ovMin_ = 0xFFFF;   // lowest median so far
   uint8_t ovRun_ = 0;         // consecutive medians at or above ovMin_ + the rise
+#endif
 };
 
 }  // namespace n2

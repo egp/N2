@@ -2,6 +2,12 @@
 
 namespace n2 {
 
+#if defined(N2_OVERLAP_ADAPTIVE) || defined(N2_BUILD_HOST)
+#define OVERLAP_ADAPTIVE_END(in) (cfg_.overlapAdaptive && overlapPast(in))
+#else
+#define OVERLAP_ADAPTIVE_END(in) false   // the adaptive rule is not built into the device binary
+#endif
+
 const char* Tower::name(State s) {
   switch (s) {
     case State::kDisabled:  return "OF";
@@ -20,6 +26,7 @@ void Tower::transition(State to, uint32_t now, uint32_t delayMs) {
   if (state_ == State::kDisabled && to == State::kLeft) { graceUntil_ = now + cfg_.airGraceFromOffMs; graceArmed_ = true; }
   else if ((state_ == State::kLeft && to == State::kLeftBoth) || (state_ == State::kRight && to == State::kRightBoth)) { graceUntil_ = now + cfg_.airGraceToBothMs; graceArmed_ = true; }
   else if (to == State::kDisabled) graceArmed_ = false;
+#if defined(N2_OVERLAP_ADAPTIVE) || defined(N2_BUILD_HOST)
   if (to == State::kLeftBoth || to == State::kRightBoth) {   // a new overlap: start watching the air
     ovStart_ = now;
     ovNext_ = now + 50;
@@ -27,6 +34,7 @@ void Tower::transition(State to, uint32_t now, uint32_t delayMs) {
     ovMin_ = 0xFFFF;
     ovRun_ = 0;
   }
+#endif
   state_ = to;
 }
 
@@ -51,6 +59,7 @@ bool Tower::mayStart(const Inputs& in) const {
   return enabled_ && in.tbs && air && n2High && !in.sensorOrderFault && o2;
 }
 
+#if defined(N2_OVERLAP_ADAPTIVE) || defined(N2_BUILD_HOST)
 // TWR-OV: end the overlap when the air has passed its minimum (owner 2026-10-10): the second valve's opening drops the supply, which then recovers.
 // Not before overlapMinMs. Air is sampled every 50 ms; the median of three samples is tracked so a single rippled reading cannot be taken as the minimum.
 // The minimum is "past" when two consecutive medians are at least overlapRiseX10 above the lowest median. If that never happens the deadline
@@ -82,6 +91,8 @@ bool Tower::overlapPast(const Inputs& in) {
   return ovRun_ >= 2 && static_cast<uint32_t>(now - ovStart_) >= cfg_.overlapMinMs;
 }
 
+#endif
+
 void Tower::update(const Inputs& in) {
   if (!enabled_) return;
   const uint32_t now = in.ms;
@@ -97,13 +108,13 @@ void Tower::update(const Inputs& in) {
       if (deadline_.reached(now)) transition(State::kLeftBoth, now, cfg_.towerOverlapMs);
       break;
     case State::kLeftBoth:
-      if (deadline_.reached(now) || (cfg_.overlapAdaptive && overlapPast(in))) transition(State::kRight, now, cfg_.towerFillMs);
+      if (deadline_.reached(now) || OVERLAP_ADAPTIVE_END(in)) transition(State::kRight, now, cfg_.towerFillMs);
       break;
     case State::kRight:
       if (deadline_.reached(now)) transition(State::kRightBoth, now, cfg_.towerOverlapMs);
       break;
     case State::kRightBoth:
-      if (deadline_.reached(now) || (cfg_.overlapAdaptive && overlapPast(in))) transition(State::kLeft, now, cfg_.towerFillMs);
+      if (deadline_.reached(now) || OVERLAP_ADAPTIVE_END(in)) transition(State::kLeft, now, cfg_.towerFillMs);
       break;
     default:  // unreachable; recover safely (ARC-6)
       transition(State::kDisabled, now, 0);
