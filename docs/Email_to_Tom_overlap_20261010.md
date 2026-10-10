@@ -15,6 +15,8 @@ Short version: right now the controller keeps both tower valves open together fo
 * Right-then-left and left-then-right look the same.
 * In production the code allows the air to drop to 65 PSI before it stops the towers; it does not look at that during the first 3 s after a start, or the first 2 s after the second valve opens.
 
+**Why there is an overlap (my understanding; please correct me):** with zero overlap the second tower would fill entirely from the air supply. With some overlap, the first (full) tower **pre-fills the second one** through the open valves, so the second tower needs less air from the supply and the first tower's pressure is recovered instead of vented. The air dip we see is the second tower drawing air; the bottom of the dip is about when that fill demand falls off, i.e. when the two towers have roughly equalised. So "bottom of the dip" is an indirect signal for "the pre-fill is done", measured on the supply side.
+
 **What I'd like to do:**
 The fixed 750 ms was chosen before we had any of this data. Proposal:
 1. The overlap **must stay open at least 400 ms** (never closes the first valve earlier).
@@ -24,13 +26,14 @@ The fixed 750 ms was chosen before we had any of this data. Proposal:
 On our data that closes the first valve at about **600-700 ms**. (We detect the bottom with some delay because the pressure is flat there.)
 
 **Questions for you:**
-1. **Why is there an overlap at all?** Is it to keep gas flowing to the N2 tank, to equalise pressure between the towers before the one changes, to avoid slamming a valve, or something else? The answer decides how much we can shorten or lengthen it.
+1. **Is that the purpose** (pre-fill the second tower from the first, saving supply air)? Is there any other reason for the overlap, for example keeping N2 flowing to the tank without a gap, or avoiding a pressure shock when a valve switches? If so, that sets how much we can shorten it.
 2. **Is there a minimum overlap time you need for the towers' own sake**, regardless of the air pressure? Is 400 ms right, or should it be longer? Or even 750 ms as now?
 3. **Is a maximum of 800 ms right?** Or should it be shorter or longer (we have measured one very slow recovery that would have needed 1 s)?
 4. **Is it OK to close the first valve at the bottom of the dip**, when the supply is at its lowest but starting to come back? Or would you rather wait until it has recovered some of the way (say back to 90 PSI)? That would be a longer overlap, maybe 1 s.
 5. **Is the 65 PSI low-air stop (90 PSI to restart) still reasonable** given a dip to about 80 PSI during every overlap? Our measured margin is about 15 PSI.
 6. **Does the compressor or anything else on the same air line change the picture** (for example, the compressor starting while a tower valve opens)? We have not measured that yet.
 7. **Can you give me the origin of the 750 ms**, if you remember? Was it measured, or just a number that worked?
+8. **Tower pressure sensors:** you have a sensor on each tower that is not connected (the Arduino pins were reassigned to N2 LOW and N2 HIGH). If we could read the two tower pressures during the overlap we could end it directly at the moment they equalise, which is the real goal. Is that worth wiring back (an analog input or two on the Arduino, or an ADS1115 on the I2C bus)? Or is the supply-air dip good enough for you?
 
 I'll implement the min/max/bottom-of-dip rule in the firmware once I have your answers, and we will verify it on your machine with the same kind of recording. Nothing changes on your machine until we do that together.
 

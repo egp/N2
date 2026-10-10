@@ -262,7 +262,8 @@ States: `DISABLED, LEFT, LEFT_BOTH, RIGHT, RIGHT_BOTH` (OFF, L, LB, R, RB).
 
 | ID | Requirement (owner 2026-10-10, from the 2026-10-09 measurements) |
 |---|---|
-| TWR-OV-1 | **The overlap ends when the air supply has passed its minimum**, not after a fixed time. Opening the second valve sags the supply (measured: about 24 PSI, minimum at about 450 ms, recovered by about 2 s); the overlap is over once that sag has bottomed out. |
+| TWR-OV-0 | **Purpose of the overlap (owner 2026-10-10):** with both valves open the first (full) tower pre-fills the second, so the second tower needs less air from the supply and the first tower's pressure is recovered. With zero overlap the second tower would fill entirely from the supply. The overlap is over when the pre-fill is done. |
+| TWR-OV-1 | **The overlap ends when the air supply has passed its minimum**, not after a fixed time. Opening the second valve sags the supply (measured: about 24 PSI, minimum at about 450 ms, recovered by about 2 s); the bottom of that dip is the supply-side signal that the second tower's fill demand has fallen off (the towers have about equalised), which is when the pre-fill is done. Tower pressure sensors (not connected) would measure this directly. |
 | TWR-OV-2 | **Confidence:** the minimum is "past" when two consecutive 50 ms samples of the 3-sample median are at least `overlapRiseX10` (1.0 PSI) above the lowest median seen in this overlap. The median keeps one rippled reading from being taken as the minimum. |
 | TWR-OV-3 | **Bounds:** never before `overlapMinMs` (200 ms), never after `towerOverlapMs` (750 ms, now the cap). If the minimum is not seen (flat air, a noisy sensor) the cap ends the overlap, exactly as the fixed-time design did: the rule can only shorten the overlap. |
 | TWR-OV-4 | The existing INV-2/INV-3 stops and the air grace times are unchanged and still take precedence. |
