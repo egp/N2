@@ -51,12 +51,14 @@
 <line x1="520" y1="380" x2="470" y2="380" stroke="#222" stroke-width="2.5"/>
 <text x="530" y="444" font-size="12" fill="#111" text-anchor="start" font-weight="bold">D1  TOB</text>
 <line x1="520" y1="440" x2="470" y2="440" stroke="#222" stroke-width="2.5"/>
-<circle cx="420" cy="380" r="22" fill="#fff" stroke="#222" stroke-width="2"/>
-<line x1="420" y1="380" x2="440" y2="368" stroke="#222" stroke-width="3"/>
-<text x="420" y="350" font-size="11" fill="#111" text-anchor="middle" font-weight="bold">"Black Switch"</text>
-<text x="420" y="418" font-size="10" fill="#444" text-anchor="middle">rotary OFF / ON</text>
-<text x="420" y="432" font-size="10" fill="#444" text-anchor="middle">(SPDT, active LOW)</text>
-<line x1="398" y1="380" x2="360" y2="380" stroke="#222" stroke-width="2.5"/>
+<circle cx="446" cy="380" r="4" fill="#222" stroke="#222" stroke-width="2"/>
+<circle cx="386" cy="380" r="4" fill="#222" stroke="#222" stroke-width="2"/>
+<line x1="446" y1="380" x2="470" y2="380" stroke="#222" stroke-width="2.5"/>
+<line x1="386" y1="380" x2="360" y2="380" stroke="#222" stroke-width="2.5"/>
+<line x1="386" y1="380" x2="440" y2="360" stroke="#222" stroke-width="3"/>
+<text x="416" y="346" font-size="11" fill="#111" text-anchor="middle" font-weight="bold">"Black Switch"</text>
+<text x="416" y="418" font-size="10" fill="#444" text-anchor="middle">rotary OFF / ON, SPST</text>
+<text x="416" y="432" font-size="10" fill="#444" text-anchor="middle">ON = closed to GND (active LOW)</text>
 <text x="350" y="384" font-size="10" fill="#444" text-anchor="end">to GND</text>
 <rect x="396" y="462" width="48" height="28" rx="0" fill="#fff" stroke="#222" stroke-width="2"/>
 <circle cx="420" cy="462" r="0" fill="white" stroke="#222" stroke-width="2"/>

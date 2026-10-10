@@ -230,10 +230,12 @@ def electrical():
             p.line(940, y, 990, y, col, 2.5, dash)
     pin("L", 380, "D0  TBS", "", "#222")
     pin("L", 440, "D1  TOB", "", "#222")
-    # TBS: rotary switch OFF/ON (SPDT, active LOW)
-    p.circ(420, 380, 22, fill="#fff"); p.line(420, 380, 440, 368, "#222", 3); p.text(420, 350, "\"Black Switch\"", 11, "#111", "middle", True)
-    p.text(420, 418, "rotary OFF / ON", 10, "#444", "middle"); p.text(420, 432, "(SPDT, active LOW)", 10, "#444", "middle")
-    p.line(398, 380, 360, 380, "#222", 2.5)
+    # TBS: rotary switch OFF/ON, SPST (one contact: ON = closed to GND, active LOW)
+    p.circ(446, 380, 4, fill="#222"); p.circ(386, 380, 4, fill="#222")
+    p.line(446, 380, 470, 380, "#222", 2.5); p.line(386, 380, 360, 380, "#222", 2.5)
+    p.line(386, 380, 440, 360, "#222", 3)                       # the blade, drawn open
+    p.text(416, 346, "\"Black Switch\"", 11, "#111", "middle", True)
+    p.text(416, 418, "rotary OFF / ON, SPST", 10, "#444", "middle"); p.text(416, 432, "ON = closed to GND (active LOW)", 10, "#444", "middle")
     p.text(350, 384, "to GND", 10, "#444", "end")
     # TOB push button
     p.rect(396, 448+14, 48, 28, fill="#fff"); p.circ(420, 462+0, 0)

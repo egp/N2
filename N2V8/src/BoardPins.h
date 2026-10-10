@@ -105,7 +105,7 @@ inline constexpr SignalDef kMinimaSignals[kSignalCount] = {
 
 
 // UNO R4 WiFi: the HOME BENCH. Free to differ (the bench wiring may not match production). Today: TBS and TOB are momentary
-// buttons on D0 and D1 (production TBS is an SPDT switch: same wiring, active LOW); nothing is on the valve/SSR/analog pins.
+// buttons on D0 and D1 (production TBS is an SPST switch (owner 2026-10-10): one contact to GND, active LOW); nothing is on the valve/SSR/analog pins.
 inline constexpr SignalDef kWifiSignals[kSignalCount] = {
     // name        pin           direction          active           note
     {"TBS",       pin::kD0,  Dir::kInputPullup, Active::kLow,  "maintained; V6/V7"},
