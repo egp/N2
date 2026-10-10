@@ -4,6 +4,7 @@
 // pump them out as TX space allows and never needs a large buffer or ever blocks.
 #pragma once
 
+#include "../core/StallRecord.h"
 #include <stdarg.h>
 
 #include "../core/LoopStats.h"
@@ -43,6 +44,8 @@ struct ConsoleContext {
   NvmSettingsService* nvm = nullptr;  // settings in non-volatile memory, if the build has any
   const BoardDef* board = nullptr;    // the pin table, for the `pins` command
   Lcd20x4* lcd = nullptr;             // the LCD driver, for the `lcd` diagnostic command
+  const StallRecord* stall = nullptr;      // the live stall breadcrumb and the one the previous run left (`loop` shows them)
+  const StallRecord* prevStall = nullptr;
 };
 
 class Commands : public CommandHandler {

@@ -25,6 +25,7 @@ class HalArduino : public Hal {
   bool i2cWrite(uint8_t address, const uint8_t* data, size_t n) override;
   bool i2cRead(uint8_t address, uint8_t* data, size_t n) override;
   bool i2cReadReg(uint8_t address, uint8_t reg, uint8_t* data, size_t n) override;
+  void setStallRecord(StallRecord* r) override { stall_ = r; }
   void consoleBegin() override;
   bool consoleCanDetectHost() override;
   bool consoleAttached() override;
@@ -37,6 +38,10 @@ class HalArduino : public Hal {
 
  private:
   TxBudget txBudget_;  // paces output on the R4 WiFi, whose UART writes block
+
+ private:
+  StallRecord* stall_ = nullptr;
+  void noteI2c(uint8_t address, uint32_t t0);
 };
 
 }  // namespace n2

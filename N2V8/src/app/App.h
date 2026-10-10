@@ -10,6 +10,7 @@
 //              RUN   (the system: System::step + displays)
 #pragma once
 
+#include "../core/StallRecord.h"
 #include <stdint.h>
 
 #include "../BoardPins.h"
@@ -42,6 +43,7 @@ struct AppOptions {
   bool warmCreditEnabled = false;    // O2-6b: false until the reset probe has proven the credit logic on both boards
   LogLevel logLevel = LogLevel::kDebug;
   ModeRecord* modeRecord = nullptr;  // RAM breadcrumb: the run mode survives a reset-button or watchdog reset (nullptr: always the compiled mode)
+  StallRecord* stallRecord = nullptr;  // RAM breadcrumb: where the loop was and the slowest I2C transaction (nullptr: none)
   BistRecord* bistRecord = nullptr;  // RAM record that survives a reset-button reset: lets an interrupted BIST resume (nullptr: no resume)
   Nvm* nvm = nullptr;                // non-volatile memory (data flash); nullptr = none: the compiled debounce default is used
   uint16_t sketchVersion = 0;        // BuildConfig.h N2_VERSION_HEX: stored in every NVM record
@@ -95,6 +97,14 @@ class App : public CommandLauncher {
   System sys_;
   DisplayManager display_;
   LoopStats loopStats_;
+  StallRecord* stall_ = nullptr;   // the live breadcrumb (opt_.stallRecord)
+  StallRecord prevStall_{};        // what the record held at boot: where the previous run was when it stopped
+  void mark(StallPhase p, uint32_t aux = 0) {
+    if (stall_ == nullptr) return;
+    stall_->phase = static_cast<uint32_t>(p);
+    stall_->aux = aux;
+    stall_->atMs = hal_.millis();
+  }
   NvmSettingsService nvmSvc_;
   ConsoleContext ctx_;
   Commands commands_;

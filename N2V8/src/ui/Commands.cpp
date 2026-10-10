@@ -451,6 +451,18 @@ bool Commands::Display::line(uint8_t i, char* b, size_t n) {
 }
 
 bool Commands::Loop::line(uint8_t i, char* b, size_t n) {
+  if (i == 1 && c_.stall != nullptr) {   // the slowest I2C transaction and where the loop is (stall hardening A1)
+    snprintf(b, n, "I2C slowest 0x%02lX %lu us, last 0x%02lX %lu us; longest pass %lu us; in '%s'", static_cast<unsigned long>(c_.stall->i2cWorstAddr),
+             static_cast<unsigned long>(c_.stall->i2cWorstUs), static_cast<unsigned long>(c_.stall->i2cLastAddr), static_cast<unsigned long>(c_.stall->i2cLastUs),
+             static_cast<unsigned long>(c_.stall->loopMaxUs), stallPhaseName(c_.stall->phase));
+    return true;
+  }
+  if (i == 2 && c_.prevStall != nullptr && stallValid(*c_.prevStall)) {   // what the previous run left behind
+    snprintf(b, n, "previous run ended in '%s' (%lu) at %lu ms; slowest I2C 0x%02lX %lu us", stallPhaseName(c_.prevStall->phase),
+             static_cast<unsigned long>(c_.prevStall->aux), static_cast<unsigned long>(c_.prevStall->atMs), static_cast<unsigned long>(c_.prevStall->i2cWorstAddr),
+             static_cast<unsigned long>(c_.prevStall->i2cWorstUs));
+    return true;
+  }
   if (i != 0) return false;
   const LoopStats& s = *c_.loop;
   snprintf(b, n, "loop n=%lu  min %lu  mean %lu  median<=%lu  max %lu us  slow(>=1s) %lu", static_cast<unsigned long>(s.count()),

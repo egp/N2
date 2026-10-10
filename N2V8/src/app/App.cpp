@@ -34,7 +34,7 @@ App::App(Hal& hal, const BoardDef& board, const ControlConfig& cfg, O2Reader& o2
       sys_(hal, board_, cfg_, o2, console_, kAdcBits),
       display_(hal, board_, options.layout, options.faultCycleMs),
       nvmSvc_(options.nvm, boardIdOf(board), options.sketchVersion, options.debounceDefaultMs),
-      ctx_{&sys_, &console_, &loopStats_, &hal_, info_, options.layout, this, &rtc_, &nvmSvc_, &board_, &display_.lcd()},
+      ctx_{&sys_, &console_, &loopStats_, &hal_, info_, options.layout, this, &rtc_, &nvmSvc_, &board_, &display_.lcd(), options.stallRecord, &prevStall_},
       commands_(ctx_),
       post_(hal, board_, sys_, display_, console_, info_, ResetInfo(), options.post),
       bist_(hal, board_, sys_, display_, console_, o2, info_, options.bist),
@@ -200,6 +200,14 @@ void App::setup() {
   if (opt_.watchdogEnabled) hal_.watchdogBegin(opt_.watchdogMs);
 
   resetInfo_ = hal_.readResetCause();
+  if (opt_.stallRecord != nullptr) {   // where the previous run was when it stopped; then start a fresh breadcrumb
+    stall_ = opt_.stallRecord;
+    prevStall_ = stallValid(*stall_) && !resetInfo_.powerOn ? *stall_ : StallRecord{};
+    *stall_ = StallRecord{};
+    stall_->magic = kStallMagic;
+    mark(StallPhase::kBoot);
+    hal_.setStallRecord(stall_);
+  }
   {   // the run mode: the compiled one after a power-up, the remembered one after a reset-button or watchdog reset (the RAM breadcrumb)
     const RunMode compiled = !opt_.controllersEnabled ? RunMode::kDiag : (sys_.config().o2Mandatory ? RunMode::kField : RunMode::kBench);
     RunMode m = compiled;
@@ -223,6 +231,11 @@ void App::setup() {
   logf(console_, LogLevel::kInfo, "%lu BOOT N2V8 %s %s mode %s reset: %s", static_cast<unsigned long>(now), info_.version,
        info_.board, info_.mode,
        !resetInfo_.known ? "unknown" : (resetInfo_.powerOn ? "power-on" : (resetInfo_.watchdog ? "watchdog" : (resetInfo_.brownout ? "brown-out" : "reset button"))));
+  if (resetInfo_.watchdog && stallValid(prevStall_)) {   // the breadcrumb of the run the watchdog stopped
+    logf(console_, LogLevel::kWarn, "%lu WATCHDOG reset in '%s' (%lu) at %lu ms; slowest I2C 0x%02lX %lu us", static_cast<unsigned long>(now),
+         stallPhaseName(prevStall_.phase), static_cast<unsigned long>(prevStall_.aux), static_cast<unsigned long>(prevStall_.atMs),
+         static_cast<unsigned long>(prevStall_.i2cWorstAddr), static_cast<unsigned long>(prevStall_.i2cWorstUs));
+  }
   if (nvmSvc_.available()) {
     const StoreReport& r = nvmSvc_.report();
     logf(console_, LogLevel::kInfo, "%lu NVM debounce TBS %u ms TOB %u ms: %s%s", static_cast<unsigned long>(now),
@@ -297,6 +310,7 @@ void App::runPass(uint32_t now) {
   char tag[8];
   lcdVersionTag(info_.version, tag, sizeof tag);
   if (runMode_ != RunMode::kField) data.version = tag;   // a short version tag on the LCD while testing (not in FIELD)
+  mark(StallPhase::kShowNormal);
   display_.showNormal(data, now);
 
   // Report what the display side noticed (DSP-6: informational, never stops the system).
@@ -312,6 +326,7 @@ void App::runPass(uint32_t now) {
   // The real-time clock is optional and informational: check it now and then (F13, INFO, never affects control).
   if (static_cast<int32_t>(now - nextRtcCheck_) >= 0) {
     nextRtcCheck_ = now + 10000;
+    mark(StallPhase::kRtcCheck);
     bool valid = false;
     const bool present = rtc_.present();
     if (present) rtcFitted_ = true;                        // fitted late: from now on it is watched
@@ -330,9 +345,11 @@ void App::loop() {
   const uint32_t now = hal_.millis();
   hal_.watchdogRefresh();
 
+  mark(StallPhase::kConsole);
   console_.poll(commands_);
   announceConsole();
 
+  mark(mode_ == Mode::kBist ? StallPhase::kBistStep : (mode_ == Mode::kRun ? StallPhase::kRunSystem : StallPhase::kPostStep), static_cast<uint32_t>(mode_));
   switch (mode_) {
     case Mode::kPostArm:
       if (tobPressed()) {
@@ -383,12 +400,16 @@ void App::loop() {
       break;
   }
 
+  mark(StallPhase::kDisplayService);
   display_.service(now);
   if (static_cast<uint32_t>(now - lastCreditTick_) >= 1000) {
     lastCreditTick_ = now;
     credit_.tick(now);
   }
-  loopStats_.record(static_cast<uint32_t>(hal_.micros() - us0));
+  const uint32_t passUs = static_cast<uint32_t>(hal_.micros() - us0);
+  loopStats_.record(passUs);
+  if (stall_ != nullptr && passUs > stall_->loopMaxUs) stall_->loopMaxUs = passUs;
+  mark(StallPhase::kIdle);
 }
 
 }  // namespace n2

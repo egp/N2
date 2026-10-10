@@ -12,6 +12,7 @@
 #include <stdint.h>
 
 #include "ResetInfo.h"
+#include "../core/StallRecord.h"
 
 namespace n2 {
 
@@ -69,6 +70,8 @@ class Hal {
 
   // Reset cause: read AND cleared (the hardware flags persist until cleared). Call once at boot.
   virtual ResetInfo readResetCause() = 0;
+  // The stall breadcrumb (core/StallRecord.h): the real Hal fills in its I2C timing. Default: nothing (the host fake).
+  virtual void setStallRecord(StallRecord*) {}
 };
 
 }  // namespace n2

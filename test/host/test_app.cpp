@@ -22,6 +22,7 @@ struct AppRig {
   WarmRecord rec{};
   ModeRecord modeRec{};   // the run-mode breadcrumb, survives the simulated resets
   BistRecord bistRec{};   // survives the simulated resets, like the RAM record on the board
+  StallRecord stallRec{}; // the stall breadcrumb, survives the simulated resets
   std::unique_ptr<App> app;
   std::string out;  // everything the console printed
 
@@ -49,6 +50,7 @@ struct AppRig {
     hal.resetCause = reset;
     opt.bistRecord = &bistRec;
     opt.modeRecord = &modeRec;
+    opt.stallRecord = &stallRec;
     app.reset(new App(hal, kHostBoard, cfg, o2, info, &rec, opt));
     hal.nowMs = 0;
     app->setup();
@@ -937,4 +939,32 @@ TEST_CASE("REC-2: `cap` prints one R, line now, `cap text` and `note text` add a
   CHECK(r.has(",valve LEFT clicked"));
   r.type("note");
   CHECK(r.has("usage: note <text>"));
+}
+
+TEST_CASE("Stall hardening A1: after a watchdog reset the boot log names the section the loop was in, and the slowest I2C transaction") {
+  AppRig r;
+  r.boot(powerOnReset());
+  r.run(200);
+  r.stallRec.i2cWorstAddr = 0x23;       // what the real Hal would have recorded
+  r.stallRec.i2cWorstUs = 98000;
+  r.stallRec.phase = static_cast<uint32_t>(StallPhase::kDisplayService);
+  r.out.clear();
+  r.boot(watchdogReset());
+  r.run(50);
+  CHECK(r.has("WATCHDOG reset in 'display service'"));
+  CHECK(r.has("slowest I2C 0x23 98000 us"));
+  r.type("loop");
+  CHECK(r.has("previous run ended in 'display service'"));
+  CHECK(r.has("I2C slowest"));
+}
+
+TEST_CASE("Stall hardening A1: no watchdog line after a power-up or a button reset, and the record starts fresh") {
+  AppRig r;
+  r.boot(powerOnReset());
+  r.run(100);
+  r.out.clear();
+  r.boot(buttonReset());
+  r.run(50);
+  CHECK_FALSE(r.has("WATCHDOG reset"));
+  CHECK(r.stallRec.magic == kStallMagic);
 }

@@ -59,32 +59,57 @@ bool HalArduino::i2cRecover() {
   return sdaFree;
 }
 
+void HalArduino::noteI2c(uint8_t address, uint32_t t0) {
+  if (stall_ == nullptr) return;
+  const uint32_t us = ::micros() - t0;
+  stall_->i2cLastAddr = address;
+  stall_->i2cLastUs = us;
+  if (us > stall_->i2cWorstUs) {
+    stall_->i2cWorstUs = us;
+    stall_->i2cWorstAddr = address;
+  }
+}
+
 bool HalArduino::i2cProbe(uint8_t address) {
+  const uint32_t t0 = ::micros();
   Wire.beginTransmission(address);
-  return Wire.endTransmission() == 0;
+  const bool ok = Wire.endTransmission() == 0;
+  noteI2c(address, t0);
+  return ok;
 }
 
 bool HalArduino::i2cWrite(uint8_t address, const uint8_t* data, size_t n) {
+  const uint32_t t0 = ::micros();
   Wire.beginTransmission(address);
   Wire.write(data, n);
-  return Wire.endTransmission() == 0;
+  const bool ok = Wire.endTransmission() == 0;
+  noteI2c(address, t0);
+  return ok;
 }
 
 bool HalArduino::i2cRead(uint8_t address, uint8_t* data, size_t n) {
+  const uint32_t t0 = ::micros();
   const uint8_t want = static_cast<uint8_t>(n);
-  if (Wire.requestFrom(address, want) != want) return false;
-  for (size_t i = 0; i < n; ++i) data[i] = static_cast<uint8_t>(Wire.read());
-  return true;
+  const bool ok = Wire.requestFrom(address, want) == want;
+  if (ok)
+    for (size_t i = 0; i < n; ++i) data[i] = static_cast<uint8_t>(Wire.read());
+  noteI2c(address, t0);
+  return ok;
 }
 
 bool HalArduino::i2cReadReg(uint8_t address, uint8_t reg, uint8_t* data, size_t n) {
+  const uint32_t t0 = ::micros();
   Wire.beginTransmission(address);
   Wire.write(reg);
-  if (Wire.endTransmission(false) != 0) return false;  // keep the bus (repeated start) for the read
-  const uint8_t want = static_cast<uint8_t>(n);
-  if (Wire.requestFrom(address, want) != want) return false;
-  for (size_t i = 0; i < n; ++i) data[i] = static_cast<uint8_t>(Wire.read());
-  return true;
+  bool ok = Wire.endTransmission(false) == 0;  // keep the bus (repeated start) for the read
+  if (ok) {
+    const uint8_t want = static_cast<uint8_t>(n);
+    ok = Wire.requestFrom(address, want) == want;
+    if (ok)
+      for (size_t i = 0; i < n; ++i) data[i] = static_cast<uint8_t>(Wire.read());
+  }
+  noteI2c(address, t0);
+  return ok;
 }
 
 // ---- Console -----------------------------------------------------------------------------------------------

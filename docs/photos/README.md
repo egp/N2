@@ -9,3 +9,5 @@
 Owner's notes:
 * The olive-green valve is DOWNSTREAM of N2 HIGH. It selects what an old-style gas-station tyre-inflation air tower gets: air in one position, N2 in the other. The air tower is not visible in any of the pictures. It is a manual valve, not controlled by the Arduino.
 * The N2 LOW gauge needle in the tanks picture is at about 17 PSI, while the console (N2L, A1) read raw 88-91 = 0.43 V = 0.0 PSI all day. Not yet explained: see docs/Owner_TODO.md section 2C.
+
+Correction (owner 2026-10-10): the white box with the extension-cord end in the towers picture is the compressor SSR. The flush valve's location is not yet known. The two tower valves are just visible at the bottom of the towers.
