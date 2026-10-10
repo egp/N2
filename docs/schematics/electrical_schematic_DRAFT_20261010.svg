@@ -1,0 +1,180 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="1000" viewBox="0 0 1500 1000" font-family="Helvetica,Arial,sans-serif" font-size="12">
+<rect width="1500" height="1000" fill="white"/>
+<rect x="8" y="8" width="1484" height="984" fill="none" stroke="#333" stroke-width="1.5"/>
+<text x="24" y="38" font-size="20" font-weight="bold">N2 generator - ELECTRICAL / ELECTRONIC schematic</text>
+<text x="24" y="58" fill="#555">Arduino UNO R4 Minima controller (production). Pins as VERIFIED at Tom's on 2026-10-09 unless dashed.</text>
+<text x="1476" y="38" text-anchor="end" font-size="15" fill="#c62828" font-weight="bold">DRAFT 2026-10-10 - for Tom to verify</text>
+<rect x="1090" y="70" width="392" height="150" rx="0" fill="#fafafa" stroke="#999" stroke-width="1"/>
+<text x="1100" y="90" font-size="12" fill="#333" text-anchor="start" font-weight="bold">LEGEND</text>
+<line x1="1100" y1="108" x2="1150" y2="108" stroke="#222" stroke-width="2.5"/>
+<text x="1160" y="112" font-size="11" fill="#111" text-anchor="start">wire / signal as described or verified</text>
+<line x1="1100" y1="128" x2="1150" y2="128" stroke="#222" stroke-width="2.5" stroke-dasharray="7 5"/>
+<text x="1160" y="132" font-size="11" fill="#111" text-anchor="start">dashed + '?': ASSUMED or not connected</text>
+<line x1="1100" y1="148" x2="1150" y2="148" stroke="#c62828" stroke-width="2.5"/>
+<text x="1160" y="152" font-size="11" fill="#c62828" text-anchor="start">red = mains 120 VAC (extension-cord end)</text>
+<line x1="1100" y1="168" x2="1150" y2="168" stroke="#ef6c00" stroke-width="2.5"/>
+<text x="1160" y="172" font-size="11" fill="#ef6c00" text-anchor="start">orange = 24 V DC</text>
+<line x1="1100" y1="188" x2="1150" y2="188" stroke="#1565c0" stroke-width="2.5"/>
+<text x="1160" y="192" font-size="11" fill="#1565c0" text-anchor="start">blue = analog signal / 5 V sensors</text>
+<line x1="1100" y1="208" x2="1150" y2="208" stroke="#6a1b9a" stroke-width="2.5"/>
+<text x="1160" y="212" font-size="11" fill="#6a1b9a" text-anchor="start">purple = I2C bus (SDA/SCL)</text>
+<text x="30" y="100" font-size="12" fill="#c62828" text-anchor="start" font-weight="bold">MAINS IN</text>
+<line x1="30" y1="130" x2="120" y2="130" stroke="#c62828" stroke-width="3"/>
+<line x1="30" y1="150" x2="120" y2="150" stroke="#c62828" stroke-width="3"/>
+<text x="30" y="124" font-size="11" fill="#c62828" text-anchor="start">L</text>
+<text x="30" y="168" font-size="11" fill="#c62828" text-anchor="start">N</text>
+<rect x="120" y="105" width="60" height="70" rx="0" fill="#fff3f3" stroke="#c62828" stroke-width="2"/>
+<text x="150" y="128" font-size="11" fill="#c62828" text-anchor="middle" font-weight="bold">FUSE</text>
+<text x="150" y="144" font-size="11" fill="#c62828" text-anchor="middle">10 A</text>
+<text x="150" y="160" font-size="10" fill="#444" text-anchor="middle">holder ?</text>
+<line x1="180" y1="130" x2="240" y2="130" stroke="#c62828" stroke-width="3"/>
+<line x1="180" y1="150" x2="240" y2="150" stroke="#c62828" stroke-width="3"/>
+<rect x="240" y="100" width="150" height="100" rx="0" fill="#fff3f3" stroke="#c62828" stroke-width="2"/>
+<text x="315" y="122" font-size="12" fill="#111" text-anchor="middle" font-weight="bold">Mean Well MDR-60-24</text>
+<text x="315" y="140" font-size="11" fill="#444" text-anchor="middle">24 V DC / 2.5 A</text>
+<text x="315" y="158" font-size="11" fill="#444" text-anchor="middle">DC OK LED (green)</text>
+<text x="315" y="176" font-size="10" fill="#444" text-anchor="middle">DIN-rail power supply</text>
+<line x1="390" y1="130" x2="460" y2="130" stroke="#ef6c00" stroke-width="3"/>
+<text x="425" y="122" font-size="11" fill="#ef6c00" text-anchor="middle">+24 V</text>
+<line x1="390" y1="160" x2="460" y2="160" stroke="#222" stroke-width="3"/>
+<text x="425" y="178" font-size="11" fill="#222" text-anchor="middle">0 V</text>
+<text x="30" y="218" font-size="10" fill="#c62828" text-anchor="start">(Where the 10 A fuse sits - mains or 24 V side - to be confirmed)</text>
+<line x1="460" y1="130" x2="700" y2="130" stroke="#ef6c00" stroke-width="3"/>
+<line x1="460" y1="160" x2="700" y2="160" stroke="#222" stroke-width="3"/>
+<rect x="520" y="260" width="420" height="520" rx="8" fill="#e8f0fe" stroke="#1565c0" stroke-width="3"/>
+<text x="730" y="286" font-size="15" fill="#1565c0" text-anchor="middle" font-weight="bold">ARDUINO UNO R4 MINIMA</text>
+<text x="730" y="304" font-size="11" fill="#444" text-anchor="middle">controller (own supply, not USB)</text>
+<text x="530" y="324" font-size="11" fill="#c62828" text-anchor="start">Arduino supply: ?</text>
+<line x1="460" y1="160" x2="520" y2="340" stroke="#222" stroke-width="1.5" stroke-dasharray="7 5"/>
+<text x="440" y="262" font-size="10" fill="#444" text-anchor="end">power: ? (own supply)</text>
+<text x="530" y="384" font-size="12" fill="#111" text-anchor="start" font-weight="bold">D0  TBS</text>
+<line x1="520" y1="380" x2="470" y2="380" stroke="#222" stroke-width="2.5"/>
+<text x="530" y="444" font-size="12" fill="#111" text-anchor="start" font-weight="bold">D1  TOB</text>
+<line x1="520" y1="440" x2="470" y2="440" stroke="#222" stroke-width="2.5"/>
+<circle cx="420" cy="380" r="22" fill="#fff" stroke="#222" stroke-width="2"/>
+<line x1="420" y1="380" x2="440" y2="368" stroke="#222" stroke-width="3"/>
+<text x="420" y="350" font-size="11" fill="#111" text-anchor="middle" font-weight="bold">"Black Switch"</text>
+<text x="420" y="418" font-size="10" fill="#444" text-anchor="middle">rotary OFF / ON</text>
+<text x="420" y="432" font-size="10" fill="#444" text-anchor="middle">(SPDT, active LOW)</text>
+<line x1="398" y1="380" x2="360" y2="380" stroke="#222" stroke-width="2.5"/>
+<text x="350" y="384" font-size="10" fill="#444" text-anchor="end">to GND</text>
+<rect x="396" y="462" width="48" height="28" rx="0" fill="#fff" stroke="#222" stroke-width="2"/>
+<circle cx="420" cy="462" r="0" fill="white" stroke="#222" stroke-width="2"/>
+<line x1="470" y1="440" x2="444" y2="462" stroke="#222" stroke-width="2.5"/>
+<text x="420" y="504" font-size="11" fill="#111" text-anchor="middle" font-weight="bold">"OTHER" pushbutton</text>
+<text x="420" y="520" font-size="10" fill="#444" text-anchor="middle">momentary, active LOW</text>
+<line x1="396" y1="462" x2="360" y2="462" stroke="#222" stroke-width="2.5"/>
+<text x="350" y="466" font-size="10" fill="#444" text-anchor="end">to GND</text>
+<text x="420" y="482" font-size="11" fill="#111" text-anchor="middle" font-weight="bold">TOB</text>
+<text x="530" y="604" font-size="12" fill="#111" text-anchor="start" font-weight="bold">A0  AIR</text>
+<line x1="520" y1="600" x2="470" y2="600" stroke="#1565c0" stroke-width="2.5"/>
+<text x="530" y="654" font-size="12" fill="#111" text-anchor="start" font-weight="bold">A1  N2 LOW</text>
+<line x1="520" y1="650" x2="470" y2="650" stroke="#1565c0" stroke-width="2.5"/>
+<text x="530" y="704" font-size="12" fill="#111" text-anchor="start" font-weight="bold">A2  N2 HIGH</text>
+<line x1="520" y1="700" x2="470" y2="700" stroke="#1565c0" stroke-width="2.5"/>
+<text x="530" y="754" font-size="12" fill="#111" text-anchor="start" font-weight="bold">A3  spare</text>
+<line x1="520" y1="750" x2="470" y2="750" stroke="#1565c0" stroke-width="2.5" stroke-dasharray="7 5"/>
+<circle cx="430" cy="600" r="18" fill="white" stroke="#1565c0" stroke-width="2"/>
+<text x="430" y="605" font-size="12" fill="#1565c0" text-anchor="middle" font-weight="bold">PT</text>
+<line x1="470" y1="600" x2="448" y2="600" stroke="#1565c0" stroke-width="2.5"/>
+<text x="398" y="604" font-size="12" fill="#111" text-anchor="end" font-weight="bold">PT-AIR</text>
+<text x="398" y="618" font-size="10" fill="#444" text-anchor="end">0-150 PSI</text>
+<circle cx="430" cy="650" r="18" fill="white" stroke="#1565c0" stroke-width="2"/>
+<text x="430" y="655" font-size="12" fill="#1565c0" text-anchor="middle" font-weight="bold">PT</text>
+<line x1="470" y1="650" x2="448" y2="650" stroke="#1565c0" stroke-width="2.5"/>
+<text x="398" y="654" font-size="12" fill="#111" text-anchor="end" font-weight="bold">PT-N2LOW</text>
+<text x="398" y="668" font-size="10" fill="#444" text-anchor="end">0-30 PSI</text>
+<circle cx="430" cy="700" r="18" fill="white" stroke="#1565c0" stroke-width="2"/>
+<text x="430" y="705" font-size="12" fill="#1565c0" text-anchor="middle" font-weight="bold">PT</text>
+<line x1="470" y1="700" x2="448" y2="700" stroke="#1565c0" stroke-width="2.5"/>
+<text x="398" y="704" font-size="12" fill="#111" text-anchor="end" font-weight="bold">PT-N2HIGH</text>
+<text x="398" y="718" font-size="10" fill="#444" text-anchor="end">0-150 PSI</text>
+<circle cx="430" cy="750" r="18" fill="white" stroke="#1565c0" stroke-width="2" stroke-dasharray="7 5"/>
+<text x="430" y="755" font-size="12" fill="#1565c0" text-anchor="middle" font-weight="bold">PT</text>
+<line x1="470" y1="750" x2="448" y2="750" stroke="#1565c0" stroke-width="2.5" stroke-dasharray="7 5"/>
+<text x="398" y="754" font-size="12" fill="#111" text-anchor="end" font-weight="bold">tower sensor ?</text>
+<text x="398" y="768" font-size="10" fill="#444" text-anchor="end">NOT connected (optional)</text>
+<text x="520" y="575" font-size="11" fill="#1565c0" text-anchor="start">sensors: 3-wire 0.5-4.5 V (+5 V, GND, signal)</text>
+<text x="370" y="800" font-size="10" fill="#c62828" text-anchor="start">Tower L and tower R pressure sensors exist but are</text>
+<text x="370" y="814" font-size="10" fill="#c62828" text-anchor="start">NOT connected (pins reassigned to N2 LOW / N2 HIGH).</text>
+<text x="930" y="384" font-size="12" fill="#111" text-anchor="end" font-weight="bold">D4  LEFT valve</text>
+<line x1="940" y1="380" x2="990" y2="380" stroke="#2e7d32" stroke-width="2.5"/>
+<text x="930" y="444" font-size="12" fill="#111" text-anchor="end" font-weight="bold">D7  RIGHT valve</text>
+<line x1="940" y1="440" x2="990" y2="440" stroke="#2e7d32" stroke-width="2.5"/>
+<text x="930" y="504" font-size="12" fill="#111" text-anchor="end" font-weight="bold">D11 FLUSH valve</text>
+<line x1="940" y1="500" x2="990" y2="500" stroke="#2e7d32" stroke-width="2.5"/>
+<text x="930" y="564" font-size="12" fill="#111" text-anchor="end" font-weight="bold">D8  SSR</text>
+<line x1="940" y1="560" x2="990" y2="560" stroke="#2e7d32" stroke-width="2.5"/>
+<rect x="1000" y="364" width="44" height="32" rx="0" fill="#fff8e1" stroke="#8a6d00" stroke-width="2" stroke-dasharray="7 5"/>
+<text x="1022" y="384" font-size="10" fill="#333" text-anchor="middle">drv ?</text>
+<line x1="990" y1="380" x2="1000" y2="380" stroke="#2e7d32" stroke-width="2.5" stroke-dasharray="7 5"/>
+<line x1="1044" y1="380" x2="1068" y2="380" stroke="#2e7d32" stroke-width="2" stroke-dasharray="7 5"/>
+<rect x="1068" y="366" width="54" height="28" rx="0" fill="#fff" stroke="#2e7d32" stroke-width="2"/>
+<line x1="1068" y1="394" x2="1122" y2="366" stroke="#2e7d32" stroke-width="1.5"/>
+<text x="1128" y="378" font-size="12" fill="#111" text-anchor="start" font-weight="bold">V-LEFT solenoid</text>
+<text x="1128" y="393" font-size="10" fill="#444" text-anchor="start">driver / voltage ?</text>
+<rect x="1000" y="424" width="44" height="32" rx="0" fill="#fff8e1" stroke="#8a6d00" stroke-width="2" stroke-dasharray="7 5"/>
+<text x="1022" y="444" font-size="10" fill="#333" text-anchor="middle">drv ?</text>
+<line x1="990" y1="440" x2="1000" y2="440" stroke="#2e7d32" stroke-width="2.5" stroke-dasharray="7 5"/>
+<line x1="1044" y1="440" x2="1068" y2="440" stroke="#2e7d32" stroke-width="2" stroke-dasharray="7 5"/>
+<rect x="1068" y="426" width="54" height="28" rx="0" fill="#fff" stroke="#2e7d32" stroke-width="2"/>
+<line x1="1068" y1="454" x2="1122" y2="426" stroke="#2e7d32" stroke-width="1.5"/>
+<text x="1128" y="438" font-size="12" fill="#111" text-anchor="start" font-weight="bold">V-RIGHT solenoid</text>
+<text x="1128" y="453" font-size="10" fill="#444" text-anchor="start">driver / voltage ?</text>
+<rect x="1000" y="484" width="44" height="32" rx="0" fill="#fff8e1" stroke="#8a6d00" stroke-width="2" stroke-dasharray="7 5"/>
+<text x="1022" y="504" font-size="10" fill="#333" text-anchor="middle">drv ?</text>
+<line x1="990" y1="500" x2="1000" y2="500" stroke="#2e7d32" stroke-width="2.5" stroke-dasharray="7 5"/>
+<line x1="1044" y1="500" x2="1068" y2="500" stroke="#2e7d32" stroke-width="2" stroke-dasharray="7 5"/>
+<rect x="1068" y="486" width="54" height="28" rx="0" fill="#fff" stroke="#2e7d32" stroke-width="2" stroke-dasharray="7 5"/>
+<line x1="1068" y1="514" x2="1122" y2="486" stroke="#2e7d32" stroke-width="1.5"/>
+<text x="1128" y="498" font-size="12" fill="#111" text-anchor="start" font-weight="bold">V-FLUSH solenoid</text>
+<text x="1128" y="513" font-size="10" fill="#444" text-anchor="start">driver / voltage ?; location ?</text>
+<rect x="1000" y="540" width="70" height="40" rx="0" fill="#fff3f3" stroke="#c62828" stroke-width="2.5"/>
+<text x="1035" y="558" font-size="13" fill="#c62828" text-anchor="middle" font-weight="bold">SSR</text>
+<text x="1035" y="574" font-size="10" fill="#444" text-anchor="middle">white box</text>
+<line x1="990" y1="560" x2="1000" y2="560" stroke="#2e7d32" stroke-width="2.5"/>
+<line x1="1070" y1="560" x2="1100" y2="560" stroke="#c62828" stroke-width="3"/>
+<text x="1000" y="650" font-size="10" fill="#c62828" text-anchor="start">extension-cord end: mains in</text>
+<text x="1000" y="664" font-size="10" fill="#c62828" text-anchor="start">SSR is the COMPRESSOR switch (to be confirmed)</text>
+<circle cx="1140" cy="560" r="30" fill="white" stroke="#c62828" stroke-width="3"/>
+<text x="1140" y="565" font-size="16" fill="#c62828" text-anchor="middle" font-weight="bold">M</text>
+<text x="1140" y="610" font-size="11" fill="#111" text-anchor="middle" font-weight="bold">COMPRESSOR</text>
+<line x1="1170" y1="560" x2="1230" y2="560" stroke="#c62828" stroke-width="3"/>
+<rect x="1230" y="530" width="110" height="60" rx="0" fill="#fafafa" stroke="#222" stroke-width="2" stroke-dasharray="7 5"/>
+<text x="1285" y="555" font-size="11" fill="#111" text-anchor="middle">pressure switch</text>
+<text x="1285" y="572" font-size="11" fill="#111" text-anchor="middle">box ?</text>
+<text x="1285" y="608" font-size="10" fill="#444" text-anchor="middle">unload solenoid: NOT Arduino</text>
+<text x="1000" y="678" font-size="10" fill="#444" text-anchor="start">Mains to the SSR / compressor: its own cord; exact path ?</text>
+<line x1="940" y1="720" x2="980" y2="720" stroke="#6a1b9a" stroke-width="2.5"/>
+<line x1="940" y1="740" x2="970" y2="740" stroke="#6a1b9a" stroke-width="2.5"/>
+<text x="930" y="724" font-size="12" fill="#111" text-anchor="end" font-weight="bold">A4  SDA</text>
+<text x="930" y="744" font-size="12" fill="#111" text-anchor="end" font-weight="bold">A5  SCL</text>
+<polyline fill="none" stroke="#6a1b9a" stroke-width="3" points="980,720 980,800 1470,800"/>
+<polyline fill="none" stroke="#6a1b9a" stroke-width="3" points="970,740 970,808 1470,808"/>
+<text x="1000" y="790" font-size="11" fill="#6a1b9a" text-anchor="start" font-weight="bold">I2C bus, 100 kHz (SDA / SCL)</text>
+<rect x="1000" y="830" width="110" height="90" rx="0" fill="#f5f0ff" stroke="#6a1b9a" stroke-width="2"/>
+<text x="1055" y="856" font-size="12" fill="#111" text-anchor="middle" font-weight="bold">LCD 20x4</text>
+<text x="1055" y="874" font-size="10" fill="#444" text-anchor="middle">PCF8574 backpack</text>
+<text x="1055" y="896" font-size="10" fill="#6a1b9a" text-anchor="middle">0x23 (A2 bridged)</text>
+<line x1="1055" y1="808" x2="1055" y2="830" stroke="#6a1b9a" stroke-width="2"/>
+<rect x="1120" y="830" width="110" height="90" rx="0" fill="#f5f0ff" stroke="#6a1b9a" stroke-width="2"/>
+<text x="1175" y="856" font-size="12" fill="#111" text-anchor="middle" font-weight="bold">LED 4-digit</text>
+<text x="1175" y="874" font-size="10" fill="#444" text-anchor="middle">TM1650 module</text>
+<text x="1175" y="896" font-size="10" fill="#6a1b9a" text-anchor="middle">0x24, 0x34-0x37</text>
+<line x1="1175" y1="808" x2="1175" y2="830" stroke="#6a1b9a" stroke-width="2"/>
+<rect x="1240" y="830" width="110" height="90" rx="0" fill="#f5f0ff" stroke="#6a1b9a" stroke-width="2"/>
+<text x="1295" y="856" font-size="12" fill="#111" text-anchor="middle" font-weight="bold">O2 sensor</text>
+<text x="1295" y="874" font-size="10" fill="#444" text-anchor="middle">DFRobot Gravity</text>
+<text x="1295" y="896" font-size="10" fill="#6a1b9a" text-anchor="middle">0x74</text>
+<line x1="1295" y1="808" x2="1295" y2="830" stroke="#6a1b9a" stroke-width="2"/>
+<rect x="1360" y="830" width="110" height="90" rx="0" fill="#f5f0ff" stroke="#6a1b9a" stroke-width="2" stroke-dasharray="7 5"/>
+<text x="1415" y="856" font-size="12" fill="#111" text-anchor="middle" font-weight="bold">RTC</text>
+<text x="1415" y="874" font-size="10" fill="#444" text-anchor="middle">DS3231</text>
+<text x="1415" y="896" font-size="10" fill="#6a1b9a" text-anchor="middle">0x68, NOT fitted</text>
+<line x1="1415" y1="808" x2="1415" y2="830" stroke="#6a1b9a" stroke-width="2" stroke-dasharray="7 5"/>
+<text x="30" y="880" font-size="11" fill="#111" text-anchor="start" font-weight="bold">NOTES:</text>
+<text x="30" y="898" font-size="10" fill="#222" text-anchor="start">1. Pins verified at Tom's 2026-10-09: TBS D0, TOB D1, LEFT D4, RIGHT D7, SSR D8, FLUSH D11, AIR A0, N2 LOW A1, N2 HIGH A2.</text>
+<text x="30" y="914" font-size="10" fill="#222" text-anchor="start">2. LCD at 0x23 (backpack A2 pad bridged). The TM1650 LED module also answers at 0x24-0x27 on the same bus.</text>
+<text x="30" y="930" font-size="10" fill="#222" text-anchor="start">3. Valve drivers and coil voltages are NOT known to me: Tom please fill in.</text>
+<text x="30" y="946" font-size="10" fill="#222" text-anchor="start">4. The Arduino has its own supply (unplugging USB does not remove power): which one / how fed from the 24 V ?</text>
+</svg>

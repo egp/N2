@@ -1,0 +1,185 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="1000" viewBox="0 0 1500 1000" font-family="Helvetica,Arial,sans-serif" font-size="12">
+<rect width="1500" height="1000" fill="white"/>
+<rect x="8" y="8" width="1484" height="984" fill="none" stroke="#333" stroke-width="1.5"/>
+<text x="24" y="38" font-size="20" font-weight="bold">N2 generator - PLUMBING schematic (pneumatic)</text>
+<text x="24" y="58" fill="#555">Tom's garage PSA nitrogen generator. Towers hold only air today (CMS adsorbent to be added). Gas flow is bottom (air in) to top (product out). Pressures in PSI.</text>
+<text x="1476" y="38" text-anchor="end" font-size="15" fill="#c62828" font-weight="bold">DRAFT 2026-10-10 - for Tom to verify</text>
+<rect x="24" y="74" width="400" height="150" rx="0" fill="#fafafa" stroke="#999" stroke-width="1"/>
+<text x="34" y="94" font-size="12" fill="#333" text-anchor="start" font-weight="bold">LEGEND</text>
+<line x1="34" y1="112" x2="84" y2="112" stroke="#222" stroke-width="2.5"/>
+<text x="94" y="116" font-size="11" fill="#111" text-anchor="start">pipe / hose: seen in the photos or described by the owner</text>
+<line x1="34" y1="132" x2="84" y2="132" stroke="#222" stroke-width="2.5" stroke-dasharray="7 5"/>
+<text x="94" y="136" font-size="11" fill="#111" text-anchor="start">dashed + '?': ASSUMED, please confirm / correct</text>
+<line x1="34" y1="152" x2="84" y2="152" stroke="#2e7d32" stroke-width="2.5"/>
+<text x="94" y="156" font-size="11" fill="#2e7d32" text-anchor="start">green = valve / output driven by the Arduino</text>
+<line x1="34" y1="172" x2="84" y2="172" stroke="#1565c0" stroke-width="2.5"/>
+<text x="94" y="176" font-size="11" fill="#1565c0" text-anchor="start">blue = pressure transducer (PT) to an Arduino analog pin</text>
+<text x="34" y="196" font-size="11" fill="#111" text-anchor="start">Gauge = local dial gauge    M = manual valve</text>
+<text x="34" y="214" font-size="11" fill="#555" text-anchor="start">Names in quotes are labels as seen on the machine</text>
+<rect x="520" y="330" width="100" height="360" rx="50" fill="#f4f6f8" stroke="#222" stroke-width="2.5"/>
+<text x="570.0" y="508.0" font-size="13" fill="#222" text-anchor="middle" font-weight="bold">TOWER L</text>
+<text x="570.0" y="526.0" font-size="10" fill="#444" text-anchor="middle">CMS to be added</text>
+<rect x="760" y="330" width="100" height="360" rx="50" fill="#f4f6f8" stroke="#222" stroke-width="2.5"/>
+<text x="810.0" y="508.0" font-size="13" fill="#222" text-anchor="middle" font-weight="bold">TOWER R</text>
+<text x="810.0" y="526.0" font-size="10" fill="#444" text-anchor="middle">CMS to be added</text>
+<circle cx="480" cy="480" r="16" fill="white" stroke="#222" stroke-width="2" stroke-dasharray="7 5"/>
+<line x1="480" y1="482" x2="488" y2="471" stroke="#222" stroke-width="2"/>
+<text x="480" y="458" font-size="12" fill="#222" text-anchor="middle" font-weight="bold">Gauge</text>
+<text x="480" y="514" font-size="10" fill="#444" text-anchor="middle">tower L</text>
+<line x1="520" y1="480" x2="496" y2="480" stroke="#222" stroke-width="1.5" stroke-dasharray="7 5"/>
+<circle cx="900" cy="480" r="16" fill="white" stroke="#222" stroke-width="2" stroke-dasharray="7 5"/>
+<line x1="900" y1="482" x2="908" y2="471" stroke="#222" stroke-width="2"/>
+<text x="900" y="458" font-size="12" fill="#222" text-anchor="middle" font-weight="bold">Gauge</text>
+<text x="900" y="514" font-size="10" fill="#444" text-anchor="middle">tower R</text>
+<line x1="860" y1="480" x2="884" y2="480" stroke="#222" stroke-width="1.5" stroke-dasharray="7 5"/>
+<polyline fill="none" stroke="#222" stroke-width="3" points="570,330 570,270 810,270 810,330"/>
+<circle cx="570" cy="300" r="9" fill="white" stroke="#222" stroke-width="2"/>
+<line x1="565" y1="294" x2="565" y2="306" stroke="#222" stroke-width="2"/>
+<polygon points="575,300 567,294 567,306" fill="#222"/>
+<text x="584" y="304" font-size="10" fill="#444" text-anchor="start">check</text>
+<circle cx="810" cy="300" r="9" fill="white" stroke="#222" stroke-width="2"/>
+<line x1="805" y1="294" x2="805" y2="306" stroke="#222" stroke-width="2"/>
+<polygon points="815,300 807,294 807,306" fill="#222"/>
+<text x="824" y="304" font-size="10" fill="#444" text-anchor="start">check</text>
+<circle cx="690" cy="270" r="4" fill="#222" stroke="#222" stroke-width="2"/>
+<line x1="690" y1="270" x2="690" y2="200" stroke="#222" stroke-width="3"/>
+<polyline fill="none" stroke="#222" stroke-width="3" points="690,200 1030,200"/>
+<text x="700" y="222" font-size="11" fill="#444" text-anchor="start">product N2 line (N2 LOW pressure)</text>
+<line x1="740" y1="200" x2="740" y2="160" stroke="#222" stroke-width="2"/>
+<circle cx="740" cy="144" r="16" fill="white" stroke="#222" stroke-width="2"/>
+<line x1="740" y1="146" x2="748" y2="135" stroke="#222" stroke-width="2"/>
+<text x="740" y="122" font-size="12" fill="#222" text-anchor="middle" font-weight="bold">Gauge N2 LOW</text>
+<text x="762" y="148" font-size="10" fill="#444" text-anchor="start">0-30 PSI</text>
+<line x1="840" y1="200" x2="840" y2="160" stroke="#1565c0" stroke-width="2"/>
+<circle cx="840" cy="144" r="16" fill="white" stroke="#1565c0" stroke-width="2"/>
+<text x="840" y="149" font-size="12" fill="#1565c0" text-anchor="middle" font-weight="bold">PT</text>
+<text x="840" y="122" font-size="12" fill="#1565c0" text-anchor="middle" font-weight="bold">PT-N2LOW</text>
+<text x="862" y="148" font-size="10" fill="#444" text-anchor="start">A1  0-30 PSI</text>
+<rect x="1030" y="150" width="220" height="100" rx="24" fill="#f4f6f8" stroke="#222" stroke-width="2.5"/>
+<text x="1140.0" y="198.0" font-size="13" fill="#222" text-anchor="middle" font-weight="bold">N2 LOW buffer tank</text>
+<text x="1140.0" y="216.0" font-size="10" fill="#444" text-anchor="middle">"N2 @ 10 PSI"</text>
+<line x1="1140" y1="250" x2="1140" y2="330" stroke="#222" stroke-width="3"/>
+<circle cx="1140" cy="366" r="36" fill="white" stroke="#222" stroke-width="2"/>
+<text x="1140" y="371" font-size="13" fill="#111" text-anchor="middle" font-weight="bold">COMP</text>
+<text x="1190" y="336" font-size="10" fill="#444" text-anchor="start">oil-free compressor</text>
+<text x="1190" y="350" font-size="10" fill="#2e7d32" text-anchor="start">driven by SSR (D8)</text>
+<line x1="1176" y1="366" x2="1250" y2="366" stroke="#222" stroke-width="3"/>
+<polyline fill="none" stroke="#222" stroke-width="3" points="1250,366 1250,520"/>
+<line x1="1140" y1="402" x2="1140" y2="430" stroke="#222" stroke-width="2" stroke-dasharray="7 5"/>
+<rect x="1090" y="430" width="100" height="28" rx="0" fill="#fff8e1" stroke="#8a6d00" stroke-width="2" stroke-dasharray="7 5"/>
+<text x="1140" y="448" font-size="11" fill="#333" text-anchor="middle">unload valve</text>
+<text x="1040" y="476" font-size="10" fill="#444" text-anchor="start">small solenoid on the compressor,</text>
+<text x="1040" y="489" font-size="10" fill="#444" text-anchor="start">NOT an Arduino output</text>
+<rect x="1130" y="520" width="330" height="100" rx="24" fill="#f4f6f8" stroke="#222" stroke-width="2.5"/>
+<text x="1295.0" y="568.0" font-size="13" fill="#222" text-anchor="middle" font-weight="bold">N2 HIGH tank</text>
+<text x="1295.0" y="586.0" font-size="10" fill="#444" text-anchor="middle">(large grey tank, "N2")</text>
+<line x1="1320" y1="520" x2="1320" y2="482" stroke="#1565c0" stroke-width="2"/>
+<circle cx="1320" cy="462" r="16" fill="white" stroke="#1565c0" stroke-width="2"/>
+<text x="1320" y="467" font-size="12" fill="#1565c0" text-anchor="middle" font-weight="bold">PT</text>
+<text x="1320" y="440" font-size="12" fill="#1565c0" text-anchor="middle" font-weight="bold">PT-N2HIGH</text>
+<text x="1342" y="466" font-size="10" fill="#444" text-anchor="start">A2  0-150 PSI</text>
+<circle cx="1440" cy="480" r="16" fill="white" stroke="#222" stroke-width="2"/>
+<line x1="1440" y1="482" x2="1448" y2="471" stroke="#222" stroke-width="2"/>
+<text x="1440" y="458" font-size="12" fill="#222" text-anchor="middle" font-weight="bold">Gauge</text>
+<text x="1440" y="514" font-size="10" fill="#444" text-anchor="middle">panel</text>
+<line x1="1440" y1="520" x2="1440" y2="496" stroke="#222" stroke-width="2"/>
+<text x="1136" y="640" font-size="10" fill="#444" text-anchor="start">panel on the tank: gauge, regulator (red knob), quick-connect out</text>
+<polygon points="1088,750 1112,770 1112,750 1088,770" fill="white" stroke="#222" stroke-width="2" stroke-dasharray="7 5"/>
+<line x1="1100" y1="760" x2="1100" y2="740" stroke="#222" stroke-width="2"/>
+<line x1="1092" y1="740" x2="1108" y2="740" stroke="#222" stroke-width="3"/>
+<text x="1100" y="788" font-size="10" fill="#444" text-anchor="middle">"air / N2" selector (olive-green lever)</text>
+<polyline fill="none" stroke="#222" stroke-width="2.5" stroke-dasharray="7 5" points="1250,620 1250,700 1100,700 1100,750"/>
+<text x="1258" y="662" font-size="10" fill="#444" text-anchor="start">N2 HIGH to the selector (?)</text>
+<polyline fill="none" stroke="#222" stroke-width="2.5" stroke-dasharray="7 5" points="1100,770 1100,830"/>
+<rect x="1020" y="830" width="160" height="44" rx="0" fill="#fff8e1" stroke="#8a6d00" stroke-width="2" stroke-dasharray="7 5"/>
+<text x="1100" y="850" font-size="11" fill="#333" text-anchor="middle" font-weight="bold">Tyre-inflation air tower</text>
+<text x="1100" y="866" font-size="10" fill="#333" text-anchor="middle">(not in the photos)</text>
+<circle cx="940" cy="200" r="4" fill="#222" stroke="#222" stroke-width="2"/>
+<line x1="940" y1="200" x2="940" y2="250" stroke="#222" stroke-width="2.5" stroke-dasharray="7 5"/>
+<rect x="925" y="250" width="30" height="30" rx="0" fill="white" stroke="#2e7d32" stroke-width="2" stroke-dasharray="7 5"/>
+<rect x="925" y="280" width="30" height="30" rx="0" fill="white" stroke="#2e7d32" stroke-width="2" stroke-dasharray="7 5"/>
+<line x1="940" y1="253" x2="940" y2="277" stroke="#2e7d32" stroke-width="1.5"/>
+<line x1="931" y1="265" x2="949" y2="265" stroke="#2e7d32" stroke-width="1.5"/>
+<line x1="940" y1="283" x2="940" y2="307" stroke="#2e7d32" stroke-width="2"/>
+<polygon points="940,307 935,300 945,300" fill="#2e7d32"/>
+<rect x="959" y="270" width="20" height="16" rx="0" fill="#fff" stroke="#2e7d32" stroke-width="2" stroke-dasharray="7 5"/>
+<line x1="959" y1="286" x2="979" y2="270" stroke="#2e7d32" stroke-width="1.5"/>
+<text x="985" y="278" font-size="12" fill="#2e7d32" text-anchor="start" font-weight="bold"></text>
+<text x="870" y="244" font-size="12" fill="#2e7d32" text-anchor="end" font-weight="bold">V-FLUSH (O2 flush)</text>
+<text x="870" y="258" font-size="10" fill="#444" text-anchor="end">D11 (FLUSH); location ?</text>
+<line x1="940" y1="310" x2="940" y2="340" stroke="#222" stroke-width="2.5" stroke-dasharray="7 5"/>
+<rect x="870" y="340" width="160" height="50" rx="0" fill="#fff8e1" stroke="#8a6d00" stroke-width="2" stroke-dasharray="7 5"/>
+<text x="950" y="360" font-size="12" fill="#333" text-anchor="middle" font-weight="bold">O2 sensor ?</text>
+<text x="950" y="378" font-size="10" fill="#333" text-anchor="middle">DFRobot, I2C 0x74</text>
+<text x="870" y="410" font-size="10" fill="#c62828" text-anchor="start">FLUSH needs N2 LOW pressure (owner).</text>
+<text x="870" y="423" font-size="10" fill="#c62828" text-anchor="start">Vent / sample path: to be confirmed.</text>
+<rect x="555" y="720" width="30" height="30" rx="0" fill="white" stroke="#2e7d32" stroke-width="2"/>
+<rect x="555" y="750" width="30" height="30" rx="0" fill="white" stroke="#2e7d32" stroke-width="2"/>
+<line x1="561" y1="765" x2="579" y2="765" stroke="#2e7d32" stroke-width="1.5"/>
+<line x1="570" y1="756" x2="570" y2="774" stroke="#2e7d32" stroke-width="1.5"/>
+<line x1="570" y1="747" x2="570" y2="723" stroke="#2e7d32" stroke-width="2"/>
+<polygon points="570,723 565,730 575,730" fill="#2e7d32"/>
+<rect x="589" y="740" width="20" height="16" rx="0" fill="#fff" stroke="#2e7d32" stroke-width="2"/>
+<line x1="589" y1="756" x2="609" y2="740" stroke="#2e7d32" stroke-width="1.5"/>
+<text x="615" y="746" font-size="12" fill="#2e7d32" text-anchor="start" font-weight="bold">V-LEFT</text>
+<text x="615" y="761" font-size="10" fill="#444" text-anchor="start">D4 (LEFT)</text>
+<rect x="795" y="720" width="30" height="30" rx="0" fill="white" stroke="#2e7d32" stroke-width="2"/>
+<rect x="795" y="750" width="30" height="30" rx="0" fill="white" stroke="#2e7d32" stroke-width="2"/>
+<line x1="801" y1="765" x2="819" y2="765" stroke="#2e7d32" stroke-width="1.5"/>
+<line x1="810" y1="756" x2="810" y2="774" stroke="#2e7d32" stroke-width="1.5"/>
+<line x1="810" y1="747" x2="810" y2="723" stroke="#2e7d32" stroke-width="2"/>
+<polygon points="810,723 805,730 815,730" fill="#2e7d32"/>
+<rect x="829" y="740" width="20" height="16" rx="0" fill="#fff" stroke="#2e7d32" stroke-width="2"/>
+<line x1="829" y1="756" x2="849" y2="740" stroke="#2e7d32" stroke-width="1.5"/>
+<text x="855" y="746" font-size="12" fill="#2e7d32" text-anchor="start" font-weight="bold">V-RIGHT</text>
+<text x="855" y="761" font-size="10" fill="#444" text-anchor="start">D7 (RIGHT)</text>
+<line x1="570" y1="720" x2="570" y2="690" stroke="#2e7d32" stroke-width="3"/>
+<line x1="810" y1="720" x2="810" y2="690" stroke="#2e7d32" stroke-width="3"/>
+<line x1="570" y1="860" x2="570" y2="780" stroke="#222" stroke-width="3"/>
+<line x1="810" y1="860" x2="810" y2="780" stroke="#222" stroke-width="3"/>
+<line x1="40" y1="860" x2="960" y2="860" stroke="#222" stroke-width="3"/>
+<text x="40" y="812" font-size="12" fill="#333" text-anchor="start" font-weight="bold">COMPRESSED AIR IN</text>
+<text x="40" y="827" font-size="10" fill="#555" text-anchor="start">shop air, about 100 PSI (peaks 100-106)</text>
+<rect x="110" y="838" width="110" height="44" rx="0" fill="#eef3f8" stroke="#222" stroke-width="2"/>
+<text x="165" y="856" font-size="11" fill="#111" text-anchor="middle" font-weight="bold">Filter / regulator</text>
+<text x="165" y="872" font-size="10" fill="#444" text-anchor="middle">"AIR @ 100 PSI"</text>
+<circle cx="300" cy="860" r="4" fill="#222" stroke="#222" stroke-width="2"/>
+<line x1="300" y1="860" x2="300" y2="810" stroke="#1565c0" stroke-width="2"/>
+<circle cx="300" cy="794" r="16" fill="white" stroke="#1565c0" stroke-width="2"/>
+<text x="300" y="799" font-size="12" fill="#1565c0" text-anchor="middle" font-weight="bold">PT</text>
+<text x="300" y="772" font-size="12" fill="#1565c0" text-anchor="middle" font-weight="bold">PT-AIR</text>
+<text x="322" y="798" font-size="10" fill="#444" text-anchor="start">A0  0-150 PSI</text>
+<polyline fill="none" stroke="#222" stroke-width="2.5" stroke-dasharray="7 5" points="960,860 960,760 1088,760"/>
+<text x="870" y="880" font-size="10" fill="#444" text-anchor="start">air to the selector (?)</text>
+<text x="630" y="882" font-size="10" fill="#444" text-anchor="start">the brass tube between the towers carries</text>
+<text x="630" y="895" font-size="10" fill="#444" text-anchor="start">the air feed from the top to these valves (?)</text>
+<circle cx="450" cy="860" r="4" fill="#222" stroke="#222" stroke-width="2"/>
+<line x1="450" y1="860" x2="450" y2="790" stroke="#222" stroke-width="2.5" stroke-dasharray="7 5"/>
+<rect x="415" y="740" width="70" height="50" rx="0" fill="#fff8e1" stroke="#8a6d00" stroke-width="2" stroke-dasharray="7 5"/>
+<text x="450" y="760" font-size="11" fill="#333" text-anchor="middle" font-weight="bold">Pilot reg ?</text>
+<text x="450" y="776" font-size="10" fill="#333" text-anchor="middle">+ solenoid ?</text>
+<circle cx="450" cy="700" r="16" fill="white" stroke="#222" stroke-width="2" stroke-dasharray="7 5"/>
+<line x1="450" y1="702" x2="458" y2="691" stroke="#222" stroke-width="2"/>
+<text x="450" y="678" font-size="12" fill="#222" text-anchor="middle" font-weight="bold">Gauge</text>
+<text x="472" y="704" font-size="10" fill="#444" text-anchor="start">about 10 PSI</text>
+<line x1="450" y1="740" x2="450" y2="716" stroke="#222" stroke-width="2" stroke-dasharray="7 5"/>
+<text x="250" y="696" font-size="10" fill="#444" text-anchor="start">regulator with its own gauge</text>
+<text x="250" y="709" font-size="10" fill="#444" text-anchor="start">and a small solenoid:</text>
+<text x="250" y="722" font-size="10" fill="#c62828" text-anchor="start">function and wiring = ?</text>
+<rect x="40" y="560" width="200" height="80" rx="24" fill="#f4f6f8" stroke="#222" stroke-width="2.5" stroke-dasharray="7 5"/>
+<text x="140.0" y="598.0" font-size="13" fill="#222" text-anchor="middle" font-weight="bold">O2 buffer tank ?</text>
+<text x="140.0" y="616.0" font-size="10" fill="#444" text-anchor="middle">silver, 0-100 PSI gauge</text>
+<circle cx="140" cy="520" r="16" fill="white" stroke="#222" stroke-width="2" stroke-dasharray="7 5"/>
+<line x1="140" y1="522" x2="148" y2="511" stroke="#222" stroke-width="2"/>
+<text x="140" y="498" font-size="12" fill="#222" text-anchor="middle" font-weight="bold">Gauge</text>
+<text x="162" y="524" font-size="10" fill="#444" text-anchor="start">0-100 PSI</text>
+<line x1="140" y1="560" x2="140" y2="536" stroke="#222" stroke-width="1.5" stroke-dasharray="7 5"/>
+<text x="40" y="660" font-size="10" fill="#c62828" text-anchor="start">the owner calls it 'buffer tank for the O2 released from</text>
+<text x="40" y="673" font-size="10" fill="#c62828" text-anchor="start">the tower': what it connects to is not yet known</text>
+<text x="34" y="250" font-size="11" fill="#222" text-anchor="start" font-weight="bold">NOTES (Tom, please correct):</text>
+<text x="34" y="266" font-size="11" fill="#222" text-anchor="start">1. Gas flow is drawn bottom (air in, via the two tower valves) to top (product N2 out).</text>
+<text x="34" y="282" font-size="11" fill="#222" text-anchor="start">2. Arduino-controlled: V-LEFT D4, V-RIGHT D7, V-FLUSH D11 (location unknown), compressor via SSR D8.</text>
+<text x="34" y="298" font-size="11" fill="#222" text-anchor="start">3. Manual / autonomous (not Arduino): lever selector, pilot regulator, unload valve, pressure switch.</text>
+<text x="34" y="314" font-size="11" fill="#222" text-anchor="start">4. Each tower has a pressure sensor, NOT connected (their pins became N2 LOW / N2 HIGH).</text>
+<text x="34" y="330" font-size="11" fill="#222" text-anchor="start">5. Dashed items are my guesses from photos and the owner's description.</text>
+</svg>
