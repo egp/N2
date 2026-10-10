@@ -40,7 +40,7 @@ Bench findings today (WiFi bench): an LCD shares the bus with the TM1650 LED mod
 6. **`loop`** after a few minutes in RUN (min, mean, median, max) for NFR-1.
 7. **Bounce on the production switches:** upload `nvm_probe`, `m 1`, `c 30`, `b`; TBS (rotary) 30 cycles, then TOB 30 cycles. Then `r`. Do not store a value until you have decided (`w TBS TOB`).
 7b. **Run mode without recompiling:** the build you upload starts in DIAG (controllers off). `mode` shows it; `mode field confirm` (TBS OFF, console only) switches to production without a re-upload; `mode diag` goes back at once with every output off. The mode survives a RESET-button or watchdog reset, not a power cycle (a power cycle returns to DIAG). Nothing starts until TBS is switched ON.
-7c. **Record real data for the simulator (owner 2026-10-09).** Captures are always printed as `R,ms,air,n2low,n2high,tbs,tob,LRFS,n2pct,tower,compressor,o2,why` (raw ADC counts; `why` says what triggered it).
+7c. **Record real data for the simulator (owner 2026-10-09).** Captures are always printed as `R,ms,air,n2low,n2high,tbs,tob,LROC,n2pct,tower,compressor,o2,why` (raw ADC counts; `why` says what triggered it).
     * AUTOMATIC, always on: every SSR change (`ssr+`/`ssr-`), every TBS change (`tbs+`/`tbs-`), every TOB press (`tob`: data only, TOB is unused in normal operation, so press it as a free marker).
     * EXPLICIT: `cap air almost ready` prints a capture now (`cap`) with your comment as a landmark; `note text` writes only a comment.
     * OPTIONAL periodic: `rec on` (1 s; `rec on 200` for fast changes), `rec off`. All read-only, any mode.

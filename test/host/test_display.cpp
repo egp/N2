@@ -61,7 +61,7 @@ TEST_CASE("DSP-4 option 1: normal screen") {
   expectScreen(renderNormal(running(), LcdLayout::kClearLabels),
                "N2% 99.99  O2 S     ",
                "N2L 12.34 N2H  98.7 ",
-               "        TWR LB  LRFS",
+               "        TWR LB  LROC",
                "AIR 123.4       1001");
 }
 
@@ -69,7 +69,7 @@ TEST_CASE("DSP-4 option 2: normal screen (N2-low, N2-high and compressor on one 
   expectScreen(renderNormal(running(), LcdLayout::kCompact),
                "N2% 99.99  O2 S     ",
                "L12.34 H 98.7 CMP:ON",
-               "TWR LB          LRFS",
+               "TWR LB          LROC",
                "AIR 123.4       1001");
 }
 
@@ -83,11 +83,11 @@ TEST_CASE("DSP-4: no TBS and no O2% anywhere on the LCD") {
   }
 }
 
-TEST_CASE("DSP-4: the LRFS bits stack under their letters, one bit per output") {
+TEST_CASE("DSP-4: the LROC bits stack under their letters, one bit per output") {
   DisplayData d = running();
   d.left = false; d.right = true; d.flush = true; d.ssr = false;
   const Screen s = renderNormal(d, LcdLayout::kClearLabels);
-  CHECK(std::string(s.row[2]).substr(16, 4) == "LRFS");
+  CHECK(std::string(s.row[2]).substr(16, 4) == "LROC");
   CHECK(std::string(s.row[3]).substr(16, 4) == "0110");
 }
 
@@ -101,7 +101,7 @@ TEST_CASE("DSP-4/O2-6: during warm-up the countdown replaces N2% (both layouts)"
   expectScreen(renderNormal(d, LcdLayout::kClearLabels),
                "WRM  4:32  O2 WM    ",
                "N2L 12.34 N2H  98.7 ",
-               "        TWR OF  LRFS",
+               "        TWR OF  LROC",
                "AIR 123.4       0001");
   CHECK(std::string(renderNormal(d, LcdLayout::kCompact).row[0]) == "WRM  4:32  O2 WM    ");
 }
@@ -112,7 +112,7 @@ TEST_CASE("DSP-3/DSP-4: everything disabled (TBS off): states OF, bits 0000, N2%
   expectScreen(renderNormal(d, LcdLayout::kClearLabels),
                "N2% --.--  O2 OF    ",
                "N2L 12.34 N2H  98.7 ",
-               "        TWR OF  LRFS",
+               "        TWR OF  LROC",
                "AIR 123.4       0000");
 }
 

@@ -7,7 +7,7 @@ golden screens in the host tests; changing it later means editing one table and 
 1. Show the **O2 warm-up time remaining**, **in place of N2%** while warming.
 2. **N2-low and N2-high on the same line**, with the compressor (SSR) state on that line if possible.
 3. **AIR** has a physical gauge, so it is **first to go** if space is needed.
-4. **LRFS stacked vertically**: the letters above the four bits.
+4. **LROC stacked vertically**: the letters above the four bits.
 5. **No TBS on the LCD.**
 6. **N2% only**, no O2%.
 7. Faults: **toggle** between the normal screen and a full-screen fault display every 3–4 s.
@@ -19,11 +19,11 @@ golden screens in the host tests; changing it later means editing one table and 
   01234567890123456789
   N2% 99.99  O2 S
   N2L 12.34 N2H 123.4
-  CMP ON  TWR LB  LRFS
+  CMP ON  TWR LB  LROC
   AIR 123.4       1001
 ```
 - Row 0: purity and the O2 state. Row 1: both N2 pressures with full labels. Row 2: compressor and tower
-  states, and the **`LRFS` letters**. Row 3: AIR, and the **four bits under their letters** (L over 1, R over 0, F over 0, S over 1).
+  states, and the **`LROC` letters**. Row 3: AIR, and the **four bits under their letters** (L over 1, R over 0, O over 0, C over 1; O = O2 flush valve open, C = compressor SSR on).
 - Compressor state is **not** on the pressure line (no room with full labels); it is one row below.
 - Dropping AIR leaves row 3 as just the bits.
 
@@ -34,7 +34,7 @@ golden screens in the host tests; changing it later means editing one table and 
   01234567890123456789
   N2% 99.99  O2 S
   L12.34 H123.4 CMP:ON
-  TWR LB          LRFS
+  TWR LB          LROC
   AIR 123.4       1001
 ```
 - Row 1 carries **N2-low (`L`), N2-high (`H`) and the compressor state** on one line; the shortened `L`/`H` labels
@@ -47,7 +47,7 @@ O2 warming up (countdown replaces N2%; the label becomes `WRM`; the tower is hel
 ```
   WRM  4:32  O2 WM
   L12.34 H123.4 CMP:ON
-  TWR OF          LRFS
+  TWR OF          LROC
   AIR 123.4       0000
 ```
 N2% not valid (first cycle, O2 error, or stale): `N2% --.--`. Everything disabled: states read `OF`, the bits `0000`.
@@ -84,7 +84,7 @@ A warning-level fault uses `WARNING` in the header. The LED shows `F03`.
 | 1 | 10–12, 14–18 | `N2H`, value |
 | 2 | 0–2, 4–5 | `CMP`, `ON` `OF` `LO` `HI` |
 | 2 | 8–10, 12–13 | `TWR`, `OF` `L ` `LB` `R ` `RB` |
-| 2 | 16–19 | `LRFS` |
+| 2 | 16–19 | `LROC` |
 | 3 | 0–2, 4–8 | `AIR`, value (first to drop) |
 | 3 | 16–19 | the four actual output bits |
 
@@ -113,7 +113,7 @@ normal running
    01234567890123456789
   |N2% 99.99  O2 S     |
   |N2L 12.34 N2H  98.7 |
-  |        TWR LB  LRFS|
+  |        TWR LB  LROC|
   |AIR 123.4       1001|
 
 O2 warming up (4:32 left), tower held off
@@ -121,7 +121,7 @@ O2 warming up (4:32 left), tower held off
    01234567890123456789
   |WRM  4:32  O2 WM    |
   |N2L 12.34 N2H  98.7 |
-  |        TWR OF  LRFS|
+  |        TWR OF  LROC|
   |AIR 123.4       0001|
 
 TBS off (everything disabled, N2% invalid)
@@ -129,7 +129,7 @@ TBS off (everything disabled, N2% invalid)
    01234567890123456789
   |N2% --.--  O2 OF    |
   |N2L 12.34 N2H  98.7 |
-  |        TWR OF  LRFS|
+  |        TWR OF  LROC|
   |AIR 123.4       0000|
 
 N2% stale (pressures out of range)
@@ -137,7 +137,7 @@ N2% stale (pressures out of range)
    01234567890123456789
   |N2% 99.99* O2 W     |
   |N2L 12.34 N2H  98.7 |
-  |        TWR LB  LRFS|
+  |        TWR LB  LROC|
   |AIR 123.4       1001|
 
 compressor stopped, N2-high too high
@@ -145,7 +145,7 @@ compressor stopped, N2-high too high
    01234567890123456789
   |N2% 99.99  O2 S     |
   |N2L 12.34 N2H  98.7 |
-  |CMP HI  TWR LB  LRFS|
+  |CMP HI  TWR LB  LROC|
   |AIR 123.4       1000|
 
 =========== OPTION 2 (compact) ===========
@@ -155,7 +155,7 @@ normal running
    01234567890123456789
   |N2% 99.99  O2 S     |
   |L12.34 H 98.7 CMP:ON|
-  |TWR LB          LRFS|
+  |TWR LB          LROC|
   |AIR 123.4       1001|
 
 O2 warming up (4:32 left), tower held off
@@ -163,7 +163,7 @@ O2 warming up (4:32 left), tower held off
    01234567890123456789
   |WRM  4:32  O2 WM    |
   |L12.34 H 98.7 CMP:ON|
-  |TWR OF          LRFS|
+  |TWR OF          LROC|
   |AIR 123.4       0001|
 
 TBS off (everything disabled, N2% invalid)
@@ -171,7 +171,7 @@ TBS off (everything disabled, N2% invalid)
    01234567890123456789
   |N2% --.--  O2 OF    |
   |L12.34 H 98.7 CMP:OF|
-  |TWR OF          LRFS|
+  |TWR OF          LROC|
   |AIR 123.4       0000|
 
 N2% stale (pressures out of range)
@@ -179,7 +179,7 @@ N2% stale (pressures out of range)
    01234567890123456789
   |N2% 99.99* O2 W     |
   |L12.34 H 98.7 CMP:ON|
-  |TWR LB          LRFS|
+  |TWR LB          LROC|
   |AIR 123.4       1001|
 
 compressor stopped, N2-high too high
@@ -187,7 +187,7 @@ compressor stopped, N2-high too high
    01234567890123456789
   |N2% 99.99  O2 S     |
   |L12.34 H 98.7 CMP:HI|
-  |TWR LB          LRFS|
+  |TWR LB          LROC|
   |AIR 123.4       1000|
 
 =========== FAULT SCREENS ===========

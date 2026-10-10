@@ -104,12 +104,12 @@ Screen renderNormal(const DisplayData& d, LcdLayout layout) {
     put(s, 2, 0, "TWR ");
     put2(s, 2, 4, d.tower);
   }
-  put(s, 2, 16, "LRFS");
+  put(s, 2, 16, "LROC");
   put(s, 3, 0, "AIR ");
   formatX10(v, d.airX10);
   put(s, 3, 4, v);
   bits(s, 3, 16, d);
-  if (d.version[0] != '\0') put(s, 3, 10, d.version);   // row 4, columns 10-15: between the AIR value and the LRFS bits
+  if (d.version[0] != '\0') put(s, 3, 10, d.version);   // row 4, columns 10-15: between the AIR value and the LROC bits
   return s;
 }
 

@@ -244,7 +244,7 @@ TEST_CASE("DSP-2: the LCD writes in small pieces and ends up showing exactly the
   FakeHal hal;
   hal.i2cPresent = {kLcd};
   Lcd20x4 lcd(hal, kLcd);
-  lcd.setScreen(screen("N2% 99.99  O2 S", "N2L 12.34 N2H  98.7", "CMP ON  TWR LB  LRFS", "AIR 123.4       1001"));
+  lcd.setScreen(screen("N2% 99.99  O2 S", "N2L 12.34 N2H  98.7", "CMP ON  TWR LB  LROC", "AIR 123.4       1001"));
   uint32_t t = bringUp(hal, lcd);
   int passes = 0;
   size_t maxPerPass = 0;

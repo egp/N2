@@ -160,7 +160,7 @@ TEST_CASE("§3: in RUN the LCD shows the normal screen and the console is live")
   r.boot();
   REQUIRE(r.runUntilMode(App::Mode::kRun, 3000));
   r.run(500);
-  CHECK(std::string(r.app->display().lcd().shown(2)).substr(16, 4) == "LRFS");
+  CHECK(std::string(r.app->display().lcd().shown(2)).substr(16, 4) == "LROC");
   r.type("ver");
   CHECK(r.has("N2V8 0.0.0-test"));
   r.type("status");
@@ -878,7 +878,7 @@ TEST_CASE("REC-1: `rec on` prints a header, then one R, line per interval ending
   CHECK(r.has("the interval must be 100..60000 ms"));
   r.type("REC ON 200");
   CHECK(r.has("rec ON every 200 ms"));
-  CHECK(r.has("R#,ms,air_raw,n2low_raw,n2high_raw,tbs,tob,LRFS,n2pct_x100,tower,compressor,o2,why"));
+  CHECK(r.has("R#,ms,air_raw,n2low_raw,n2high_raw,tbs,tob,LROC,n2pct_x100,tower,compressor,o2,why"));
   r.out.clear();
   r.run(1000);
   int lines = 0;

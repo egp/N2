@@ -134,7 +134,7 @@ const char* App::requestRec(const char* arg0, const char* arg1) {
   snprintf(head, sizeof head, "R#,N2V8 %s,%s,%s,adc %u bits,every %lu ms", info_.version, info_.board, runModeName(runMode_),
            static_cast<unsigned>(info_.adcBits), static_cast<unsigned long>(recEveryMs_));
   console_.tryPrint(head);
-  console_.tryPrint("R#,ms,air_raw,n2low_raw,n2high_raw,tbs,tob,LRFS,n2pct_x100,tower,compressor,o2,why");
+  console_.tryPrint("R#,ms,air_raw,n2low_raw,n2high_raw,tbs,tob,LROC,n2pct_x100,tower,compressor,o2,why");
   snprintf(msg, sizeof msg, "rec ON every %lu ms. Lines start with R,. rec off stops.", static_cast<unsigned long>(recEveryMs_));
   return msg;
 }
