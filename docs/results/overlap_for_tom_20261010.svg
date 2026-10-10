@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="610" font-family="Helvetica,Arial,sans-serif" font-size="13"><rect width="100%" height="100%" fill="white"/>
+<text x="64" y="26" font-size="18" font-weight="bold">Air supply pressure when the second tower valve opens</text>
+<text x="64" y="48" fill="#444">Four recordings at Tom's, 2026-10-09. Time 0 = the instant the second valve opens (first valve already open).</text>
+<text x="64" y="68" fill="#444">Dots: where the proposed rule closes the first valve (dip bottom confirmed): 600, 700, 700 and 700 ms. Shaded: allowed window 400-800 ms.</text>
+<rect x="368.0" y="86" width="304.0" height="410" fill="#fff3cd" opacity="0.7"/>
+<line x1="64" x2="976" y1="496.0" y2="496.0" stroke="#ddd"/><text x="56" y="500.0" text-anchor="end">70</text>
+<line x1="64" x2="976" y1="393.5" y2="393.5" stroke="#ddd"/><text x="56" y="397.5" text-anchor="end">80</text>
+<line x1="64" x2="976" y1="291.0" y2="291.0" stroke="#ddd"/><text x="56" y="295.0" text-anchor="end">90</text>
+<line x1="64" x2="976" y1="188.5" y2="188.5" stroke="#ddd"/><text x="56" y="192.5" text-anchor="end">100</text>
+<line x1="64" x2="976" y1="86.0" y2="86.0" stroke="#ddd"/><text x="56" y="90.0" text-anchor="end">110</text>
+<line x1="64.0" x2="64.0" y1="86" y2="496" stroke="#eee"/><text x="64.0" y="514" text-anchor="middle">0</text>
+<line x1="216.0" x2="216.0" y1="86" y2="496" stroke="#eee"/><text x="216.0" y="514" text-anchor="middle">200</text>
+<line x1="368.0" x2="368.0" y1="86" y2="496" stroke="#eee"/><text x="368.0" y="514" text-anchor="middle">400</text>
+<line x1="520.0" x2="520.0" y1="86" y2="496" stroke="#eee"/><text x="520.0" y="514" text-anchor="middle">600</text>
+<line x1="672.0" x2="672.0" y1="86" y2="496" stroke="#eee"/><text x="672.0" y="514" text-anchor="middle">800</text>
+<line x1="824.0" x2="824.0" y1="86" y2="496" stroke="#eee"/><text x="824.0" y="514" text-anchor="middle">1000</text>
+<line x1="976.0" x2="976.0" y1="86" y2="496" stroke="#eee"/><text x="976.0" y="514" text-anchor="middle">1200</text>
+<line x1="368.0" x2="368.0" y1="86" y2="496" stroke="#b8860b" stroke-dasharray="5"/><text x="372.0" y="100" fill="#8a6d00">min 400 ms</text>
+<line x1="672.0" x2="672.0" y1="86" y2="496" stroke="#b8860b" stroke-dasharray="5"/><text x="676.0" y="100" fill="#8a6d00">max 800 ms</text>
+<polyline fill="none" stroke="#1565c0" stroke-width="2.5" points="64.0,145.4 102.0,228.5 140.0,290.0 178.0,320.7 216.0,343.3 254.0,361.7 292.0,386.3 330.0,382.2 368.0,386.3 406.0,393.5 444.0,375.1 482.0,368.9 520.0,366.9 558.0,361.7 596.0,345.3 634.0,335.1 672.0,327.9 710.0,309.4 748.0,316.6 786.0,292.0 824.0,296.1 862.0,282.8 900.0,262.3 938.0,264.4 976.0,260.2"/>
+<circle cx="520.0" cy="366.85" r="6" fill="#1565c0"/>
+<line x1="64" x2="88" y1="566" y2="566" stroke="#1565c0" stroke-width="3"/><text x="94" y="570">LEFT open, RIGHT joins</text>
+<polyline fill="none" stroke="#2e7d32" stroke-width="2.5" points="64.0,147.5 102.0,215.1 140.0,284.9 178.0,314.6 216.0,337.1 254.0,350.4 292.0,368.9 330.0,375.1 368.0,386.3 406.0,395.6 444.0,393.5 482.0,386.3 520.0,378.1 558.0,366.9 596.0,357.6 634.0,348.4 672.0,337.1 710.0,327.9 748.0,318.7 786.0,312.5 824.0,298.2 862.0,292.0 900.0,280.8 938.0,277.7 976.0,277.7"/>
+<circle cx="596.0" cy="357.625" r="6" fill="#2e7d32"/>
+<line x1="299" x2="323" y1="566" y2="566" stroke="#2e7d32" stroke-width="3"/><text x="329" y="570">RIGHT open, LEFT joins</text>
+<polyline fill="none" stroke="#ef6c00" stroke-width="2.5" points="64.0,170.1 102.0,237.7 140.0,322.8 178.0,352.5 216.0,373.0 254.0,397.6 292.0,404.8 330.0,414.0 368.0,416.1 406.0,418.1 444.0,416.1 482.0,406.8 520.0,395.6 558.0,399.6 596.0,370.9 634.0,373.0 672.0,361.7 710.0,337.1 748.0,325.9 786.0,314.6 824.0,298.2 862.0,286.9 900.0,266.4 938.0,269.5 976.0,264.4"/>
+<circle cx="596.0" cy="370.94999999999993" r="6" fill="#ef6c00"/>
+<line x1="534" x2="558" y1="566" y2="566" stroke="#ef6c00" stroke-width="3"/><text x="564" y="570">RIGHT joins (earlier test)</text>
+<polyline fill="none" stroke="#6a1b9a" stroke-width="2.5" points="64.0,147.5 102.0,232.6 140.0,305.4 178.0,320.7 216.0,343.3 254.0,357.6 292.0,375.1 330.0,388.4 368.0,389.4 406.0,389.4 444.0,389.4 482.0,380.2 520.0,368.9 558.0,359.7 596.0,343.3 634.0,327.9 672.0,309.4 710.0,296.1 748.0,284.9 786.0,273.6 824.0,255.1 862.0,243.9 900.0,233.6 938.0,226.4 976.0,217.2"/>
+<circle cx="596.0" cy="343.275" r="6" fill="#6a1b9a"/>
+<line x1="769" x2="793" y1="566" y2="566" stroke="#6a1b9a" stroke-width="3"/><text x="799" y="570">RIGHT joins (event test)</text>
+<text x="520.0" y="532" text-anchor="middle">milliseconds since the second valve opened</text>
+<text x="16" y="291.0" transform="rotate(-90 16 291.0)" text-anchor="middle">air supply PSI</text></svg>
